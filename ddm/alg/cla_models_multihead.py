@@ -41,6 +41,15 @@ def _create_weights_mf(in_dim, hidden_size, out_dim, init_weights=None, init_var
         v_weights = tf.Variable(tf.constant(init_variances, dtype=tf.float32))
     return no_params, m_weights, v_weights, size
 
+def kumaraswamy_sample(a, b):
+    pass
+
+def reparameterize(a, b):
+    pass
+
+def reparameterize_gumbel_softmax(logalphas, temp):
+    pass
+
 class Cla_NN(object):
     def __init__(self, input_size, hidden_size, output_size, training_size):
         # input and output placeholders
@@ -444,3 +453,326 @@ class MFVI_NN(Cla_NN):
         b_last_v.append(bi_v)
             
         return [W_m, b_m, W_last_m, b_last_m], [W_v, b_v, W_last_v, b_last_v]
+
+
+""" Bayesian Neural Network with Mean field VI approximation + IBP"""
+class MFVI_IBP_NN(Cla_NN):
+    def __init__(self, input_size, hidden_size, output_size, training_size,
+                 no_train_samples=10, no_pred_samples=100, prev_means=None, prev_log_variances=None,
+                 prev_betas_a=None, prev_betas_b=None, learning_rate=0.001,
+                 prior_mean=0, prior_var=1, alpha0=5.):
+
+        super(MFVI_NN, self).__init__(input_size, hidden_size, output_size, training_size)
+        self.alpha0 = alpha0
+        m, v, betas, self.size = self.create_weights(
+            input_size, hidden_size, output_size, prev_means, prev_log_variances, prev_betas_a, prev_betas_b)
+        self.W_m, self.b_m, self.W_last_m, self.b_last_m = m[0], m[1], m[2], m[3]
+        self.W_v, self.b_v, self.W_last_v, self.b_last_v = v[0], v[1], v[2], v[3]
+        self.beta_a, self.beta_b, self.beta_last_a, self.beta_last_b = betas[0], betas[1], betas[2], betas[3]
+        self.weights = [m, v, betas]
+
+        # used for the calculation of the KL term
+        m, v, betas = self.create_prior(input_size, hidden_size, output_size, prev_means, prev_log_variances,
+                                        prev_betas_a, prev_betas_b, prior_mean, prior_var)
+        self.prior_W_m, self.prior_b_m, self.prior_W_last_m, self.prior_b_last_m = m[0], m[1], m[2], m[3]
+        self.prior_W_v, self.prior_b_v, self.prior_W_last_v, self.prior_b_last_v = v[0], v[1], v[2], v[3]
+        self.prior_betas_a, self.prior_betas_b, self.prior_betas_last_a, self.prior_betas_last_b = betas[0], betas[1], betas[2], betas[3]
+
+        self.no_layers = len(self.size) - 1
+        self.no_train_samples = no_train_samples
+        self.no_pred_samples = no_pred_samples
+        self.pred = self._prediction(self.x, self.task_idx, self.no_pred_samples)
+        # TODO: KL calculation
+        self.cost = tf.div(self._KL_term(), training_size) - self._logpred(self.x, self.y, self.task_idx)
+
+        self.assign_optimizer(learning_rate)
+        self.assign_session()
+
+    # TODO: prediction function needs to be adapted?
+    def _prediction(self, inputs, task_idx, no_samples):
+        return self._prediction_layer(inputs, task_idx, no_samples)
+
+    # this samples a layer at a time
+    def _prediction_layer(self, inputs, task_idx, no_samples):
+        K = no_samples
+        act = tf.tile(tf.expand_dims(inputs, 0), [K, 1, 1])
+        for i in range(self.no_layers - 1):
+            din = self.size[i]
+            dout = self.size[i + 1]
+            eps_w = tf.random_normal((K, din, dout), 0, 1, dtype=tf.float32)
+            eps_b = tf.random_normal((K, 1, dout), 0, 1, dtype=tf.float32)
+
+            # Gaussian re-parameterization
+            _weights = tf.add(tf.multiply(eps_w, tf.exp(0.5 * self.W_v[i])), self.W_m[i])
+            _biases = tf.add(tf.multiply(eps_b, tf.exp(0.5 * self.b_v[i])), self.b_m[i])
+
+            # multiplication by IBP mask
+            weights = tf.multiply(_weights, self.Z_W[i])
+            biases = tf.multiply(_biases, self.Z_b[i])
+            pre = tf.add(tf.einsum('mni,mio->mno', act, weights), biases)
+            act = tf.nn.relu(pre)
+        din = self.size[-2]
+        dout = self.size[-1]
+        eps_w = tf.random_normal((K, din, dout), 0, 1, dtype=tf.float32)
+        eps_b = tf.random_normal((K, 1, dout), 0, 1, dtype=tf.float32)
+
+        Wtask_m = tf.gather(self.W_last_m, task_idx)
+        Wtask_v = tf.gather(self.W_last_v, task_idx)
+        btask_m = tf.gather(self.b_last_m, task_idx)
+        btask_v = tf.gather(self.b_last_v, task_idx)
+        Ztask_W =
+        Ztask_b =
+        _weights = tf.add(tf.multiply(eps_w, tf.exp(0.5 * Wtask_v)), Wtask_m)
+        _biases = tf.add(tf.multiply(eps_b, tf.exp(0.5 * btask_v)), btask_m)
+        act = tf.expand_dims(act, 3)
+        _weights = tf.expand_dims(_weights, 1)
+        weights = tf.mutiply(_weights, Ztask_W)
+        biases = tf.multiply(_biases, Ztask_b)
+        pre = tf.add(tf.reduce_sum(act * weights, 2), biases)
+
+        return pre
+
+    def _logpred(self, inputs, targets, task_idx):
+        pred = self._prediction(inputs, task_idx, self.no_train_samples)
+        targets = tf.tile(tf.expand_dims(targets, 0), [self.no_train_samples, 1, 1])
+        log_lik = - tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(logits=pred, labels=targets))
+        return log_lik
+
+    # TODO: KL term needs to be updated for new IBP
+    def _KL_term(self):
+        kl = 0
+        for i in range(self.no_layers - 1):
+            din = self.size[i]
+            dout = self.size[i + 1]
+            m, v = self.W_m[i], self.W_v[i]
+            m0, v0 = self.prior_W_m[i], self.prior_W_v[i]
+            const_term = -0.5 * dout * din
+            log_std_diff = 0.5 * tf.reduce_sum(np.log(v0) - v)
+            mu_diff_term = 0.5 * tf.reduce_sum((tf.exp(v) + (m0 - m) ** 2) / v0)
+            kl += const_term + log_std_diff + mu_diff_term
+
+            m, v = self.b_m[i], self.b_v[i]
+            m0, v0 = self.prior_b_m[i], self.prior_b_v[i]
+            const_term = -0.5 * dout
+            log_std_diff = 0.5 * tf.reduce_sum(np.log(v0) - v)
+            mu_diff_term = 0.5 * tf.reduce_sum((tf.exp(v) + (m0 - m) ** 2) / v0)
+            kl += const_term + log_std_diff + mu_diff_term
+
+        no_tasks = len(self.W_last_m)
+        din = self.size[-2]
+        dout = self.size[-1]
+        for i in range(no_tasks):
+            m, v = self.W_last_m[i], self.W_last_v[i]
+            m0, v0 = self.prior_W_last_m[i], self.prior_W_last_v[i]
+            const_term = -0.5 * dout * din
+            log_std_diff = 0.5 * tf.reduce_sum(np.log(v0) - v)
+            mu_diff_term = 0.5 * tf.reduce_sum((tf.exp(v) + (m0 - m) ** 2) / v0)
+            kl += const_term + log_std_diff + mu_diff_term
+
+            m, v = self.b_last_m[i], self.b_last_v[i]
+            m0, v0 = self.prior_b_last_m[i], self.prior_b_last_v[i]
+            const_term = -0.5 * dout
+            log_std_diff = 0.5 * tf.reduce_sum(np.log(v0) - v)
+            mu_diff_term = 0.5 * tf.reduce_sum((tf.exp(v) + (m0 - m) ** 2) / v0)
+            kl += const_term + log_std_diff + mu_diff_term
+        return kl
+
+    def create_weights(self, in_dim, hidden_size, out_dim, prev_weights, prev_variances, prev_betas_a, prev_betas_b):
+        hidden_size = deepcopy(hidden_size)
+        hidden_size.append(out_dim)
+        hidden_size.insert(0, in_dim)
+        no_params = 0
+        no_layers = len(hidden_size) - 1
+        # IBP prior
+        W_m = []
+        b_m = []
+        W_last_m = []
+        b_last_m = []
+        W_v = []
+        b_v = []
+        W_last_v = []
+        b_last_v = []
+        bb_a = []
+        bb_b = []
+        bb_last_a = []
+        bb_last_b = []
+        for i in range(no_layers - 1):
+            din = hidden_size[i]
+            dout = hidden_size[i + 1]
+            if prev_weights is None:
+                Wi_m_val = tf.truncated_normal([din, dout], stddev=0.1)
+                bi_m_val = tf.truncated_normal([dout], stddev=0.1)
+                Wi_v_val = tf.constant(-6.0, shape=[din, dout])
+                bi_v_val = tf.constant(-6.0, shape=[dout])
+                beta_a_val = tf.constant(np.log(np.exp(self.alpha0) - 1), shape=[din, dout])
+                beta_b_val = tf.constant(np.log(np.exp(1.) - 1), shape=[din, dout])
+            else:
+                Wi_m_val = prev_weights[0][i]
+                bi_m_val = prev_weights[1][i]
+                beta_a_val = prev_betas_a[0][i]
+                beta_b_val = prev_betas_b[1][i]
+                if prev_variances is None:
+                    Wi_v_val = tf.constant(-6.0, shape=[din, dout])
+                    bi_v_val = tf.constant(-6.0, shape=[dout])
+                else:
+                    Wi_v_val = prev_variances[0][i]
+                    bi_v_val = prev_variances[1][i]
+
+            Wi_m = tf.Variable(Wi_m_val)
+            bi_m = tf.Variable(bi_m_val)
+            Wi_v = tf.Variable(Wi_v_val)
+            bi_v = tf.Variable(bi_v_val)
+            beta_a = tf.Variable(beta_a_val)
+            beta_b = tf.Variable(beta_b_val)
+
+            W_m.append(Wi_m)
+            b_m.append(bi_m)
+            W_v.append(Wi_v)
+            b_v.append(bi_v)
+            bb_a.append(beta_a)
+            bb_b.append(beta_b)
+
+        # if there are previous tasks
+        if prev_weights is not None and prev_variances is not None and prev_betas_a is not None and prev_betas_a is not None:
+            prev_Wlast_m = prev_weights[2]
+            prev_blast_m = prev_weights[3]
+            prev_Wlast_v = prev_variances[2]
+            prev_blast_v = prev_variances[3]
+            prev_beta_a = prev_betas_a[2] # TODO: indexing seems arbitrary.
+            prev_beta_b = prev_betas_b[3]
+            no_prev_tasks = len(prev_Wlast_m)
+            for i in range(no_prev_tasks):
+                W_i_m = prev_Wlast_m[i]
+                b_i_m = prev_blast_m[i]
+                Wi_m = tf.Variable(W_i_m)
+                bi_m = tf.Variable(b_i_m)
+
+                W_i_v = prev_Wlast_v[i]
+                b_i_v = prev_blast_v[i]
+                Wi_v = tf.Variable(W_i_v)
+                bi_v = tf.Variable(b_i_v)
+
+                beta_i_a_v = prev_beta_a[i]
+                beta_i_b_v = prev_beta_b[i]
+                beta_a = tf.Variable(beta_i_a_v)
+                beta_b = tf.Variable(beta_i_b_v)
+
+                W_last_m.append(Wi_m)
+                b_last_m.append(bi_m)
+                W_last_v.append(Wi_v)
+                b_last_v.append(bi_v)
+                bb_last_a.append(beta_a)
+                bb_last_b.append(beta_b)
+
+        din = hidden_size[-2]
+        dout = hidden_size[-1]
+
+        # if point estimate is supplied
+        # no IBP params
+        if prev_weights is not None and prev_variances is None:
+            Wi_m_val = prev_weights[2][0]
+            bi_m_val = prev_weights[3][0]
+        else:
+            Wi_m_val = tf.truncated_normal([din, dout], stddev=0.1)
+            bi_m_val = tf.truncated_normal([dout], stddev=0.1)
+        Wi_v_val = tf.constant(-6.0, shape=[din, dout])
+        bi_v_val = tf.constant(-6.0, shape=[dout])
+        beta_a_val = tf.constant(np.log(np.exp(self.alpha0) - 1), shape=[din, dout])
+        beta_b_val = tf.constant(np.log(np.exp(1.) - 1), shape=[din, dout])
+
+        Wi_m = tf.Variable(Wi_m_val)
+        bi_m = tf.Variable(bi_m_val)
+        Wi_v = tf.Variable(Wi_v_val)
+        bi_v = tf.Variable(bi_v_val)
+        beta_a = tf.Variable(beta_a_val)
+        beta_b = tf.Variable(beta_b_val)
+        W_last_m.append(Wi_m)
+        b_last_m.append(bi_m)
+        W_last_v.append(Wi_v)
+        b_last_v.append(bi_v)
+        bb_last_a.append(beta_a)
+        bb_last_b.append(beta_b)
+
+        return [W_m, b_m, W_last_m, b_last_m], [W_v, b_v, W_last_v, b_last_v], [bb_a, bb_b, bb_last_a, bb_last_b], hidden_size
+
+    def create_prior(self, in_dim, hidden_size, out_dim, prev_weights, prev_variances, prev_betas_a, prev_betas_b, prior_mean, prior_var):
+        hidden_size = deepcopy(hidden_size)
+        hidden_size.append(out_dim)
+        hidden_size.insert(0, in_dim)
+        no_params = 0
+        no_layers = len(hidden_size) - 1
+        W_m = []
+        b_m = []
+        W_last_m = []
+        b_last_m = []
+        W_v = []
+        b_v = []
+        W_last_v = []
+        b_last_v = []
+        beta_a_v = []
+        beta_b_v = []
+        beta_a_last = []
+        beta_b_last = []
+        for i in range(no_layers - 1):
+            din = hidden_size[i]
+            dout = hidden_size[i + 1]
+            if prev_weights is not None and prev_variances is not None and prev_betas_a is not None and prev_betas_b is not None:
+                Wi_m = prev_weights[0][i]
+                bi_m = prev_weights[1][i]
+                Wi_v = np.exp(prev_variances[0][i])
+                bi_v = np.exp(prev_variances[1][i])
+                b_a_v = prev_betas_a[0][i]
+                b_b_v = prev_betas_b[1][i]
+            else:
+                Wi_m = prior_mean
+                bi_m = prior_mean
+                Wi_v = prior_var
+                bi_v = prior_var
+                b_a_v = self.alpha0
+                b_b_v = 1.0
+
+            W_m.append(Wi_m)
+            b_m.append(bi_m)
+            W_v.append(Wi_v)
+            b_v.append(bi_v)
+            beta_a_v.append(b_a_v)
+            beta_b_v.append(b_b_v)
+
+        # if there are previous tasks
+        if prev_weights is not None and prev_variances is not None and prev_betas_a is not None and prev_betas_b is not None:
+            prev_Wlast_m = prev_weights[2]
+            prev_blast_m = prev_weights[3]
+            prev_Wlast_v = prev_variances[2]
+            prev_blast_v = prev_variances[3]
+            prev_betas_a = prev_betas_a[2] # TODO: check indexing
+            prev_betas_b = prev_betas_b[2] # TODO: check indexing
+            no_prev_tasks = len(prev_Wlast_m)
+            for i in range(no_prev_tasks):
+                Wi_m = prev_Wlast_m[i]
+                bi_m = prev_blast_m[i]
+                Wi_v = np.exp(prev_Wlast_v[i])
+                bi_v = np.exp(prev_blast_v[i])
+                betas_i_a = prev_betas_a[i]
+                betas_i_b = prev_betas_b[i]
+
+                W_last_m.append(Wi_m)
+                b_last_m.append(bi_m)
+                W_last_v.append(Wi_v)
+                b_last_v.append(bi_v)
+                beta_a_last.append(betas_i_a)
+                beta_b_last.append(betas_i_b)
+
+        din = hidden_size[-2]
+        dout = hidden_size[-1]
+        Wi_m = prior_mean
+        bi_m = prior_mean
+        Wi_v = prior_var
+        bi_v = prior_var
+        W_last_m.append(Wi_m)
+        b_last_m.append(bi_m)
+        W_last_v.append(Wi_v)
+        b_last_v.append(bi_v)
+        beta_a_last.append(self.alpha0)
+        beta_b_last.append(1.0)
+
+        return [W_m, b_m, W_last_m, b_last_m], [W_v, b_v, W_last_v, b_last_v], [beta_a_v, beta_b_v, beta_a_last, beta_b_last]
