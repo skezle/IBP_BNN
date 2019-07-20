@@ -5,6 +5,8 @@ from copy import deepcopy
 np.random.seed(0)
 tf.set_random_seed(0)
 
+eps = 1e-16
+
 # variable initialization functions
 def weight_variable(shape, init_weights=None):
     if init_weights is not None:
@@ -42,13 +44,27 @@ def _create_weights_mf(in_dim, hidden_size, out_dim, init_weights=None, init_var
     return no_params, m_weights, v_weights, size
 
 def kumaraswamy_sample(a, b):
-    pass
+    u = tf.random.uniform(shape=a.get_shape())
+    return tf.exp((1. / (a + eps)) * tf.log(1. - tf.exp((1. / (b + eps)) * tf.log(u)) + eps))
 
-def reparameterize(a, b):
-    pass
+def reparameterize(a, b, ibp=False, log=False):
+    v = kumaraswamy_sample(a, b)
 
-def reparameterize_gumbel_softmax(logalphas, temp):
-    pass
+    if ibp:
+        v_term = tf.log(v+eps)
+        logpis = tf.cumsum(v_term, axis=1)
+    else:
+        raise ValueError
+
+    if log:
+        return logpis
+    else:
+        return tf.exp(logpis)
+
+def reparameterize_discrete(logpis, temp):
+    u = tf.random.uniform(1e-4, 1.-1e-4, shape=logpis.get_shape())
+    L = tf.log(u) - tf.log(1. - u)
+    return tf.math.sigmoid((logpis + L) / temp)
 
 class Cla_NN(object):
     def __init__(self, input_size, hidden_size, output_size, training_size):
@@ -460,10 +476,11 @@ class MFVI_IBP_NN(Cla_NN):
     def __init__(self, input_size, hidden_size, output_size, training_size,
                  no_train_samples=10, no_pred_samples=100, prev_means=None, prev_log_variances=None,
                  prev_betas_a=None, prev_betas_b=None, learning_rate=0.001,
-                 prior_mean=0, prior_var=1, alpha0=5.):
+                 prior_mean=0, prior_var=1, alpha0=5., temp=1.):
 
         super(MFVI_NN, self).__init__(input_size, hidden_size, output_size, training_size)
         self.alpha0 = alpha0
+        self.temp = temp
         m, v, betas, self.size = self.create_weights(
             input_size, hidden_size, output_size, prev_means, prev_log_variances, prev_betas_a, prev_betas_b)
         self.W_m, self.b_m, self.W_last_m, self.b_last_m = m[0], m[1], m[2], m[3]
@@ -488,7 +505,7 @@ class MFVI_IBP_NN(Cla_NN):
         self.assign_optimizer(learning_rate)
         self.assign_session()
 
-    # TODO: prediction function needs to be adapted?
+    # TODO: prediction function needs to be adapted
     def _prediction(self, inputs, task_idx, no_samples):
         return self._prediction_layer(inputs, task_idx, no_samples)
 
@@ -505,6 +522,13 @@ class MFVI_IBP_NN(Cla_NN):
             # Gaussian re-parameterization
             _weights = tf.add(tf.multiply(eps_w, tf.exp(0.5 * self.W_v[i])), self.W_m[i])
             _biases = tf.add(tf.multiply(eps_b, tf.exp(0.5 * self.b_v[i])), self.b_m[i])
+
+            # IBP re-parameterization
+            truncation
+            beta_a = tf.softplus(self.beta_a[i]) + 0.01
+            beta_b = tf.softplus(self.beta_b[i]) + 0.01
+            pi = reparameterize(beta_a, beta_b, ibp=True, log=True)
+            z_sample = reparameterize_discrete(tf.exp(pi), self.temp)
 
             # multiplication by IBP mask
             weights = tf.multiply(_weights, self.Z_W[i])
