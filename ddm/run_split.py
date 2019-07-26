@@ -3,7 +3,7 @@ import tensorflow as tf
 import gzip
 import pickle
 import sys
-from ddm.alg.vcl import run_vcl
+from ddm.alg.vcl import run_vcl, run_vcl_ibp
 from ddm.alg.coreset import rand_from_batch, k_center
 from ddm.alg.utils import plot
 from copy import deepcopy
@@ -22,8 +22,10 @@ class SplitMnistGenerator():
         self.train_label = np.hstack((train_set[1], valid_set[1]))
         self.test_label = test_set[1]
 
-        self.sets_0 = [0, 2, 4, 6, 8]
-        self.sets_1 = [1, 3, 5, 7, 9]
+        #self.sets_0 = [0, 2, 4, 6, 8]
+        #self.sets_1 = [1, 3, 5, 7, 9]
+        self.sets_0 = [0]
+        self.sets_1 = [1]
         self.max_iter = len(self.sets_0)
         self.cur_iter = 0
 
@@ -67,7 +69,7 @@ if __name__ == "__main__":
 
     coreset_size = 0
     data_gen = SplitMnistGenerator()
-    vcl_result = run_vcl(hidden_size, no_epochs, data_gen,
+    vcl_result = run_vcl_ibp(hidden_size, no_epochs, data_gen,
         rand_from_batch, coreset_size, batch_size, single_head) # runs loop of tasks, trains/re-trains vcl, evaluates vcl
     print(vcl_result)
 

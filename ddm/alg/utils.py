@@ -3,7 +3,6 @@ import tensorflow as tf
 import matplotlib
 matplotlib.use('agg')
 import matplotlib.pyplot as plt
-from ddm.alg.cla_models_multihead import MFVI_NN
 
 eps = 1e-16
 
@@ -28,10 +27,10 @@ def kl_beta_reparam(a, b, prior_a, prior_b):
     kl += (a - prior_a) / a * (-0.57721 - psi_b_taylor_approx - 1 / b)  # T.psi(self.posterior_b)
 
     # add normalization constants
-    kl += tf.log(a * b) + tf.log(Beta_fn(prior_a, prior_b))
+    kl = tf.cast(kl + tf.log(a * b), tf.float32) + tf.log(Beta_fn(prior_a, prior_b))
 
     # final term
-    kl += -(b - 1) / b
+    kl = kl - tf.cast((b - 1) / b, tf.float32)
     return tf.reduce_sum(kl)
 
 def kl_discrete(log_post, log_prior, log_sample):
@@ -85,17 +84,14 @@ def kumaraswamy_sample(a, b, size):
     :param b: beta param b \in [din, dout]
     :return: sample \in [K, din, dout]
     """
-    print("beta a: {}".format(a.get_shape()))
-    print("beta b: {}".format(b.get_shape()))
-    print("size: {}".format(size))
-    u = tf.random.uniform(shape=size)
+    u = tf.random_uniform(shape=size, dtype=tf.float32)
     return tf.exp((1. / (a + eps)) * tf.log(1. - tf.exp((1. / (b + eps)) * tf.log(u)) + eps))
 
 def reparameterize_beta(a, b, size, ibp=False, log=False):
     """ Returns pi parameters from IBP, cumsum of log v ~ Beta
 
-    :param a: beta a params
-    :param b: beta b params
+    :param a: beta a params [din, dout]
+    :param b: beta b params []
     :param ibp: bool
     :param log: bool
     :return: returns truncated variational \pi params
@@ -105,9 +101,20 @@ def reparameterize_beta(a, b, size, ibp=False, log=False):
     v = kumaraswamy_sample(a, b, size)
 
     if ibp:
-        v_term = tf.log(v+eps)
-        logpis = tf.cumsum(v_term, axis=[1, 2])
-
+        din = size[1]
+        K = size[0]
+        if din == 1:
+            v_term = tf.log(v + eps)
+            logpis = tf.cumsum(v_term, axis=2)
+        else:
+            v_term = tf.log(v+eps)
+            _v = tf.cumsum(v_term, axis=1)
+            slice = tf.cumsum(_v[:,-1,:-1], axis=1) # K x dout -1
+            print("slice: {}".format(slice.get_shape()))
+            _slice = tf.expand_dims(slice, 1) # K x 1 x dout - 1
+            add = tf.tile(_slice, [1, din, 1]) # K, din, dout - 1
+            _add = tf.concat([tf.zeros([K, din, 1]), add], axis=2)
+            logpis = _v + _add
     else:
         raise ValueError
     print("logpis: {}".format(logpis.get_shape()))
@@ -116,15 +123,14 @@ def reparameterize_beta(a, b, size, ibp=False, log=False):
     else:
         return tf.exp(logpis)
 
-def reparameterize_discrete(logpis, temp):
+def reparameterize_discrete(logpis, temp, size):
     """BinConcrete reparam for Bernoulli
 
     :param logpis: variational Bernoulli params
     :param temp: double
     :return: approx Bernoulli samples
     """
-    print("logpis: {}".format(logpis.get_shape()))
-    u = tf.random.uniform(1e-4, 1.-1e-4, shape=logpis.get_shape())
+    u = tf.random_uniform(shape=size, minval=1e-4, maxval=1.-1e-4, dtype=tf.float32)
     L = tf.log(u) - tf.log(1. - u)
     return (logpis + L) / temp
 
@@ -136,6 +142,7 @@ def merge_coresets(x_coresets, y_coresets):
     return merged_x, merged_y
 
 def get_scores(model, x_testsets, y_testsets, x_coresets, y_coresets, hidden_size, no_epochs, single_head, batch_size=None):
+    from ddm.alg.cla_models_multihead import MFVI_NN, MFVI_IBP_NN
     mf_weights, mf_variances = model.get_weights()
     acc = []
 
@@ -143,7 +150,7 @@ def get_scores(model, x_testsets, y_testsets, x_coresets, y_coresets, hidden_siz
         if len(x_coresets) > 0:
             x_train, y_train = merge_coresets(x_coresets, y_coresets)
             bsize = x_train.shape[0] if (batch_size is None) else batch_size
-            final_model = MFVI_NN(x_train.shape[1], hidden_size, y_train.shape[1], x_train.shape[0], prev_means=mf_weights, prev_log_variances=mf_variances)
+            final_model = MFVI_NN_IBP(x_train.shape[1], hidden_size, y_train.shape[1], x_train.shape[0], prev_means=mf_weights, prev_log_variances=mf_variances)
             final_model.train(x_train, y_train, 0, no_epochs, bsize)
         else:
             final_model = model
@@ -153,7 +160,7 @@ def get_scores(model, x_testsets, y_testsets, x_coresets, y_coresets, hidden_siz
             if len(x_coresets) > 0:
                 x_train, y_train = x_coresets[i], y_coresets[i]
                 bsize = x_train.shape[0] if (batch_size is None) else batch_size
-                final_model = MFVI_NN(x_train.shape[1], hidden_size, y_train.shape[1], x_train.shape[0], prev_means=mf_weights, prev_log_variances=mf_variances)
+                final_model = MFVI_NN_IBP(x_train.shape[1], hidden_size, y_train.shape[1], x_train.shape[0], prev_means=mf_weights, prev_log_variances=mf_variances)
                 final_model.train(x_train, y_train, i, no_epochs, bsize)
             else:
                 final_model = model
