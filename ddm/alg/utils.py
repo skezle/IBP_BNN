@@ -41,9 +41,6 @@ def kl_discrete(log_post, log_prior, log_sample):
     :param z_discrete: Bernoulli samples
     :return: kl
     """
-    print("log_post: {}".format(log_post.get_shape()))
-    print("log_prior: {}".format(log_prior.get_shape()))
-    print("log_sample: {}".format(log_sample.get_shape()))
     pi_post = tf.exp(log_post)
     pi_prior = tf.exp(log_prior)
     z_discrete = tf.exp(log_sample)
@@ -74,8 +71,7 @@ def kl_concrete(log_post, log_prior, log_sample, temp, temp_prior):
     """
     log_prior = log_density_expconcrete(log_prior, log_sample, temp_prior)
     log_posterior = log_density_expconcrete(log_post, log_sample, temp)
-    kl = log_posterior - log_prior
-    return tf.reduce_sum(kl)
+    return tf.reduce_sum(log_posterior - log_prior)
 
 def kumaraswamy_sample(a, b, size):
     """
@@ -96,8 +92,8 @@ def reparameterize_beta(a, b, size, ibp=False, log=False):
     :param log: bool
     :return: returns truncated variational \pi params
     """
-    print("beta a: {}".format(a.get_shape()))
-    print("beta b: {}".format(b.get_shape()))
+    #print("beta a: {}".format(a.get_shape()))
+    #print("beta b: {}".format(b.get_shape()))
     v = kumaraswamy_sample(a, b, size)
 
     if ibp:
@@ -110,14 +106,14 @@ def reparameterize_beta(a, b, size, ibp=False, log=False):
             v_term = tf.log(v+eps)
             _v = tf.cumsum(v_term, axis=1)
             slice = tf.cumsum(_v[:,-1,:-1], axis=1) # K x dout -1
-            print("slice: {}".format(slice.get_shape()))
             _slice = tf.expand_dims(slice, 1) # K x 1 x dout - 1
+            #print("_slice: {}".format(_slice.get_shape()))
             add = tf.tile(_slice, [1, din, 1]) # K, din, dout - 1
             _add = tf.concat([tf.zeros([K, din, 1]), add], axis=2)
             logpis = _v + _add
     else:
         raise ValueError
-    print("logpis: {}".format(logpis.get_shape()))
+    #print("logpis: {}".format(logpis.get_shape()))
     if log:
         return logpis
     else:
