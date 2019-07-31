@@ -1,4 +1,5 @@
 import os.path
+import pdb
 import tensorflow as tf
 import numpy as np
 from copy import deepcopy
@@ -454,14 +455,15 @@ class MFVI_NN(Cla_NN):
 class MFVI_IBP_NN(Cla_NN):
     def __init__(self, input_size, hidden_size, output_size, training_size,
                  no_train_samples=10, no_pred_samples=100, prev_means=None, prev_log_variances=None,
-                 prev_betas=None, learning_rate=0.0001,
-                 prior_mean=0, prior_var=1, alpha0=5., temp=1., temp_prior=1., max_truncation_level=100.0,
-                 tensorboard_dir='logs', name='ibp'):
+                 prev_betas=None, learning_rate=0.001,
+                 prior_mean=0, prior_var=1, alpha0=5., temp_prior=1., max_truncation_level=100.0,
+                 tensorboard_dir='logs', name='ibp', min_temp=0.5):
 
         super(MFVI_IBP_NN, self).__init__(input_size, hidden_size, output_size, training_size)
         self.alpha0 = alpha0
-        self.temp = temp
+        self.temp = tf.placeholder(tf.float32, shape=(), name='temp')
         self.temp_prior = temp_prior
+        self.min_temp = min_temp
         self.truncation = max_truncation_level
         self.tensorboard_dir = tensorboard_dir
         self.name = name
@@ -491,6 +493,7 @@ class MFVI_IBP_NN(Cla_NN):
         self.kl = tf.div(self._KL_term(self.no_pred_samples), training_size)
         self.ll = self._logpred(self.x, self.y, self.task_idx)
         self.cost = self.kl - self.ll
+        self.acc = self._accuracy(self.x, self.y, self.task_idx)
 
         self.assign_optimizer(learning_rate)
         self.assign_session()
@@ -510,7 +513,6 @@ class MFVI_IBP_NN(Cla_NN):
         self.Z_W = []
         self.Z_b = []
         for i in range(self.no_layers - 1):
-            print("layer: {}".format(i))
             din = self.size[i]
             dout = self.size[i + 1]
             eps_w = tf.random_normal((K, din, dout), 0, 1, dtype=tf.float32)
@@ -526,27 +528,30 @@ class MFVI_IBP_NN(Cla_NN):
             beta_b_W = tf.cast(tf.math.softplus(self.beta_b_W[i]) + 0.01, tf.float32)
             beta_a_b = tf.cast(tf.math.softplus(self.beta_a_b[i]) + 0.01, tf.float32)
             beta_b_b = tf.cast(tf.math.softplus(self.beta_b_b[i]) + 0.01, tf.float32)
-            logpis_W = reparameterize_beta(beta_a_W, beta_b_W, size=(K, din, dout), ibp=True, log=True)
-            logpis_b = reparameterize_beta(beta_a_b, beta_b_b, size=(K, 1, dout), ibp=True, log=True)
-
-            # Concrete reparam
-            z_sample_W = reparameterize_discrete(logpis_W, self.temp, size=(K, din, dout))
-            z_sample_b = reparameterize_discrete(logpis_b, self.temp, size=(K, 1, dout))
-            z_discrete_W = tf.sigmoid(z_sample_W)
-            z_discrete_b = tf.sigmoid(z_sample_b)
-            self.Z_W.append(z_discrete_W)
-            self.Z_b.append(z_discrete_b)
+            self.logpis_W = reparameterize_beta(beta_a_W, beta_b_W, size=(K, din, dout), ibp=True, log=True)
+            self.logpis_b = reparameterize_beta(beta_a_b, beta_b_b, size=(K, 1, dout), ibp=True, log=True)
+            with tf.control_dependencies([tf.assert_less_equal(tf.exp(self.logpis_W),
+                                                               tf.constant(1.0, shape=self.logpis_W.get_shape())),
+                                          tf.assert_less_equal(tf.exp(self.logpis_b),
+                                                               tf.constant(1.0, shape=self.logpis_b.get_shape()))]):
+                #Concrete reparam
+                z_sample_W = reparameterize_discrete(self.logpis_W, self.temp, size=(K, din, dout))
+                z_sample_b = reparameterize_discrete(self.logpis_b, self.temp, size=(K, 1, dout))
+                z_discrete_W = tf.sigmoid(z_sample_W)
+                z_discrete_b = tf.sigmoid(z_sample_b)
+            with tf.control_dependencies([tf.assert_less_equal(z_discrete_W, tf.constant(1.0)),
+                                          tf.assert_less_equal(z_discrete_b, tf.constant(1.0))]):
+                self.Z_W.append(z_discrete_W)
+                self.Z_b.append(z_discrete_b)
 
             # multiplication by IBP mask
             weights = tf.multiply(_weights, z_discrete_W)
             biases = tf.multiply(_biases, z_discrete_b)
             pre = tf.add(tf.einsum('mni,mio->mno', act, weights), biases) # m = samples, n = batch_size, i=input d, o=output d
-            act = tf.nn.relu(pre)
+            act = tf.nn.relu(pre) # [K, din, dout]
             print("act: {}".format(act.get_shape()))
         din = self.size[-2]
         dout = self.size[-1]
-        print("final din: {}".format(din))
-        print("final dout: {}".format(dout))
         eps_w = tf.random_normal((K, din, dout), 0, 1, dtype=tf.float32)
         eps_b = tf.random_normal((K, 1, dout), 0, 1, dtype=tf.float32)
 
@@ -554,7 +559,6 @@ class MFVI_IBP_NN(Cla_NN):
         Wtask_v = tf.gather(self.W_last_v, task_idx)
         btask_m = tf.gather(self.b_last_m, task_idx)
         btask_v = tf.gather(self.b_last_v, task_idx)
-        print("W_last: {}".format(tf.gather(self.W_last_m, task_idx).get_shape()))
         # IBP
         a_task_W = tf.gather(self.beta_last_a_W, task_idx)
         b_task_W = tf.gather(self.beta_last_b_W, task_idx)
@@ -572,18 +576,16 @@ class MFVI_IBP_NN(Cla_NN):
         z_sample_b = reparameterize_discrete(logpis_b, self.temp, size=(K, 1, dout))
         z_discrete_W = tf.sigmoid(z_sample_W)
         z_discrete_b = tf.sigmoid(z_sample_b)
+        # tf.assert_less_equal(z_discrete_W, tf.constant(1.0))
+        # tf.assert_less_equal(z_discrete_b, tf.constant(1.0))
         self.Z_W.append(z_discrete_W)
         self.Z_b.append(z_discrete_b)
 
         _weights = tf.multiply(tf.add(tf.multiply(eps_w, tf.exp(0.5 * Wtask_v)), Wtask_m), z_discrete_W)
         _biases = tf.multiply(tf.add(tf.multiply(eps_b, tf.exp(0.5 * btask_v)), btask_m), z_discrete_b)
-        act = tf.expand_dims(act, 3)
-        _weights = tf.expand_dims(_weights, 1)
-        print("_weights: {}".format(_weights.get_shape()))
-        print("_biases: {}".format(_biases.get_shape()))
-        print("act: {}".format(act.get_shape()))
+        act = tf.expand_dims(act, 3) # [K, din, dout, 1]
+        _weights = tf.expand_dims(_weights, 1) # [K, 1, dout, 2]
         pre = tf.add(tf.reduce_sum(act * _weights, 2), _biases)
-        print("pred: {}".format(pre.get_shape()))
         return pre
 
     def lof(self, x):
@@ -598,17 +600,21 @@ class MFVI_IBP_NN(Cla_NN):
             tf.summary.scalar("kl", self.kl)
             tf.summary.scalar("kl_bern", self.kl_bern_contrib)
             tf.summary.scalar("kl_beta", self.kl_beta_contrib)
+            tf.summary.scalar("acc", self.acc)
+            Z_W_all = tf.reduce_sum([tf.cast(tf.reduce_sum(x), tf.float32) for x in self.Z_W]) / tf.reduce_sum([tf.cast(tf.size(x), tf.float32) for x in self.Z_W])
+            tf.summary.scalar("Z_W_av", Z_W_all)
+            Z_b_all = tf.reduce_sum([tf.cast(tf.reduce_sum(x), tf.float32) for x in self.Z_b]) / tf.reduce_sum([tf.cast(tf.size(x), tf.float32) for x in self.Z_b])
+            tf.summary.scalar("Z_b_av", Z_b_all)
+            tf.summary.scalar("temp", self.temp)
             for i in range(len(self.Z_W)):
                 # tf.summary.images expects 4-d tensor
                 # b x height x width x channels
-                print("z img: {}".format(self.Z_W[i].get_shape()))
-                print("z biases img: {}".format(self.Z_b[i].get_shape()))
                 tf.summary.image("W_Z_{}".format(i),
                                  self.lof(tf.expand_dims(self.Z_W[i], 3)),
-                                 max_outputs=5, step=0)
+                                 max_outputs=5)
                 tf.summary.image("b_Z_{}".format(i),
                                  self.lof(tf.expand_dims(self.Z_b[i], 3)),
-                                 max_outputs=5, step=0)
+                                 max_outputs=5)
 
             self.summary_op = tf.summary.merge_all()
 
@@ -617,6 +623,12 @@ class MFVI_IBP_NN(Cla_NN):
         targets = tf.tile(tf.expand_dims(targets, 0), [self.no_train_samples, 1, 1])
         log_lik = - tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(logits=pred, labels=targets))
         return log_lik
+
+    def _accuracy(self, inputs, targets, task_idx):
+        pred = self._prediction(inputs, task_idx, self.no_pred_samples)
+        targets = tf.tile(tf.expand_dims(targets, 0), [self.no_pred_samples, 1, 1])
+        correct_prediction = tf.equal(tf.argmax(pred, 2), tf.argmax(targets, 2))
+        return tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
 
     def _KL_Bernoulli(self, a, b, p_a, p_b, K, din, dout):
         """sample from variational/real Bernoulli distribution.
@@ -631,24 +643,27 @@ class MFVI_IBP_NN(Cla_NN):
         :param dout: output dim for layer
         :return:
         """
-        beta_a_W = tf.cast(tf.math.softplus(a) + 0.01, tf.float32)  # log(1+e^x), beta_a \in [din, dout]
-        beta_b_W = tf.cast(tf.math.softplus(b) + 0.01, tf.float32)
-        prior_beta_a_W = tf.cast(tf.math.softplus(p_a) + 0.01, tf.float32)
-        prior_beta_b_W = tf.cast(tf.math.softplus(p_b) + 0.01, tf.float32)
-        logpis_W = reparameterize_beta(beta_a_W, beta_b_W, size=(K, din, dout), ibp=True, log=True)
-        logpis_W_prior = reparameterize_beta(prior_beta_a_W, prior_beta_b_W, size=(K, din, dout), ibp=True, log=True)
+        beta_a = tf.cast(tf.math.softplus(a) + 0.01, tf.float32)  # log(1+e^x), beta_a \in [din, dout]
+        beta_b = tf.cast(tf.math.softplus(b) + 0.01, tf.float32)
+        prior_beta_a = tf.cast(tf.math.softplus(p_a) + 0.01, tf.float32)
+        prior_beta_b = tf.cast(tf.math.softplus(p_b) + 0.01, tf.float32)
+        logpis_W = reparameterize_beta(beta_a, beta_b, size=(K, din, dout), ibp=True, log=True)
+        logpis_W_prior = reparameterize_beta(prior_beta_a, prior_beta_b, size=(K, din, dout), ibp=True, log=True)
         # Concrete reparam
-        z_sample_W = reparameterize_discrete(logpis_W, self.temp, size=(K, din, dout))
+        log_z_sample = reparameterize_discrete(logpis_W, self.temp, size=(K, din, dout))
+        discrete_z_sample = tf.sigmoid(log_z_sample) # element-size sigmoid
 
         kl = tf.cond(self.training,
-                     true_fn=lambda: kl_concrete(logpis_W, logpis_W_prior, z_sample_W, self.temp, self.temp_prior),
-                     false_fn=lambda: kl_discrete(logpis_W, logpis_W_prior, z_sample_W))
+                     true_fn=lambda: kl_concrete(logpis_W, logpis_W_prior, log_z_sample, self.temp, self.temp_prior),
+                     false_fn=lambda: kl_discrete(logpis_W, logpis_W_prior, discrete_z_sample))
         return kl
 
 
     def _KL_term(self, no_samples):
         K = no_samples
         kl = 0
+        kl_beta = 0
+        kl_bern = 0
         for i in range(self.no_layers - 1):
             din = self.size[i]
             dout = self.size[i + 1]
@@ -662,8 +677,8 @@ class MFVI_IBP_NN(Cla_NN):
             kl += kl_beta_reparam(self.beta_a_W[i], self.beta_b_W[i],
                                   self.prior_beta_a_W[i], self.prior_beta_b_W[i])
 
-            kl += self._KL_Bernoulli(self.beta_a_W[i], self.beta_b_W[i], self.prior_beta_a_W[i], self.prior_beta_b_W[i],
-                                     K, din, dout)
+            kl += self._KL_Bernoulli(self.beta_a_W[i], self.beta_b_W[i], self.prior_beta_a_W[i],
+                                     self.prior_beta_b_W[i], K, din, dout)
 
             m, v = self.b_m[i], self.b_v[i]
             m0, v0 = self.prior_b_m[i], self.prior_b_v[i]
@@ -672,11 +687,11 @@ class MFVI_IBP_NN(Cla_NN):
             mu_diff_term = 0.5 * tf.reduce_sum((tf.exp(v) + (m0 - m) ** 2) / v0)
             kl += const_term + log_std_diff + mu_diff_term
 
-            self.kl_beta_contrib = kl_beta_reparam(self.beta_a_b[i], self.beta_b_b[i], self.prior_beta_a_b[i], self.prior_beta_b_b[i])
-            self.kl_bern_contrib = self._KL_Bernoulli(self.beta_a_b[i], self.beta_b_b[i], self.prior_beta_a_b[i], self.prior_beta_b_b[i],
+            kl_beta_contrib = kl_beta_reparam(self.beta_a_b[i], self.beta_b_b[i], self.prior_beta_a_b[i], self.prior_beta_b_b[i])
+            kl_bern_contrib = self._KL_Bernoulli(self.beta_a_b[i], self.beta_b_b[i], self.prior_beta_a_b[i], self.prior_beta_b_b[i],
                                      K, din, dout)
-            kl += self.kl_beta_contrib
-            kl += self.kl_bern_contrib
+            kl_beta += kl_beta_contrib
+            kl_bern += kl_bern_contrib
 
         no_tasks = len(self.W_last_m)
         din = self.size[-2]
@@ -689,9 +704,9 @@ class MFVI_IBP_NN(Cla_NN):
             mu_diff_term = 0.5 * tf.reduce_sum((tf.exp(v) + (m0 - m) ** 2) / v0)
             kl += const_term + log_std_diff + mu_diff_term
 
-            kl += kl_beta_reparam(self.beta_last_a_W[i], self.beta_last_b_W[i], self.prior_beta_last_a_W[i], self.prior_beta_last_b_W[i])
+            kl_beta += kl_beta_reparam(self.beta_last_a_W[i], self.beta_last_b_W[i], self.prior_beta_last_a_W[i], self.prior_beta_last_b_W[i])
 
-            kl += self._KL_Bernoulli(self.beta_last_a_W[i], self.beta_last_b_W[i], self.prior_beta_last_a_W[i],
+            kl_bern += self._KL_Bernoulli(self.beta_last_a_W[i], self.beta_last_b_W[i], self.prior_beta_last_a_W[i],
                                      self.prior_beta_last_b_W[i], K, din, dout)
 
             m, v = self.b_last_m[i], self.b_last_v[i]
@@ -700,14 +715,14 @@ class MFVI_IBP_NN(Cla_NN):
             log_std_diff = 0.5 * tf.reduce_sum(np.log(v0) - v)
             mu_diff_term = 0.5 * tf.reduce_sum((tf.exp(v) + (m0 - m) ** 2) / v0)
             kl += const_term + log_std_diff + mu_diff_term
-            self.kl_beta_contrib = kl_beta_reparam(self.beta_last_a_b[i], self.beta_last_b_b[i], self.prior_beta_last_a_b[i], self.prior_beta_last_b_b[i])
-            self.kl_bern_contrib = self._KL_Bernoulli(self.beta_last_a_b[i], self.beta_last_b_b[i], self.prior_beta_last_a_b[i],
+            kl_beta += kl_beta_reparam(self.beta_last_a_b[i], self.beta_last_b_b[i], self.prior_beta_last_a_b[i], self.prior_beta_last_b_b[i])
+            kl_bern += self._KL_Bernoulli(self.beta_last_a_b[i], self.beta_last_b_b[i], self.prior_beta_last_a_b[i],
                                      self.prior_beta_last_b_b[i], K, din, dout)
 
-            kl += self.kl_beta_contrib
-            kl += self.kl_bern_contrib
+        self.kl_beta_contrib = kl_beta
+        self.kl_bern_contrib = kl_bern
 
-        return kl
+        return kl + kl_beta + kl_bern
 
     def create_weights(self, in_dim, hidden_size, out_dim, prev_weights, prev_variances, prev_betas):
         hidden_size = deepcopy(hidden_size)
@@ -754,10 +769,10 @@ class MFVI_IBP_NN(Cla_NN):
                     Wi_v_val = prev_variances[0][i]
                     bi_v_val = prev_variances[1][i]
                 if prev_betas is None:
-                    W_beta_a_val = tf.constant(np.log(np.exp(self.alpha0) - 1), shape=[din, dout])
-                    W_beta_b_val = tf.constant(np.log(np.exp(1.) - 1), shape=[din, dout])
-                    b_beta_a_val = tf.constant(np.log(np.exp(self.alpha0) - 1), shape=[dout])
-                    b_beta_b_val = tf.constant(np.log(np.exp(1.) - 1), shape=[dout])
+                    W_beta_a_val = tf.constant(np.log(np.exp(self.alpha0) - 1.), shape=[din, dout])
+                    W_beta_b_val = tf.constant(np.log(np.exp(1.) - 1.), shape=[din, dout])
+                    b_beta_a_val = tf.constant(np.log(np.exp(self.alpha0) - 1.), shape=[dout])
+                    b_beta_b_val = tf.constant(np.log(np.exp(1.) - 1.), shape=[dout])
                 else:
                     W_beta_a_val = prev_betas[0][i]
                     W_beta_b_val = prev_betas[1][i]
@@ -961,7 +976,8 @@ class MFVI_IBP_NN(Cla_NN):
         return [W_m, b_m, W_last_m, b_last_m], [W_v, b_v, W_last_v, b_last_v], \
                [W_betas_a, W_betas_b, b_betas_a, b_betas_b, W_last_betas_a, W_last_betas_b, b_last_betas_a, b_last_betas_b]
 
-    def train(self, x_train, y_train, task_idx, no_epochs=1000, batch_size=100, display_epoch=5):
+    def train(self, x_train, y_train, task_idx, no_epochs=1000, batch_size=100, display_epoch=5,
+              tau0=1.0, anneal_rate=0.0001, min_temp=0.5):
         N = x_train.shape[0]
         if batch_size > N:
             batch_size = N
@@ -969,8 +985,9 @@ class MFVI_IBP_NN(Cla_NN):
         sess = self.sess
         costs = []
         global_step = 0
+        temp = tau0
         log_folder = os.path.join(self.tensorboard_dir, "graph_{}_task{}".format(self.name, task_idx))
-        writer = tf.summary.FileWriter(log_folder)
+        writer = tf.summary.FileWriter(log_folder, sess.graph)
         # Training cycle
         for epoch in range(no_epochs):
             perm_inds = list(range(x_train.shape[0]))
@@ -986,15 +1003,20 @@ class MFVI_IBP_NN(Cla_NN):
                 end_ind = np.min([(i+1)*batch_size, N])
                 batch_x = cur_x_train[start_ind:end_ind, :]
                 batch_y = cur_y_train[start_ind:end_ind, :]
+
                 # Run optimization op (backprop) and cost op (to get loss value)
                 _, c, summary = sess.run(
                     [self.train_step, self.cost, self.summary_op],
-                    feed_dict={self.x: batch_x, self.y: batch_y, self.task_idx: task_idx, self.training: True})
+                    feed_dict={self.x: batch_x, self.y: batch_y, self.task_idx: task_idx,
+                               self.training: True, self.temp: temp})
+                #pdb.set_trace()
                 global_step += 1
                 writer.add_summary(summary, global_step)
-                writer.flush()
                 # Compute average loss
                 avg_cost += c / total_batch
+
+                if global_step % 100 == 1:
+                    temp = np.maximum(tau0*np.exp(-anneal_rate*global_step), min_temp)
             # Display logs per epoch step
             if epoch % display_epoch == 0:
                 print("Epoch:", '%04d' % (epoch+1), "cost=", \
@@ -1002,15 +1024,18 @@ class MFVI_IBP_NN(Cla_NN):
             costs.append(avg_cost)
         self.save(log_folder, sess)
         print("Optimization Finished!")
+        writer.close()
         return costs
 
     def prediction(self, x_test, task_idx):
         # Test model
-        prediction = self.sess.run([self.pred], feed_dict={self.x: x_test, self.task_idx: task_idx, self.training: False})[0]
+        prediction = self.sess.run([self.pred], feed_dict={self.x: x_test, self.task_idx: task_idx,
+                                                           self.training: False, self.temp: self.min_temp})[0]
         return prediction
 
     def prediction_prob(self, x_test, task_idx):
-        prob = self.sess.run([tf.nn.softmax(self.pred)], feed_dict={self.x: x_test, self.task_idx: task_idx, self.training: False})[0]
+        prob = self.sess.run([tf.nn.softmax(self.pred)], feed_dict={self.x: x_test, self.task_idx: task_idx,
+                                                                    self.training: False, self.temp: self.min_temp})[0]
         return prob
 
     def save(self, model_dir, sess):

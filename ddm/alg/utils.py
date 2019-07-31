@@ -10,6 +10,15 @@ def Beta_fn(a, b):
     return tf.exp(tf.math.lgamma(a) + tf.math.lgamma(b) - tf.math.lgamma(a+b))
 
 def kl_beta_reparam(a, b, prior_a, prior_b):
+    """ KL divergence between Beta and variational beta post.
+    from https://github.com/enalisnick/stick
+
+    :param a: variational posterior alpha params \in [din, dout]
+    :param b: variational posterior beta params \in [din, dout]
+    :param prior_a: Beta alpha params, if task 0 scalar
+    :param prior_b: Beta alpha params, if task 0 scalar
+    :return: kl for each param \in [din, dout]
+    """
     kl = 1. / (1 + a * b) * Beta_fn(1. / a, b)
     kl += 1. / (2 + a * b) * Beta_fn(2. / a, b)
     kl += 1. / (3 + a * b) * Beta_fn(3. / a, b)
@@ -33,7 +42,7 @@ def kl_beta_reparam(a, b, prior_a, prior_b):
     kl = kl - tf.cast((b - 1) / b, tf.float32)
     return tf.reduce_sum(kl)
 
-def kl_discrete(log_post, log_prior, log_sample):
+def kl_discrete(log_post, log_prior, z_discrete):
     """KL divergence between variational posterior and prior for Bernoulli in test phase
 
     :param log_prior:
@@ -41,14 +50,14 @@ def kl_discrete(log_post, log_prior, log_sample):
     :param z_discrete: Bernoulli samples
     :return: kl
     """
+
     pi_post = tf.exp(log_post)
     pi_prior = tf.exp(log_prior)
-    z_discrete = tf.exp(log_sample)
     kl_post = z_discrete * tf.log(pi_post + eps) + (1 - z_discrete) * tf.log(1 - pi_post + eps)
     kl_prior = z_discrete * tf.log(pi_prior + eps) + (1 - z_discrete) * tf.log(1 - pi_prior + eps)
-    return tf.reduce_sum(kl_post - kl_prior)
+    return tf.reduce_mean(kl_post - kl_prior)
 
-def log_density_expconcrete(logpis, logsample, temp):
+def log_density_concrete(logpis, logsample, temp):
     """ log-density of the ExpConcrete distribution, from
     Maddison et. al. (2017) (right after equation 26) in appendix
 
@@ -67,11 +76,14 @@ def kl_concrete(log_post, log_prior, log_sample, temp, temp_prior):
     """KL divergence between the prior and posterior
         inputs are in logit-space
 
-    :param
+    :param log_post \in [K, din, dout]
+    :param log_prior \in [K, din, dout]
+    :param log_sample \in [K, din, dout]
+    :return kl divergence, scalar
     """
-    log_prior = log_density_expconcrete(log_prior, log_sample, temp_prior)
-    log_posterior = log_density_expconcrete(log_post, log_sample, temp)
-    return tf.reduce_sum(log_posterior - log_prior)
+    log_prior = log_density_concrete(log_prior, log_sample, temp_prior)
+    log_posterior = log_density_concrete(log_post, log_sample, temp)
+    return tf.reduce_sum(tf.reduce_mean(log_posterior - log_prior, 0))
 
 def kumaraswamy_sample(a, b, size):
     """
@@ -80,17 +92,17 @@ def kumaraswamy_sample(a, b, size):
     :param b: beta param b \in [din, dout]
     :return: sample \in [K, din, dout]
     """
-    u = tf.random_uniform(shape=size, dtype=tf.float32)
+    u = tf.random_uniform(shape=size, minval=1e-4, maxval=1.-1e-4, dtype=tf.float32)
     return tf.exp((1. / (a + eps)) * tf.log(1. - tf.exp((1. / (b + eps)) * tf.log(u)) + eps))
 
 def reparameterize_beta(a, b, size, ibp=False, log=False):
     """ Returns pi parameters from IBP, cumsum of log v ~ Beta
 
     :param a: beta a params [din, dout]
-    :param b: beta b params []
+    :param b: beta b params [din, dout]
     :param ibp: bool
     :param log: bool
-    :return: returns truncated variational \pi params
+    :return: returns truncated variational \pi params \in [K, din, dout]
     """
     #print("beta a: {}".format(a.get_shape()))
     #print("beta b: {}".format(b.get_shape()))
@@ -113,22 +125,22 @@ def reparameterize_beta(a, b, size, ibp=False, log=False):
             logpis = _v + _add
     else:
         raise ValueError
-    #print("logpis: {}".format(logpis.get_shape()))
+    print("logpis: {}".format(logpis.get_shape()))
     if log:
         return logpis
     else:
         return tf.exp(logpis)
 
-def reparameterize_discrete(logpis, temp, size):
-    """BinConcrete reparam for Bernoulli
+def reparameterize_discrete(log_pis, temp, size):
+    """ExpBinConcrete reparam for Bernoulli
 
-    :param logpis: variational Bernoulli params
+    :param log_pis: log variational Bernoulli params \in [K, dout, din]
     :param temp: double
-    :return: approx Bernoulli samples
+    :return: approx log Bernoulli samples \in [K, din, dout]
     """
     u = tf.random_uniform(shape=size, minval=1e-4, maxval=1.-1e-4, dtype=tf.float32)
     L = tf.log(u) - tf.log(1. - u)
-    return (logpis + L) / temp
+    return (log_pis + L) / temp
 
 def merge_coresets(x_coresets, y_coresets):
     merged_x, merged_y = x_coresets[0], y_coresets[0]
