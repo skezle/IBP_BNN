@@ -104,25 +104,13 @@ def reparameterize_beta(a, b, size, ibp=False, log=False):
     :param log: bool
     :return: returns truncated variational \pi params \in [K, din, dout]
     """
-    #print("beta a: {}".format(a.get_shape()))
-    #print("beta b: {}".format(b.get_shape()))
+    print("beta a: {}".format(a.get_shape()))
+    print("beta b: {}".format(b.get_shape()))
     v = kumaraswamy_sample(a, b, size)
 
     if ibp:
-        din = size[1]
-        K = size[0]
-        if din == 1:
-            v_term = tf.log(v + eps)
-            logpis = tf.cumsum(v_term, axis=2)
-        else:
-            v_term = tf.log(v+eps)
-            _v = tf.cumsum(v_term, axis=1)
-            slice = tf.cumsum(_v[:,-1,:-1], axis=1) # K x dout -1
-            _slice = tf.expand_dims(slice, 1) # K x 1 x dout - 1
-            #print("_slice: {}".format(_slice.get_shape()))
-            add = tf.tile(_slice, [1, din, 1]) # K, din, dout - 1
-            _add = tf.concat([tf.zeros([K, din, 1]), add], axis=2)
-            logpis = _v + _add
+        v_term = tf.log(v + eps)
+        logpis = tf.cumsum(v_term, axis=2)
     else:
         raise ValueError
     print("logpis: {}".format(logpis.get_shape()))
@@ -134,9 +122,9 @@ def reparameterize_beta(a, b, size, ibp=False, log=False):
 def reparameterize_discrete(log_pis, temp, size):
     """ExpBinConcrete reparam for Bernoulli
 
-    :param log_pis: log variational Bernoulli params \in [K, dout, din]
+    :param log_pis: log variational Bernoulli params \in [K, b, dout]
     :param temp: double
-    :return: approx log Bernoulli samples \in [K, din, dout]
+    :return: approx log Bernoulli samples \in [K, b, dout]
     """
     u = tf.random_uniform(shape=size, minval=1e-4, maxval=1.-1e-4, dtype=tf.float32)
     L = tf.log(u) - tf.log(1. - u)
