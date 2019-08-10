@@ -559,21 +559,22 @@ class MFVI_IBP_NN(Cla_NN):
     def lof(self, nu):
         """Left ordering of binary matrix
         """
-        print("nu: {}".format(nu.get_shape()))
         batch_size = tf.to_int32(tf.shape(nu)[0])
         dim = tf.to_int32(tf.shape(nu)[1])
         x = tf.linspace(0.0, tf.cast(batch_size, dtype=tf.float32) - 1.0, batch_size)
         xx, yy = tf.meshgrid(x, x)
         exponent = tf.cast(batch_size, dtype=tf.float32) - 1.0 - yy[:, :dim]
         magnitude = tf.multiply(2 ** exponent, nu)
-        print("mag: {}".format(magnitude.get_shape()))
-
-        full_Z = nu[:, tf.argsort(tf.reduce_sum(magnitude, axis=0), direction='DESCENDING')]  # reverse the sorting so that largest first!
+        self.ordering = tf.argsort(tf.reduce_sum(magnitude, axis=0), direction='DESCENDING')
+        self.nu_sum = tf.reduce_sum(nu, axis=0)
+        self.mag_sum = tf.reduce_sum(magnitude, axis=0)
+        Z_lof = tf.gather(nu, tf.argsort(tf.reduce_sum(magnitude, axis=0), direction='DESCENDING'), axis=1) # reverse the sorting so that largest first!
         #idy = tf.where(tf.not_equal(tf.reduce_sum(full_Z, axis=0), tf.constant(0, dtype=tf.float32)))
         #non_zero_cols_Z = full_Z[:, idy]
         #idx = tf.where(tf.not_equal(np.reduce_sum(non_zero_cols_Z, axis=1), tf.constant(0, dtype=tf.float32)))
         #return non_zero_cols_Z[idx, :]
-        return full_Z
+        self.Z_lof_check = tf.reduce_sum(Z_lof, axis=0)
+        return Z_lof
 
     def create_summaries(self):
         """Creates summaries in TensorBoard"""
@@ -589,12 +590,14 @@ class MFVI_IBP_NN(Cla_NN):
             tf.summary.scalar("temp", self.temp)
             for i in range(len(self.Z)):
                 # tf.summary.images expects 4-d tensor b x height x width x channels
-                Z_lof = tf.expand_dims(self.lof(tf.reduce_mean(self.Z[i], axis=0)), 0) # removing the samples col
-                print("shape of z: {}".format(tf.reduce_mean(self.Z[i], axis=0).get_shape()))
-                print(len(self.Z))
+                self._Z = tf.identity(self.Z[i])
+                Z_lof = tf.expand_dims(self.lof(tf.reduce_mean(self._Z, axis=0)), 0) # removing the samples col
                 tf.summary.image("Z_{}".format(i),
                                  tf.expand_dims(Z_lof, 3),
                                  max_outputs=1)
+
+                tf.summary.histogram("Z_num_latent_factors_{}".format(i),
+                                    tf.reduce_sum(tf.squeeze(self.Z[i]), axis=1))
 
             self.summary_op = tf.summary.merge_all()
 
@@ -930,15 +933,17 @@ class MFVI_IBP_NN(Cla_NN):
                 end_ind = np.min([(i+1)*batch_size, N])
                 batch_x = cur_x_train[start_ind:end_ind, :]
                 batch_y = cur_y_train[start_ind:end_ind, :]
-                print(batch_x.shape)
-                print(batch_y.shape)
 
                 # Run optimization op (backprop) and cost op (to get loss value)
                 _, c, summary = sess.run(
                     [self.train_step, self.cost, self.summary_op],
-                    feed_dict={self.x: batch_x, self.y: batch_y, self.task_idx: task_idx,
-                               self.training: True, self.temp: temp})
+                    feed_dict={self.x: batch_x, self.y: batch_y, self.task_idx: task_idx, self.training: True, self.temp: temp})
+                #print("Z: {}".format(Z))
+                #print("mag_sum: {}".format(mag_sum))
+                #print("ordering: {}".format(ordering))
+                #print("Z_lof_check: {}".format(Z_lof_check))
                 #pdb.set_trace()
+
                 global_step += 1
                 writer.add_summary(summary, global_step)
                 # Compute average loss

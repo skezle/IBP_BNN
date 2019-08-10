@@ -22,10 +22,10 @@ class SplitMnistGenerator():
         self.train_label = np.hstack((train_set[1], valid_set[1]))
         self.test_label = test_set[1]
 
-        #self.sets_0 = [0, 2, 4, 6, 8]
-        #self.sets_1 = [1, 3, 5, 7, 9]
-        self.sets_0 = [0]
-        self.sets_1 = [1]
+        self.sets_0 = [0, 2, 4, 6, 8]
+        self.sets_1 = [1, 3, 5, 7, 9]
+        #self.sets_0 = [0]
+        #self.sets_1 = [1]
         self.max_iter = len(self.sets_0)
         self.cur_iter = 0
 
