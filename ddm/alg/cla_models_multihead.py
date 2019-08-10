@@ -49,9 +49,9 @@ def _create_weights_mf(in_dim, hidden_size, out_dim, init_weights=None, init_var
 class Cla_NN(object):
     def __init__(self, input_size, hidden_size, output_size, training_size):
         # input and output placeholders
-        self.x = tf.placeholder(tf.float32, [None, input_size])
-        self.y = tf.placeholder(tf.float32, [None, output_size])
-        self.task_idx = tf.placeholder(tf.int32)
+        self.x = tf.placeholder(tf.float32, [None, input_size], name='x')
+        self.y = tf.placeholder(tf.float32, [None, output_size], name='y')
+        self.task_idx = tf.placeholder(tf.int32, name='task_id')
         
     def assign_optimizer(self, learning_rate=0.001):
         self.train_step = tf.train.AdamOptimizer(learning_rate).minimize(self.cost)
@@ -460,15 +460,16 @@ class MFVI_IBP_NN(Cla_NN):
                  tensorboard_dir='logs', name='ibp', min_temp=0.5):
 
         super(MFVI_IBP_NN, self).__init__(input_size, hidden_size, output_size, training_size)
+
         self.alpha0 = alpha0
         self.temp = tf.placeholder(tf.float32, shape=(), name='temp')
+        self.training = tf.placeholder(tf.bool, name='training')
         self.temp_prior = temp_prior
         self.min_temp = min_temp
         self.truncation = max_truncation_level
         self.tensorboard_dir = tensorboard_dir
         self.name = name
         self.num_ibp_samples = 1
-        self.training = tf.placeholder(tf.bool)
         m, v, betas, self.size = self.create_weights(
             input_size, hidden_size, output_size, prev_means, prev_log_variances, prev_betas)
         self.W_m, self.b_m, self.W_last_m, self.b_last_m = m[0], m[1], m[2], m[3]
@@ -496,11 +497,12 @@ class MFVI_IBP_NN(Cla_NN):
         self.acc = self._accuracy(self.x, self.y, self.task_idx)
 
         self.assign_optimizer(learning_rate)
-        self.assign_session()
 
         self.saver = tf.train.Saver()
 
         self.create_summaries()
+
+        self.assign_session()
 
     def _prediction(self, inputs, task_idx, no_samples):
         return self._prediction_layer(inputs, task_idx, no_samples)
@@ -561,9 +563,23 @@ class MFVI_IBP_NN(Cla_NN):
         """
         batch_size = tf.to_int32(tf.shape(nu)[0])
         dim = tf.to_int32(tf.shape(nu)[1])
-        x = tf.linspace(0.0, tf.cast(batch_size, dtype=tf.float32) - 1.0, batch_size)
-        xx, yy = tf.meshgrid(x, x)
-        exponent = tf.cast(batch_size, dtype=tf.float32) - 1.0 - yy[:, :dim]
+
+        def true_fn(b, d):
+            x = tf.linspace(0.0, tf.cast(b, dtype=tf.float32) - 1.0, b)
+            xx, yy = tf.meshgrid(x, x)
+            exp = tf.cast(b, dtype=tf.float32) - 1.0 - yy[:, :d]
+            return exp
+
+        def false_fn(b, d):
+            x = tf.linspace(0.0, tf.cast(d, dtype=tf.float32) - 1.0, d)
+            xx, yy = tf.meshgrid(x, x)
+            exp = tf.cast(d, dtype=tf.float32) - 1.0 - yy[:b, :]
+            return exp
+
+        exponent = tf.cond(tf.math.greater_equal(batch_size, dim),
+                           lambda: true_fn(batch_size, dim),
+                           lambda: false_fn(batch_size, dim))
+
         magnitude = tf.multiply(2 ** exponent, nu)
         self.ordering = tf.argsort(tf.reduce_sum(magnitude, axis=0), direction='DESCENDING')
         self.nu_sum = tf.reduce_sum(nu, axis=0)
@@ -587,7 +603,7 @@ class MFVI_IBP_NN(Cla_NN):
             tf.summary.scalar("acc", self.acc)
             Z_all = tf.reduce_sum([tf.cast(tf.reduce_sum(x), tf.float32) for x in self.Z]) / tf.reduce_sum([tf.cast(tf.size(x), tf.float32) for x in self.Z])
             tf.summary.scalar("Z_av", Z_all)
-            tf.summary.scalar("temp", self.temp)
+            #tf.summary.scalar("temp", self.temp)
             for i in range(len(self.Z)):
                 # tf.summary.images expects 4-d tensor b x height x width x channels
                 self._Z = tf.identity(self.Z[i])
@@ -938,10 +954,6 @@ class MFVI_IBP_NN(Cla_NN):
                 _, c, summary = sess.run(
                     [self.train_step, self.cost, self.summary_op],
                     feed_dict={self.x: batch_x, self.y: batch_y, self.task_idx: task_idx, self.training: True, self.temp: temp})
-                #print("Z: {}".format(Z))
-                #print("mag_sum: {}".format(mag_sum))
-                #print("ordering: {}".format(ordering))
-                #print("Z_lof_check: {}".format(Z_lof_check))
                 #pdb.set_trace()
 
                 global_step += 1

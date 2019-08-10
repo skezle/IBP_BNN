@@ -36,7 +36,7 @@ def kl_beta_reparam(a, b, prior_a, prior_b):
     kl += (a - prior_a) / a * (-0.57721 - psi_b_taylor_approx - 1 / b)  # T.psi(self.posterior_b)
 
     # add normalization constants
-    kl = tf.cast(kl + tf.log(a * b), tf.float32) + tf.log(Beta_fn(prior_a, prior_b))
+    kl = tf.cast(kl + tf.log(a * b), tf.float32) + tf.cast(tf.log(Beta_fn(prior_a, prior_b)), tf.float32)
 
     # final term
     kl = kl - tf.cast((b - 1) / b, tf.float32)
