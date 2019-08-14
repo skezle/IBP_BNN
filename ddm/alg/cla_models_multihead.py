@@ -3,7 +3,8 @@ import pdb
 import tensorflow as tf
 import numpy as np
 from copy import deepcopy
-from ddm.alg.utils import kl_beta_reparam, kl_discrete, kl_concrete, reparameterize_beta, reparameterize_discrete
+from ddm.alg.training_utils import kl_beta_reparam, kl_discrete, kl_concrete
+from ddm.alg.utils import reparameterize_beta, reparameterize_discrete
 
 np.random.seed(0)
 tf.set_random_seed(0)
@@ -470,12 +471,12 @@ class MFVI_IBP_NN(Cla_NN):
         self.tensorboard_dir = tensorboard_dir
         self.name = name
         self.num_ibp_samples = 1
+        self.hidden_size = hidden_size
         m, v, betas, self.size = self.create_weights(
             input_size, hidden_size, output_size, prev_means, prev_log_variances, prev_betas)
         self.W_m, self.b_m, self.W_last_m, self.b_last_m = m[0], m[1], m[2], m[3]
         self.W_v, self.b_v, self.W_last_v, self.b_last_v = v[0], v[1], v[2], v[3]
-        self.beta_a, self.beta_b, self.beta_last_a, self.beta_last_b, \
-             = betas[0], betas[1], betas[2], betas[3]
+        self.beta_a, self.beta_b = betas[0], betas[1]
 
         self.weights = [m, v, betas]
 
@@ -484,14 +485,15 @@ class MFVI_IBP_NN(Cla_NN):
                                         prev_betas, prior_mean, prior_var)
         self.prior_W_m, self.prior_b_m, self.prior_W_last_m, self.prior_b_last_m = m[0], m[1], m[2], m[3]
         self.prior_W_v, self.prior_b_v, self.prior_W_last_v, self.prior_b_last_v = v[0], v[1], v[2], v[3]
-        self.prior_beta_a, self.prior_beta_b, \
-                self.prior_beta_last_a, self.prior_beta_last_b = betas[0], betas[1], betas[2], betas[3]
+        self.prior_beta_a, self.prior_beta_b = betas[0], betas[1]
 
         self.no_layers = len(self.size) - 1
         self.no_train_samples = no_train_samples
         self.no_pred_samples = no_pred_samples
-        self.pred = self._prediction(self.x, self.task_idx, self.no_pred_samples)
-        self.kl = tf.div(self._KL_term(self.no_pred_samples), training_size)
+        self.pred, prior_log_pis_bern, log_pis_bern, z_log_sample = \
+            self._prediction(self.x, self.task_idx, self.no_pred_samples)
+        self.kl = tf.div(self._KL_term(self.no_pred_samples, prior_log_pis_bern, log_pis_bern, z_log_sample),
+                         training_size)
         self.ll = self._logpred(self.x, self.y, self.task_idx)
         self.cost = self.kl - self.ll
         self.acc = self._accuracy(self.x, self.y, self.task_idx)
@@ -509,12 +511,25 @@ class MFVI_IBP_NN(Cla_NN):
 
     # this samples a layer at a time
     def _prediction_layer(self, inputs, task_idx, no_samples):
+        """ Outputs a prediction from the IBP BNN
+
+        :param inputs: input tensor
+        :param task_idx: int
+        :param no_samples: int
+        :return: output tensor,
+                 prior bernoulli params: list of tensors for each layer
+                 posterior bernoulli params: list of tensors for each layer
+                 log_z_samples: log samples (prior to sigmoid) from expConcrete distribution (for kl calc) for each layer
+        """
         # inputs # [batch, d]
         batch_size = tf.to_int32(tf.shape(inputs)[0])
         K = no_samples
         K_ibp = self.num_ibp_samples
         act = tf.tile(tf.expand_dims(inputs, 0), [K, 1, 1]) # [1, batch, d] --> [K, batch, d]
         self.Z = []
+        log_z_sample = []
+        log_pis = []
+        prior_log_pis = []
         for i in range(self.no_layers - 1):
             din = self.size[i]
             dout = self.size[i + 1]
@@ -529,15 +544,24 @@ class MFVI_IBP_NN(Cla_NN):
             # beta reparam
             beta_a = tf.cast(tf.math.softplus(self.beta_a[i]) + 0.01, tf.float32) # log(1+e^x), beta_a \in [dout]
             beta_b = tf.cast(tf.math.softplus(self.beta_b[i]) + 0.01, tf.float32)
-            self.logpis = reparameterize_beta(beta_a, beta_b, size=(K_ibp, batch_size, dout), ibp=True, log=True)
+            prior_beta_a = tf.cast(tf.math.softplus(self.prior_beta_a[i]) + 0.01, tf.float32)
+            prior_beta_b = tf.cast(tf.math.softplus(self.prior_beta_b[i]) + 0.01, tf.float32)
+            # prior Bernoulli params
+            prior_log_pi = reparameterize_beta(prior_beta_a, prior_beta_b, size=(K_ibp, batch_size, dout), ibp=True, log=True)
+            prior_log_pis.append(prior_log_pi)
+            # Variational Bernoulli params
+            self.log_pi = reparameterize_beta(beta_a, beta_b, size=(K_ibp, batch_size, dout), ibp=True, log=True)
+            log_pis.append(self.log_pi)
             # Concrete reparam
-            z_sample = reparameterize_discrete(self.logpis, self.temp, size=(K_ibp, batch_size, dout))
-            z_discrete = tf.sigmoid(z_sample)
+            z_log_sample = reparameterize_discrete(self.log_pi, self.temp, size=(K_ibp, batch_size, dout))
+            z_discrete = tf.sigmoid(z_log_sample) # (K_ibp, batch_size, dout)
             self.Z.append(z_discrete)
+            log_z_sample.append(z_log_sample)
+            print("z_discrete: {}".format(z_discrete.get_shape()))
 
             # multiplication by IBP mask
-            pre = tf.add(tf.einsum('mni,mio->mno', act, _weights), _biases) # m = samples, n = batch_size, i=input d, o=output d
-            act = tf.multiply(tf.nn.relu(pre), z_discrete) # [K, batch_size, dout]
+            pre = tf.add(tf.einsum('mni,mio->mno', act, _weights), _biases) # m = samples, n = din, i=input d, o=output d
+            act = tf.multiply(tf.nn.relu(pre), z_discrete) # [K, din, dout]
 
         din = self.size[-2]
         dout = self.size[-1]
@@ -551,12 +575,12 @@ class MFVI_IBP_NN(Cla_NN):
 
         _weights = tf.add(tf.multiply(eps_w, tf.exp(0.5 * Wtask_v)), Wtask_m)
         _biases = tf.add(tf.multiply(eps_b, tf.exp(0.5 * btask_v)), btask_m)
+        print("biases: {}".format(_biases.get_shape()))
         act = tf.expand_dims(act, 3) # [K, din, dout, 1]
-        print("act: {}".format(act.get_shape()))
         _weights = tf.expand_dims(_weights, 1) # [K, 1, dout, 2]
         pre = tf.add(tf.reduce_sum(act * _weights, 2), _biases)
         print("pre: {}".format(pre.get_shape()))
-        return pre
+        return pre, prior_log_pis, log_pis, log_z_sample
 
     def lof(self, nu):
         """Left ordering of binary matrix
@@ -589,7 +613,6 @@ class MFVI_IBP_NN(Cla_NN):
         #non_zero_cols_Z = full_Z[:, idy]
         #idx = tf.where(tf.not_equal(np.reduce_sum(non_zero_cols_Z, axis=1), tf.constant(0, dtype=tf.float32)))
         #return non_zero_cols_Z[idx, :]
-        self.Z_lof_check = tf.reduce_sum(Z_lof, axis=0)
         return Z_lof
 
     def create_summaries(self):
@@ -603,10 +626,13 @@ class MFVI_IBP_NN(Cla_NN):
             tf.summary.scalar("acc", self.acc)
             Z_all = tf.reduce_sum([tf.cast(tf.reduce_sum(x), tf.float32) for x in self.Z]) / tf.reduce_sum([tf.cast(tf.size(x), tf.float32) for x in self.Z])
             tf.summary.scalar("Z_av", Z_all)
-            #tf.summary.scalar("temp", self.temp)
+            for i in range(len(self.hidden_size)):
+                tf.summary.histogram("v_beta_a_l{}".format(i), self.beta_a[i])
+                tf.summary.histogram("v_beta_b_l{}".format(i), self.beta_b[i])
             for i in range(len(self.Z)):
                 # tf.summary.images expects 4-d tensor b x height x width x channels
                 self._Z = tf.identity(self.Z[i])
+                print("_Z: {}".format(self._Z.get_shape()))
                 Z_lof = tf.expand_dims(self.lof(tf.reduce_mean(self._Z, axis=0)), 0) # removing the samples col
                 tf.summary.image("Z_{}".format(i),
                                  tf.expand_dims(Z_lof, 3),
@@ -618,47 +644,25 @@ class MFVI_IBP_NN(Cla_NN):
             self.summary_op = tf.summary.merge_all()
 
     def _logpred(self, inputs, targets, task_idx):
-        pred = self._prediction(inputs, task_idx, self.no_train_samples)
+        """ Average loss over batch
+
+        :param inputs:
+        :param targets:
+        :param task_idx:
+        :return:
+        """
+        pred, _, _, _ = self._prediction(inputs, task_idx, self.no_train_samples)
         targets = tf.tile(tf.expand_dims(targets, 0), [self.no_train_samples, 1, 1])
         log_lik = - tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(logits=pred, labels=targets))
         return log_lik
 
     def _accuracy(self, inputs, targets, task_idx):
-        pred = self._prediction(inputs, task_idx, self.no_pred_samples)
+        pred, _, _, _ = self._prediction(inputs, task_idx, self.no_pred_samples)
         targets = tf.tile(tf.expand_dims(targets, 0), [self.no_pred_samples, 1, 1])
         correct_prediction = tf.equal(tf.argmax(pred, 2), tf.argmax(targets, 2))
         return tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
 
-    def _KL_Bernoulli(self, a, b, p_a, p_b, K, din, dout):
-        """sample from variational/real Bernoulli distribution.
-        According to Maddison et. al. (2017) we sample from ExpConcrete during training
-        and Bernoulli during testing.
-        :param a: Beta a param
-        :param b: beta b param
-        :param p_a: prior Beta a param
-        :param p_b: prior Beta b param
-        :param K: number of samples to make
-        :param din: input dim for layer
-        :param dout: output dim for layer
-        :return:
-        """
-        beta_a = tf.cast(tf.math.softplus(a) + 0.01, tf.float32)  # log(1+e^x), beta_a \in [din, dout]
-        beta_b = tf.cast(tf.math.softplus(b) + 0.01, tf.float32)
-        prior_beta_a = tf.cast(tf.math.softplus(p_a) + 0.01, tf.float32)
-        prior_beta_b = tf.cast(tf.math.softplus(p_b) + 0.01, tf.float32)
-        logpis = reparameterize_beta(beta_a, beta_b, size=(K, din, dout), ibp=True, log=True)
-        logpis_prior = reparameterize_beta(prior_beta_a, prior_beta_b, size=(K, din, dout), ibp=True, log=True)
-        # Concrete reparam
-        log_z_sample = reparameterize_discrete(logpis, self.temp, size=(K, din, dout))
-        discrete_z_sample = tf.sigmoid(log_z_sample) # element-size sigmoid
-
-        kl = tf.cond(self.training,
-                     true_fn=lambda: kl_concrete(logpis, logpis_prior, log_z_sample, self.temp, self.temp_prior),
-                     false_fn=lambda: kl_discrete(logpis, logpis_prior, discrete_z_sample))
-        return kl
-
-
-    def _KL_term(self, no_samples):
+    def _KL_term(self, no_samples, prior_log_pis, log_pis, z_log_sample):
         K = no_samples
         K_ibp = self.num_ibp_samples
         kl = 0
@@ -684,8 +688,10 @@ class MFVI_IBP_NN(Cla_NN):
             kl += const_term + log_std_diff + mu_diff_term
 
             kl_beta_contrib = kl_beta_reparam(self.beta_a[i], self.beta_b[i], self.prior_beta_a[i], self.prior_beta_b[i])
-            kl_bern_contrib = self._KL_Bernoulli(self.beta_a[i], self.beta_b[i], self.prior_beta_a[i], self.prior_beta_b[i],
-                                     K_ibp, din, dout)
+
+            kl_bern_contrib = tf.cond(self.training,
+                                      true_fn=lambda: kl_concrete(log_pis[i], prior_log_pis[i], z_log_sample[i], self.temp, self.temp_prior),
+                                      false_fn=lambda: kl_discrete(log_pis[i], prior_log_pis[i], z_log_sample[i]))
             kl_beta += kl_beta_contrib
             kl_bern += kl_bern_contrib
 
@@ -707,14 +713,11 @@ class MFVI_IBP_NN(Cla_NN):
             log_std_diff = 0.5 * tf.reduce_sum(np.log(v0) - v)
             mu_diff_term = 0.5 * tf.reduce_sum((tf.exp(v) + (m0 - m) ** 2) / v0)
             kl += const_term + log_std_diff + mu_diff_term
-            kl_beta += kl_beta_reparam(self.beta_last_a[i], self.beta_last_b[i], self.prior_beta_last_a[i], self.prior_beta_last_b[i])
-            kl_bern += self._KL_Bernoulli(self.beta_last_a[i], self.beta_last_b[i], self.prior_beta_last_a[i],
-                                     self.prior_beta_last_b[i], K_ibp, din, dout)
 
         self.kl_beta_contrib = kl_beta
         self.kl_bern_contrib = kl_bern
 
-        return kl + kl_beta + kl_bern
+        return kl + self.kl_beta_contrib + self.kl_bern_contrib
 
     def create_weights(self, in_dim, hidden_size, out_dim, prev_weights, prev_variances, prev_betas):
         hidden_size = deepcopy(hidden_size)
@@ -722,7 +725,6 @@ class MFVI_IBP_NN(Cla_NN):
         hidden_size.insert(0, in_dim)
         no_params = 0
         no_layers = len(hidden_size) - 1
-        # IBP prior
         W_m = []
         b_m = []
         W_last_m = []
@@ -731,10 +733,9 @@ class MFVI_IBP_NN(Cla_NN):
         b_v = []
         W_last_v = []
         b_last_v = []
+        # no last params for betas as head networks do not contain beta params
         b_a = []
         b_b = []
-        beta_last_a = []
-        beta_last_b = []
         for i in range(no_layers - 1):
             din = hidden_size[i]
             dout = hidden_size[i + 1]
@@ -777,13 +778,11 @@ class MFVI_IBP_NN(Cla_NN):
             b_b.append(beta_b)
 
         # if there are previous tasks
-        if prev_weights is not None and prev_variances is not None and prev_betas is not None:
+        if prev_weights is not None and prev_variances is not None:
             prev_Wlast_m = prev_weights[2]
             prev_blast_m = prev_weights[3]
             prev_Wlast_v = prev_variances[2]
             prev_blast_v = prev_variances[3]
-            prev_beta_a = prev_betas[2] # TODO: indexing seems arbitrary.
-            prev_beta_b = prev_betas[3]
             no_prev_tasks = len(prev_Wlast_m)
             for i in range(no_prev_tasks):
                 W_i_m = prev_Wlast_m[i]
@@ -796,22 +795,15 @@ class MFVI_IBP_NN(Cla_NN):
                 Wi_v = tf.Variable(W_i_v)
                 bi_v = tf.Variable(b_i_v)
 
-                beta_i_a_v = prev_beta_a[i]
-                beta_i_b_v = prev_beta_b[i]
-                beta_a = tf.Variable(beta_i_a_v)
-                beta_b = tf.Variable(beta_i_b_v)
                 W_last_m.append(Wi_m)
                 b_last_m.append(bi_m)
                 W_last_v.append(Wi_v)
                 b_last_v.append(bi_v)
-                beta_last_a.append(beta_a)
-                beta_last_b.append(beta_b)
 
         din = hidden_size[-2]
         dout = hidden_size[-1]
 
         # if point estimate is supplied
-        # no IBP params
         if prev_weights is not None and prev_variances is None:
             Wi_m_val = prev_weights[2][0]
             bi_m_val = prev_weights[3][0]
@@ -820,24 +812,18 @@ class MFVI_IBP_NN(Cla_NN):
             bi_m_val = tf.truncated_normal([dout], stddev=0.1)
         Wi_v_val = tf.constant(-6.0, shape=[din, dout])
         bi_v_val = tf.constant(-6.0, shape=[dout])
-        beta_a_val = tf.constant(np.log(np.exp(self.alpha0) - 1), shape=[dout])
-        beta_b_val = tf.constant(np.log(np.exp(1.) - 1.), shape=[dout])
 
         Wi_m = tf.Variable(Wi_m_val)
         bi_m = tf.Variable(bi_m_val)
         Wi_v = tf.Variable(Wi_v_val)
         bi_v = tf.Variable(bi_v_val)
-        _beta_a = tf.Variable(beta_a_val)
-        _beta_b = tf.Variable(beta_b_val)
         W_last_m.append(Wi_m)
         b_last_m.append(bi_m)
         W_last_v.append(Wi_v)
         b_last_v.append(bi_v)
-        beta_last_a.append(_beta_a)
-        beta_last_b.append(_beta_b)
 
         return [W_m, b_m, W_last_m, b_last_m], [W_v, b_v, W_last_v, b_last_v], \
-               [b_a, b_b, beta_last_a, beta_last_b], hidden_size
+               [b_a, b_b], hidden_size
 
     def create_prior(self, in_dim, hidden_size, out_dim, prev_weights, prev_variances, prev_betas, prior_mean, prior_var):
         hidden_size = deepcopy(hidden_size)
@@ -855,8 +841,6 @@ class MFVI_IBP_NN(Cla_NN):
         b_last_v = []
         betas_a = []
         betas_b = []
-        last_betas_a = []
-        last_betas_b = []
         for i in range(no_layers - 1):
             din = hidden_size[i]
             dout = hidden_size[i + 1]
@@ -884,27 +868,22 @@ class MFVI_IBP_NN(Cla_NN):
             betas_b.append(beta_b_v)
 
         # if there are previous tasks
-        if prev_weights is not None and prev_variances is not None and prev_betas is not None:
+        if prev_weights is not None and prev_variances is not None:
             prev_Wlast_m = prev_weights[2]
             prev_blast_m = prev_weights[3]
             prev_Wlast_v = prev_variances[2]
             prev_blast_v = prev_variances[3]
-            prev_beta_a = prev_betas[2] # TODO: check indexing
-            prev_beta_b = prev_betas[3]
             no_prev_tasks = len(prev_Wlast_m)
             for i in range(no_prev_tasks):
                 Wi_m = prev_Wlast_m[i]
                 bi_m = prev_blast_m[i]
                 Wi_v = np.exp(prev_Wlast_v[i])
                 bi_v = np.exp(prev_blast_v[i])
-                beta_i_a = prev_beta_a[i]
-                beta_i_b = prev_beta_b[i]
+
                 W_last_m.append(Wi_m)
                 b_last_m.append(bi_m)
                 W_last_v.append(Wi_v)
                 b_last_v.append(bi_v)
-                last_betas_a.append(beta_i_a)
-                last_betas_b.append(beta_i_b)
 
         din = hidden_size[-2]
         dout = hidden_size[-1]
@@ -916,11 +895,9 @@ class MFVI_IBP_NN(Cla_NN):
         b_last_m.append(bi_m)
         W_last_v.append(Wi_v)
         b_last_v.append(bi_v)
-        last_betas_a.append(self.alpha0)
-        last_betas_b.append(1.0)
 
         return [W_m, b_m, W_last_m, b_last_m], [W_v, b_v, W_last_v, b_last_v], \
-               [betas_a, betas_b, last_betas_a, last_betas_b]
+               [betas_a, betas_b]
 
     def train(self, x_train, y_train, task_idx, no_epochs=1000, batch_size=100, display_epoch=5,
               tau0=1.0, anneal_rate=0.0001, min_temp=0.5):
