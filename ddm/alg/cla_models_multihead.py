@@ -6,6 +6,9 @@ from copy import deepcopy
 from ddm.alg.training_utils import kl_beta_reparam, kl_discrete, kl_concrete
 from ddm.alg.utils import reparameterize_beta, reparameterize_discrete
 
+config = tf.ConfigProto()
+config.gpu_options.allow_growth = True
+
 np.random.seed(0)
 tf.set_random_seed(0)
 
@@ -62,7 +65,7 @@ class Cla_NN(object):
         init = tf.global_variables_initializer()
 
         # launch a session
-        self.sess = tf.Session()
+        self.sess = tf.Session(config=config)
         self.sess.run(init)
 
     def train(self, x_train, y_train, task_idx, no_epochs=1000, batch_size=100, display_epoch=5):
