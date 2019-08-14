@@ -107,3 +107,4 @@ venv.bak/
 .idea
 dgm
 improved_ddm
+logs/
