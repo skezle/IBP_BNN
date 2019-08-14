@@ -9,17 +9,25 @@ from ddm.alg.utils import plot
 from copy import deepcopy
 
 class SplitMnistGenerator():
-    def __init__(self):
+    def __init__(self, val=True):
         # f = gzip.open('data/mnist.pkl.gz', 'rb')
         # train_set, valid_set, test_set = cPickle.load(f)
         # f.close()
+        self.val = val
 
         with gzip.open('ddm/data/mnist.pkl.gz', 'rb') as f:
             train_set, valid_set, test_set = pickle.load(f, encoding='latin1')
 
-        self.X_train = np.vstack((train_set[0], valid_set[0]))
+        if self.val:
+            self.X_train = train_set[0]
+            self.X_val = valid_set[0]
+            self.train_label = train_set[1]
+            self.val_label = valid_set[1]
+        else:
+            self.X_train = np.vstack((train_set[0], valid_set[0]))
+            self.train_label = np.hstack((train_set[1], valid_set[1]))
+
         self.X_test = test_set[0]
-        self.train_label = np.hstack((train_set[1], valid_set[1]))
         self.test_label = test_set[1]
 
         self.sets_0 = [0, 2, 4, 6, 8]
@@ -53,9 +61,18 @@ class SplitMnistGenerator():
             next_y_test = np.vstack((np.ones((test_0_id.shape[0], 1)), np.zeros((test_1_id.shape[0], 1))))
             next_y_test = np.hstack((next_y_test, 1-next_y_test))
 
-            self.cur_iter += 1
+            if self.val:
+                val_0_id = np.where(self.val_label == self.sets_0[self.cur_iter])[0]
+                val_1_id = np.where(self.val_label == self.sets_1[self.cur_iter])[0]
+                next_x_val = np.vstack((self.X_val[val_0_id], self.X_val[val_1_id]))
 
-            return next_x_train, next_y_train, next_x_test, next_y_test
+                next_y_val = np.vstack((np.ones((val_0_id.shape[0], 1)), np.zeros((val_1_id.shape[0], 1))))
+                next_y_val = np.hstack((next_y_val, 1 - next_y_val))
+                self.cur_iter += 1
+                return next_x_train, next_y_train, next_x_test, next_y_test, next_x_val, next_y_val
+            else:
+                self.cur_iter += 1
+                return next_x_train, next_y_train, next_x_test, next_y_test
 
 if __name__ == "__main__":
     hidden_size = [256, 256]

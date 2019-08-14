@@ -452,26 +452,32 @@ class MFVI_NN(Cla_NN):
         return [W_m, b_m, W_last_m, b_last_m], [W_v, b_v, W_last_v, b_last_v]
 
 
-""" Bayesian Neural Network with Mean field VI approximation + IBP"""
+""" Bayesian Neural Network with Mean field VI approximation + IBP
+    
+    Truncation level defined by hidden_size
+"""
 class MFVI_IBP_NN(Cla_NN):
     def __init__(self, input_size, hidden_size, output_size, training_size,
                  no_train_samples=10, no_pred_samples=100, prev_means=None, prev_log_variances=None,
                  prev_betas=None, learning_rate=0.001,
-                 prior_mean=0, prior_var=1, alpha0=5., temp_prior=1., max_truncation_level=100.0,
-                 tensorboard_dir='logs', name='ibp', min_temp=0.5):
+                 prior_mean=0, prior_var=1, alpha0=5., beta0=1., lambda_1=1., lambda_2=1.,
+                 tensorboard_dir='logs', name='ibp', min_temp=0.5, tb_logging=True):
 
         super(MFVI_IBP_NN, self).__init__(input_size, hidden_size, output_size, training_size)
 
         self.alpha0 = alpha0
+        self.beta0 = beta0
         self.temp = tf.placeholder(tf.float32, shape=(), name='temp')
         self.training = tf.placeholder(tf.bool, name='training')
-        self.temp_prior = temp_prior
+        self.lambda_1 = lambda_1
+        self.lambda_2 = lambda_2
         self.min_temp = min_temp
-        self.truncation = max_truncation_level
         self.tensorboard_dir = tensorboard_dir
         self.name = name
         self.num_ibp_samples = 1
         self.hidden_size = hidden_size
+        self.tb_logging = tb_logging
+
         m, v, betas, self.size = self.create_weights(
             input_size, hidden_size, output_size, prev_means, prev_log_variances, prev_betas)
         self.W_m, self.b_m, self.W_last_m, self.b_last_m = m[0], m[1], m[2], m[3]
@@ -690,7 +696,7 @@ class MFVI_IBP_NN(Cla_NN):
             kl_beta_contrib = kl_beta_reparam(self.beta_a[i], self.beta_b[i], self.prior_beta_a[i], self.prior_beta_b[i])
 
             kl_bern_contrib = tf.cond(self.training,
-                                      true_fn=lambda: kl_concrete(log_pis[i], prior_log_pis[i], z_log_sample[i], self.temp, self.temp_prior),
+                                      true_fn=lambda: kl_concrete(log_pis[i], prior_log_pis[i], z_log_sample[i], self.temp, self.lambda_2),
                                       false_fn=lambda: kl_discrete(log_pis[i], prior_log_pis[i], z_log_sample[i]))
             kl_beta += kl_beta_contrib
             kl_bern += kl_bern_contrib
@@ -899,8 +905,7 @@ class MFVI_IBP_NN(Cla_NN):
         return [W_m, b_m, W_last_m, b_last_m], [W_v, b_v, W_last_v, b_last_v], \
                [betas_a, betas_b]
 
-    def train(self, x_train, y_train, task_idx, no_epochs=1000, batch_size=100, display_epoch=5,
-              tau0=1.0, anneal_rate=0.0001, min_temp=0.5):
+    def train(self, x_train, y_train, task_idx, no_epochs=1000, batch_size=100, display_epoch=5, anneal_rate=0.0001, min_temp=0.5):
         N = x_train.shape[0]
         if batch_size > N:
             batch_size = N
@@ -908,7 +913,7 @@ class MFVI_IBP_NN(Cla_NN):
         sess = self.sess
         costs = []
         global_step = 0
-        temp = tau0
+        temp = self.lambda_1
         log_folder = os.path.join(self.tensorboard_dir, "graph_{}_task{}".format(self.name, task_idx))
         writer = tf.summary.FileWriter(log_folder, sess.graph)
         # Training cycle
@@ -939,7 +944,7 @@ class MFVI_IBP_NN(Cla_NN):
                 avg_cost += c / total_batch
 
                 if global_step % 100 == 1:
-                    temp = np.maximum(tau0*np.exp(-anneal_rate*global_step), min_temp)
+                    temp = np.maximum(temp * np.exp(-anneal_rate*global_step), min_temp)
             # Display logs per epoch step
             if epoch % display_epoch == 0:
                 print("Epoch:", '%04d' % (epoch+1), "cost=", \
