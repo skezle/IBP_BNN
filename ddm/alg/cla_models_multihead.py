@@ -636,8 +636,8 @@ class MFVI_IBP_NN(Cla_NN):
             Z_all = tf.reduce_sum([tf.cast(tf.reduce_sum(x), tf.float32) for x in self.Z]) / tf.reduce_sum([tf.cast(tf.size(x), tf.float32) for x in self.Z])
             tf.summary.scalar("Z_av", Z_all)
             for i in range(len(self.hidden_size)):
-                tf.summary.histogram("v_beta_a_l{}".format(i), self.beta_a[i])
-                tf.summary.histogram("v_beta_b_l{}".format(i), self.beta_b[i])
+                tf.summary.histogram("v_beta_a_l{}".format(i), tf.math.softplus(self.beta_a[i]) + 0.01)
+                tf.summary.histogram("v_beta_b_l{}".format(i), tf.math.softplus(self.beta_b[i]) + 0.01)
             for i in range(len(self.Z)):
                 # tf.summary.images expects 4-d tensor b x height x width x channels
                 self._Z = tf.identity(self.Z[i])
