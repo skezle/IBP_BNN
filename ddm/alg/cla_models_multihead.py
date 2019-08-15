@@ -472,8 +472,8 @@ class MFVI_IBP_NN(Cla_NN):
         self.beta0 = beta0
         self.temp = tf.placeholder(tf.float32, shape=(), name='temp')
         self.training = tf.placeholder(tf.bool, name='training')
-        self.lambda_1 = lambda_1
-        self.lambda_2 = lambda_2
+        self.lambda_1 = lambda_1 # temp of the variational Concrete posterior
+        self.lambda_2 = lambda_2 # temp of the relaxed prior
         self.min_temp = min_temp
         self.tensorboard_dir = tensorboard_dir
         self.name = name
@@ -936,21 +936,26 @@ class MFVI_IBP_NN(Cla_NN):
                 batch_y = cur_y_train[start_ind:end_ind, :]
 
                 # Run optimization op (backprop) and cost op (to get loss value)
-                _, c, summary = sess.run(
-                    [self.train_step, self.cost, self.summary_op],
+                _, c = sess.run(
+                    [self.train_step, self.cost],
                     feed_dict={self.x: batch_x, self.y: batch_y, self.task_idx: task_idx, self.training: True, self.temp: temp})
                 #pdb.set_trace()
 
                 global_step += 1
-                writer.add_summary(summary, global_step)
                 # Compute average loss
                 avg_cost += c / total_batch
 
+                # run summaries every 100 steps
                 if global_step % 100 == 1:
+                    summary = sess.run([self.summary_op],
+                                    feed_dict={self.x: batch_x, self.y: batch_y, self.task_idx: task_idx,
+                                               self.training: True,
+                                               self.temp: temp})[0]
+                    writer.add_summary(summary, global_step)
                     temp = np.maximum(temp * np.exp(-anneal_rate*global_step), min_temp)
             # Display logs per epoch step
             if epoch % display_epoch == 0:
-                print("Epoch:", '%04d' % (epoch+1), "cost=", \
+                print("Epoch:", '%04d' % (epoch+1), "train cost=", \
                     "{:.9f}".format(avg_cost))
             costs.append(avg_cost)
         self.save(log_folder, sess)

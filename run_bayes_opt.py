@@ -32,8 +32,8 @@ if __name__ == '__main__':
 
     param_bounds = {'alpha': (1, 10),
                     'beta': (1, 10),
-                    'lambda_1': (0.1, 5.0),
-                    'lambda_2': (0.1, 5.0)}
+                    'lambda_1': (0.1, 1.0),
+                    'lambda_2': (0.1, 1.0)}
 
     model_params = {'hidden_size': [100],
                     'batch_size': 128,
@@ -106,7 +106,7 @@ if __name__ == '__main__':
                                    lambda_1=lambda_1,  # initial temperature of the variational posterior for task 1
                                    lambda_2=lambda_2,  # temperature of the Concrete prior
                                    no_pred_samples=model_params_cv['pred_samples'],
-                                   name='ibp_bo_alpha_{:.02}_beta_{:.02}_lambda_1_{:.02}_lambda_2_{:02}'.format(alpha,
+                                   name='ibp_bo_alpha_{:.02}_beta_{:.02}_lambda_1_{:.02}_lambda_2_{:.02}'.format(alpha,
                                                                                                                 beta,
                                                                                                                 lambda_1,
                                                                                                                 lambda_2))
