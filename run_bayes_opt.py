@@ -30,8 +30,8 @@ if __name__ == '__main__':
                  'init_points': 5,
                  'n_iter': 5}
 
-    param_bounds = {'alpha': (1, 10),
-                    'beta': (1, 10),
+    param_bounds = {'alpha': (1, 10.),
+                    'beta': (1, 5.0),
                     'lambda_1': (0.1, 1.0),
                     'lambda_2': (0.1, 1.0)}
 
