@@ -9,11 +9,12 @@ from ddm.alg.utils import plot
 from copy import deepcopy
 
 class SplitMnistGenerator():
-    def __init__(self, val=True):
+    def __init__(self, val=True, num_tasks=5):
         # f = gzip.open('data/mnist.pkl.gz', 'rb')
         # train_set, valid_set, test_set = cPickle.load(f)
         # f.close()
         self.val = val
+        self.num_tasks = num_tasks
 
         with gzip.open('ddm/data/mnist.pkl.gz', 'rb') as f:
             train_set, valid_set, test_set = pickle.load(f, encoding='latin1')
@@ -30,10 +31,13 @@ class SplitMnistGenerator():
         self.X_test = test_set[0]
         self.test_label = test_set[1]
 
-        self.sets_0 = [0, 2, 4, 6, 8]
-        self.sets_1 = [1, 3, 5, 7, 9]
-        #self.sets_0 = [0]
-        #self.sets_1 = [1]
+        if self.num_tasks == 1:
+            self.sets_0 = [0]
+            self.sets_1 = [1]
+        else:
+            self.sets_0 = [0, 2, 4, 6, 8]
+            self.sets_1 = [1, 3, 5, 7, 9]
+
         self.max_iter = len(self.sets_0)
         self.cur_iter = 0
 

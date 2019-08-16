@@ -38,7 +38,7 @@ if __name__ == '__main__':
     model_params = {'hidden_size': [100],
                     'batch_size': 128,
                     'no_epochs': 200,
-                    'learning_rate': 0.001,
+                    'learning_rate': 0.0005,
                     'anneal_rate': 0.0,
                     'pred_samples': 100}
 

@@ -169,8 +169,8 @@ class Vanilla_NN(Cla_NN):
             else:
                 Wi_val = tf.constant(prev_weights[0][i])
                 bi_val = tf.constant(prev_weights[1][i])
-            Wi = tf.Variable(Wi_val)
-            bi = tf.Variable(bi_val)
+            Wi = tf.Variable(Wi_val, name="w_{}".format(i))
+            bi = tf.Variable(bi_val, name="b_{}".format(i))
             W.append(Wi)
             b.append(bi)
 
@@ -181,8 +181,8 @@ class Vanilla_NN(Cla_NN):
             for j in range(no_prev_tasks):
                 W_j = prev_Wlast[j]
                 b_j = prev_blast[j]
-                Wi = tf.Variable(W_j)
-                bi = tf.Variable(b_j)
+                Wi = tf.Variable(W_j, name="w_h_{}".format(j))
+                bi = tf.Variable(b_j, name="b_h_{}".format(j))
                 W_last.append(Wi)
                 b_last.append(bi)
 
@@ -190,8 +190,8 @@ class Vanilla_NN(Cla_NN):
         dout = hidden_size[-1]
         Wi_val = tf.truncated_normal([din, dout], stddev=0.1)
         bi_val = tf.truncated_normal([dout], stddev=0.1)
-        Wi = tf.Variable(Wi_val)
-        bi = tf.Variable(bi_val)
+        Wi = tf.Variable(Wi_val, name="w_h_0")
+        bi = tf.Variable(bi_val, name="b_h_0")
         W_last.append(Wi)
         b_last.append(bi)
             
@@ -334,10 +334,10 @@ class MFVI_NN(Cla_NN):
                     Wi_v_val = prev_variances[0][i]
                     bi_v_val = prev_variances[1][i]
 
-            Wi_m = tf.Variable(Wi_m_val)
-            bi_m = tf.Variable(bi_m_val)
-            Wi_v = tf.Variable(Wi_v_val)
-            bi_v = tf.Variable(bi_v_val)
+            Wi_m = tf.Variable(Wi_m_val, name="w_mu_{}".format(i))
+            bi_m = tf.Variable(bi_m_val, name="b_mu_{}".format(i))
+            Wi_v = tf.Variable(Wi_v_val, name="w_sigma_{}".format(i))
+            bi_v = tf.Variable(bi_v_val, name="b_sigma_{}".format(i))
             W_m.append(Wi_m)
             b_m.append(bi_m)
             W_v.append(Wi_v)
@@ -353,13 +353,13 @@ class MFVI_NN(Cla_NN):
             for i in range(no_prev_tasks):
                 W_i_m = prev_Wlast_m[i]
                 b_i_m = prev_blast_m[i]
-                Wi_m = tf.Variable(W_i_m)
-                bi_m = tf.Variable(b_i_m)
+                Wi_m = tf.Variable(W_i_m, name="w_mu_h_{}".format(i))
+                bi_m = tf.Variable(b_i_m, name="b_mu_h_{}".format(i))
 
                 W_i_v = prev_Wlast_v[i]
                 b_i_v = prev_blast_v[i]
-                Wi_v = tf.Variable(W_i_v)
-                bi_v = tf.Variable(b_i_v)
+                Wi_v = tf.Variable(W_i_v, name="w_sigma_h_{}".format(i))
+                bi_v = tf.Variable(b_i_v, name="b_sigma_h_{}".format(i))
                 
                 W_last_m.append(Wi_m)
                 b_last_m.append(bi_m)
@@ -379,10 +379,10 @@ class MFVI_NN(Cla_NN):
         Wi_v_val = tf.constant(-6.0, shape=[din, dout])
         bi_v_val = tf.constant(-6.0, shape=[dout])
 
-        Wi_m = tf.Variable(Wi_m_val)
-        bi_m = tf.Variable(bi_m_val)
-        Wi_v = tf.Variable(Wi_v_val)
-        bi_v = tf.Variable(bi_v_val)
+        Wi_m = tf.Variable(Wi_m_val, name="w_mu_h_0")
+        bi_m = tf.Variable(bi_m_val, name="b_mu_h_0")
+        Wi_v = tf.Variable(Wi_v_val, name="w_sigma_h_0")
+        bi_v = tf.Variable(bi_v_val, name="b_sigma_h_0")
         W_last_m.append(Wi_m)
         b_last_m.append(bi_m)
         W_last_v.append(Wi_v)
@@ -771,13 +771,12 @@ class MFVI_IBP_NN(Cla_NN):
                     beta_a_val = prev_betas[0][i]
                     beta_b_val = prev_betas[1][i]
 
-
-            Wi_m = tf.Variable(Wi_m_val)
-            bi_m = tf.Variable(bi_m_val)
-            Wi_v = tf.Variable(Wi_v_val)
-            bi_v = tf.Variable(bi_v_val)
-            beta_a = tf.Variable(beta_a_val)
-            beta_b = tf.Variable(beta_b_val)
+            Wi_m = tf.Variable(Wi_m_val, name="w_mu_{}".format(i))
+            bi_m = tf.Variable(bi_m_val, name="b_mu_{}".format(i))
+            Wi_v = tf.Variable(Wi_v_val, name="w_sigma_{}".format(i))
+            bi_v = tf.Variable(bi_v_val, name="b_sigma_{}".format(i))
+            beta_a = tf.Variable(beta_a_val, name="beta_a_{}".format(i))
+            beta_b = tf.Variable(beta_b_val, name="beta_b_{}".format(i))
 
             W_m.append(Wi_m)
             b_m.append(bi_m)
@@ -796,13 +795,13 @@ class MFVI_IBP_NN(Cla_NN):
             for i in range(no_prev_tasks):
                 W_i_m = prev_Wlast_m[i]
                 b_i_m = prev_blast_m[i]
-                Wi_m = tf.Variable(W_i_m)
-                bi_m = tf.Variable(b_i_m)
+                Wi_m = tf.Variable(W_i_m, name="w_mu_h_{}".format(i))
+                bi_m = tf.Variable(b_i_m, name="b_mu_h_{}".format(i))
 
                 W_i_v = prev_Wlast_v[i]
                 b_i_v = prev_blast_v[i]
-                Wi_v = tf.Variable(W_i_v)
-                bi_v = tf.Variable(b_i_v)
+                Wi_v = tf.Variable(W_i_v, name="w_sigma_h_{}".format(i))
+                bi_v = tf.Variable(b_i_v, name="b_sigma_h_{}".format(i))
 
                 W_last_m.append(Wi_m)
                 b_last_m.append(bi_m)
@@ -813,6 +812,7 @@ class MFVI_IBP_NN(Cla_NN):
         dout = hidden_size[-1]
 
         # if point estimate is supplied
+        # before first task we supply the ML solution as a initializer
         if prev_weights is not None and prev_variances is None:
             Wi_m_val = prev_weights[2][0]
             bi_m_val = prev_weights[3][0]
@@ -822,10 +822,10 @@ class MFVI_IBP_NN(Cla_NN):
         Wi_v_val = tf.constant(-6.0, shape=[din, dout])
         bi_v_val = tf.constant(-6.0, shape=[dout])
 
-        Wi_m = tf.Variable(Wi_m_val)
-        bi_m = tf.Variable(bi_m_val)
-        Wi_v = tf.Variable(Wi_v_val)
-        bi_v = tf.Variable(bi_v_val)
+        Wi_m = tf.Variable(Wi_m_val, name="w_mu_h_0")
+        bi_m = tf.Variable(bi_m_val, name="b_mu_h_0")
+        Wi_v = tf.Variable(Wi_v_val, name="w_sigma_h_0")
+        bi_v = tf.Variable(bi_v_val, name="b_sigma_h_0")
         W_last_m.append(Wi_m)
         b_last_m.append(bi_m)
         W_last_v.append(Wi_v)
