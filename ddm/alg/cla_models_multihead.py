@@ -540,8 +540,7 @@ class MFVI_IBP_NN(Cla_NN):
                     # Hack, just skip these variables when getting the gradients
                     continue
                 gradient_name_to_save = current_variable.name.replace(':', '_')  # tensorboard doesn't accept ':' symbol
-                with tf.name_scope("summaries"):
-                    tf.summary.histogram(gradient_name_to_save, current_gradient)
+                tf.summary.histogram(gradient_name_to_save, current_gradient)
 
         self.train_step = self.optim.apply_gradients(grads_and_vars=grads)
 
@@ -596,7 +595,6 @@ class MFVI_IBP_NN(Cla_NN):
             z_discrete = tf.sigmoid(z_log_sample) # (K_ibp, batch_size, dout)
             self.Z.append(z_discrete)
             log_z_sample.append(z_log_sample)
-            print("z_discrete: {}".format(z_discrete.get_shape()))
 
             # multiplication by IBP mask
             pre = tf.add(tf.einsum('mni,mio->mno', act, _weights), _biases) # m = samples, n = din, i=input d, o=output d
@@ -614,11 +612,9 @@ class MFVI_IBP_NN(Cla_NN):
 
         _weights = tf.add(tf.multiply(eps_w, tf.exp(0.5 * Wtask_v)), Wtask_m)
         _biases = tf.add(tf.multiply(eps_b, tf.exp(0.5 * btask_v)), btask_m)
-        print("biases: {}".format(_biases.get_shape()))
         act = tf.expand_dims(act, 3) # [K, din, dout, 1]
         _weights = tf.expand_dims(_weights, 1) # [K, 1, dout, 2]
         pre = tf.add(tf.reduce_sum(act * _weights, 2), _biases)
-        print("pre: {}".format(pre.get_shape()))
         return pre, prior_log_pis, log_pis, log_z_sample
 
     def lof(self, nu):
