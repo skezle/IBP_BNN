@@ -464,7 +464,7 @@ class MFVI_IBP_NN(Cla_NN):
                  no_train_samples=10, no_pred_samples=100, prev_means=None, prev_log_variances=None,
                  prev_betas=None, learning_rate=0.001,
                  prior_mean=0, prior_var=1, alpha0=5., beta0=1., lambda_1=1., lambda_2=1.,
-                 tensorboard_dir='logs', name='ibp', min_temp=0.5, tb_logging=True):
+                 tensorboard_dir='logs', name='ibp', min_temp=0.5, tb_logging=True, output_tb_gradients=False):
 
         super(MFVI_IBP_NN, self).__init__(input_size, hidden_size, output_size, training_size)
 
@@ -480,6 +480,7 @@ class MFVI_IBP_NN(Cla_NN):
         self.num_ibp_samples = 1
         self.hidden_size = hidden_size
         self.tb_logging = tb_logging
+        self.output_tb_gradients = output_tb_gradients
 
         m, v, betas, self.size = self.create_weights(
             input_size, hidden_size, output_size, prev_means, prev_log_variances, prev_betas)
@@ -514,6 +515,20 @@ class MFVI_IBP_NN(Cla_NN):
         self.create_summaries()
 
         self.assign_session()
+
+    def assign_optimizer(self, learning_rate=0.001):
+        tvars = tf.trainable_variables()
+        self.optim = tf.train.AdamOptimizer(learning_rate)
+        grads = self.optim.compute_gradients(self.cost)
+
+        # Debug
+        if self.output_tb_gradients:
+            for grad_var_tuple in zip(grads, tvars):
+                current_variable = grad_var_tuple[1]
+                current_gradient = grad_var_tuple[0]
+                gradient_name_to_save = current_variable.name.replace(':', '_')  # tensorboard doesn't accept ':' symbol
+                tf.summary.histogram(gradient_name_to_save, current_gradient)
+        self.train_op = self.optim.apply_gradients(grads_and_vars=grads)
 
     def _prediction(self, inputs, task_idx, no_samples):
         return self._prediction_layer(inputs, task_idx, no_samples)
@@ -636,8 +651,8 @@ class MFVI_IBP_NN(Cla_NN):
             Z_all = tf.reduce_sum([tf.cast(tf.reduce_sum(x), tf.float32) for x in self.Z]) / tf.reduce_sum([tf.cast(tf.size(x), tf.float32) for x in self.Z])
             tf.summary.scalar("Z_av", Z_all)
             for i in range(len(self.hidden_size)):
-                tf.summary.histogram("v_beta_a_l{}".format(i), tf.math.softplus(self.beta_a[i]) + 0.01)
-                tf.summary.histogram("v_beta_b_l{}".format(i), tf.math.softplus(self.beta_b[i]) + 0.01)
+                tf.summary.histogram("v_beta_a_l{}".format(i), tf.cast(tf.math.softplus(self.beta_a[i]) + 0.01))
+                tf.summary.histogram("v_beta_b_l{}".format(i), tf.cast(tf.math.softplus(self.beta_b[i]) + 0.01))
             for i in range(len(self.Z)):
                 # tf.summary.images expects 4-d tensor b x height x width x channels
                 self._Z = tf.identity(self.Z[i])

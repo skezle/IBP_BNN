@@ -109,7 +109,8 @@ if __name__ == '__main__':
                                    name='ibp_bo_alpha_{:.02}_beta_{:.02}_lambda_1_{:.02}_lambda_2_{:.02}'.format(alpha,
                                                                                                                 beta,
                                                                                                                 lambda_1,
-                                                                                                                lambda_2))
+                                                                                                                lambda_2),
+                                   output_tb_gradients=True)
 
             mf_model.train(x_train, y_train, head, model_params_cv['no_epochs'],
                            model_params_cv['batch_size'],
