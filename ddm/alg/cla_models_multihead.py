@@ -127,14 +127,24 @@ class Vanilla_NN(Cla_NN):
 
         super(Vanilla_NN, self).__init__(input_size, hidden_size, output_size, training_size)
         # init weights and biases
+
+        self.input_size = input_size
+        self.hidden_size = hidden_size
+        self.output_size = output_size
+        self.training_size = training_size
+        self.prev_weights = prev_weights
+        self.learning_rate = learning_rate
+        self.create_model()
+
+    def create_model(self):
         self.W, self.b, self.W_last, self.b_last, self.size = self.create_weights(
-                input_size, hidden_size, output_size, prev_weights)
-        self.no_layers = len(hidden_size) + 1
+                self.input_size, self.hidden_size, self.output_size, self.prev_weights)
+        self.no_layers = len(self.hidden_size) + 1
         self.pred = self._prediction(self.x, self.task_idx)
         self.cost = - self._logpred(self.x, self.y, self.task_idx)
         self.weights = [self.W, self.b, self.W_last, self.b_last]
 
-        self.assign_optimizer(learning_rate)
+        self.assign_optimizer(self.learning_rate)
         self.assign_session()
 
     def _prediction(self, inputs, task_idx):
@@ -520,15 +530,20 @@ class MFVI_IBP_NN(Cla_NN):
         tvars = tf.trainable_variables()
         self.optim = tf.train.AdamOptimizer(learning_rate)
         grads = self.optim.compute_gradients(self.cost)
-
         # Debug
         if self.output_tb_gradients:
-            for grad_var_tuple in zip(grads, tvars):
+            for grad_var_tuple in grads:
                 current_variable = grad_var_tuple[1]
                 current_gradient = grad_var_tuple[0]
+                if current_gradient is None:
+                    # the subclass variables are also being created in the graph :(
+                    # Hack, just skip these variables when getting the gradients
+                    continue
                 gradient_name_to_save = current_variable.name.replace(':', '_')  # tensorboard doesn't accept ':' symbol
-                tf.summary.histogram(gradient_name_to_save, current_gradient)
-        self.train_op = self.optim.apply_gradients(grads_and_vars=grads)
+                with tf.name_scope("summaries"):
+                    tf.summary.histogram(gradient_name_to_save, current_gradient)
+
+        self.train_step = self.optim.apply_gradients(grads_and_vars=grads)
 
     def _prediction(self, inputs, task_idx, no_samples):
         return self._prediction_layer(inputs, task_idx, no_samples)
@@ -651,8 +666,8 @@ class MFVI_IBP_NN(Cla_NN):
             Z_all = tf.reduce_sum([tf.cast(tf.reduce_sum(x), tf.float32) for x in self.Z]) / tf.reduce_sum([tf.cast(tf.size(x), tf.float32) for x in self.Z])
             tf.summary.scalar("Z_av", Z_all)
             for i in range(len(self.hidden_size)):
-                tf.summary.histogram("v_beta_a_l{}".format(i), tf.cast(tf.math.softplus(self.beta_a[i]) + 0.01))
-                tf.summary.histogram("v_beta_b_l{}".format(i), tf.cast(tf.math.softplus(self.beta_b[i]) + 0.01))
+                tf.summary.histogram("v_beta_a_l{}".format(i), tf.cast(tf.math.softplus(self.beta_a[i]) + 0.01, tf.float32))
+                tf.summary.histogram("v_beta_b_l{}".format(i), tf.cast(tf.math.softplus(self.beta_b[i]) + 0.01, tf.float32))
             for i in range(len(self.Z)):
                 # tf.summary.images expects 4-d tensor b x height x width x channels
                 self._Z = tf.identity(self.Z[i])

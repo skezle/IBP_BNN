@@ -30,15 +30,15 @@ if __name__ == '__main__':
                  'init_points': 5,
                  'n_iter': 5}
 
-    param_bounds = {'alpha': (1, 10.),
-                    'beta': (1, 5.0),
+    param_bounds = {'alpha': (1, 5.),
+                    'beta': (1, 5.),
                     'lambda_1': (0.1, 1.0),
                     'lambda_2': (0.1, 1.0)}
 
     model_params = {'hidden_size': [100],
                     'batch_size': 128,
                     'no_epochs': 200,
-                    'learning_rate': 0.0005,
+                    'learning_rate': 0.0001,
                     'anneal_rate': 0.0,
                     'pred_samples': 100}
 
