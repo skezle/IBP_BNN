@@ -36,7 +36,7 @@ if __name__ == '__main__':
 
     model_params = {'hidden_size': [100],
                     'batch_size': 128,
-                    'no_epochs': 200,
+                    'no_epochs': 500,
                     'learning_rate': 0.0001,
                     'anneal_rate': 0.0,
                     'pred_samples': 100}
@@ -247,7 +247,7 @@ if __name__ == '__main__':
     hidden_size = [10]
     coreset_size = 0
     batch_size = 128
-    no_epochs = 200
+    no_epochs = 500
 
     data_gen = SplitMnistGenerator()
     vcl_result = run_vcl(hidden_size, no_epochs, data_gen,
