@@ -36,7 +36,7 @@ if __name__ == '__main__':
 
     model_params = {'hidden_size': [100],
                     'batch_size': 128,
-                    'no_epochs': 500,
+                    'no_epochs': 200,
                     'learning_rate': 0.0001,
                     'anneal_rate': 0.0,
                     'pred_samples': 100}
@@ -136,7 +136,7 @@ if __name__ == '__main__':
 
     os.makedirs(folder, exist_ok=True)
 
-    if os.path.exists(folder):
+    if os.path.isfile(os.path.join(folder, 'res_max.pkl')):
         print("Loading cached results")
         with open(os.path.join(folder, 'res_max.pkl'), 'rb') as f:
             a = pickle.load(f)
@@ -173,6 +173,8 @@ if __name__ == '__main__':
     np.random.seed(1)
 
     ibp_acc = np.array([])
+
+    model_params['no_epochs'] = 500 # hack!!!
 
     coreset_size = 0
     val = True
