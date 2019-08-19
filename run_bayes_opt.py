@@ -5,7 +5,7 @@ import pickle
 import sys
 import copy
 import os.path
-from absl import flags
+import argparse
 from ddm.run_split import SplitMnistGenerator
 from ddm.alg.cla_models_multihead import MFVI_IBP_NN, Vanilla_NN
 from ddm.alg.utils import get_scores, concatenate_results
@@ -18,20 +18,32 @@ import matplotlib
 matplotlib.use('agg')
 import matplotlib.pyplot as plt
 
-FLAGS = flags.FLAGS
+parser = argparse.ArgumentParser()
+parser.add_argument('--beta_1', action='store',
+                    dest='beta_1',
+                    type=float,
+                    default=1.0,
+                    help='Gauss KL coefficient.')
+parser.add_argument('--beta_2', action='store',
+                    dest='beta_2',
+                    type=float,
+                    default=1.0,
+                    help='Beta KL coefficient.')
+parser.add_argument('--beta_3', action='store',
+                    dest='beta_3',
+                    type=float,
+                    default=1.0,
+                    help='Bernoulli KL coefficient.')
+parser.add_argument('-t', action='store',
+                    dest='tag',
+                    help='Tag to use in naming file outputs')
 
-flags.DEFINE_string('tag',
-                    '',
-                    'Tag for saving pickle files.')
-flags.DEFINE_float('beta_1',
-                   1.0,
-                   'Gauss KL coefficient.')
-flags.DEFINE_float('beta_2',
-                   1.0,
-                   'Beta KL coefficient.')
-flags.DEFINE_float('beta_3',
-                   1.0,
-                   'Bernoulli KL coefficient.')
+args = parser.parse_args()
+
+print('beta_1       = {!r}'.format(args.beta_1))
+print('beta_2       = {!r}'.format(args.beta_2))
+print('beta_3       = {!r}'.format(args.beta_3))
+print('tag          = {!r}'.format(args.tag))
 
 
 def folder_name(experiment_name, param_bounds, bo_params, model_params, results_folder="./results"):
@@ -42,7 +54,7 @@ def folder_name(experiment_name, param_bounds, bo_params, model_params, results_
 
 if __name__ == '__main__':
 
-    experiment_name = 'ibp_split_mnist_bo_{}'.format(FLAGS.tag)
+    experiment_name = 'ibp_split_mnist_bo_{}'.format(args.tag)
 
     bo_params = {'acq': 'ei',
                  'init_points': 5,
@@ -59,9 +71,9 @@ if __name__ == '__main__':
                     'learning_rate': 0.0001,
                     'anneal_rate': 0.0,
                     'pred_samples': 100,
-                    'beta_1': FLAGS.beta_1,
-                    'beta_2': FLAGS.beta_2,
-                    'beta_3': FLAGS.beta_3}
+                    'beta_1': args.beta_1,
+                    'beta_2': args.beta_2,
+                    'beta_3': args.beta_3}
 
     ############
     ## Run BO ##
@@ -127,9 +139,9 @@ if __name__ == '__main__':
                                    lambda_1=lambda_1,  # initial temperature of the variational posterior for task 1
                                    lambda_2=lambda_2,  # temperature of the Concrete prior
                                    no_pred_samples=model_params_cv['pred_samples'],
-                                   name='{}_{:.02}_beta_{:.02}_lambda_1_{:.02}_lambda_2_{:.02}'.format(experiment_name,
-                                                                                                       beta, lambda_1,
-                                                                                                       lambda_2,),
+                                   name='{}_alpha_{:.02}_beta_{:.02}_lambda_1_{:.02}_lambda_2_{:.02}'.format(experiment_name,
+                                                                                                             alpha, beta, lambda_1,
+                                                                                                             lambda_2),
                                    output_tb_gradients=True,
                                    beta_1=model_params_cv['beta_1'],
                                    beta_2=model_params_cv['beta_2'],
@@ -243,7 +255,7 @@ if __name__ == '__main__':
                                lambda_1=lambda_1_opt,
                                lambda_2=lambda_2_opt,
                                no_pred_samples=model_params['pred_samples'],
-                               name='ibp_bo_opt_{}'.format(FLAGS.tag),
+                               name='opt_{}'.format(experiment_name),
                                beta_1=model_params['beta_1'],
                                beta_2=model_params['beta_2'],
                                beta_3=model_params['beta_3'])
