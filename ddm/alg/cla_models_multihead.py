@@ -1006,5 +1006,8 @@ class MFVI_IBP_NN(Cla_NN):
                                                                     self.training: False, self.temp: self.min_temp})[0]
         return prob
 
-    def save(self, model_dir, sess):
-        self.saver.save(sess, os.path.join(model_dir, "model.ckpt"))
+    def save(self, model_dir):
+        self.saver.save(self.sess, os.path.join(model_dir, "model.ckpt"))
+
+    def restore(self, model_dir):
+        self.saver.restore(self.sess, os.path.join(model_dir, "model.ckpt"))

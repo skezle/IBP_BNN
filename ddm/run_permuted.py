@@ -1,19 +1,18 @@
 import numpy as np
 import tensorflow as tf
 import gzip
-import cPickle
 import sys
 sys.path.extend(['alg/'])
 import vcl
 import coreset
 import utils
+import pickle
 from copy import deepcopy
 
 class PermutedMnistGenerator():
     def __init__(self, max_iter=10):
-        f = gzip.open('data/mnist.pkl.gz', 'rb')
-        train_set, valid_set, test_set = cPickle.load(f)
-        f.close()
+        with gzip.open('ddm/data/mnist.pkl.gz', 'rb') as f:
+            train_set, valid_set, test_set = pickle.load(f, encoding='latin1')
 
         self.X_train = np.vstack((train_set[0], valid_set[0]))
         self.Y_train = np.hstack((train_set[1], valid_set[1]))
@@ -62,7 +61,7 @@ coreset_size = 0
 data_gen = PermutedMnistGenerator(num_tasks)
 vcl_result = vcl.run_vcl(hidden_size, no_epochs, data_gen, 
     coreset.rand_from_batch, coreset_size, batch_size, single_head)
-print vcl_result
+print(vcl_result)
 
 # Run random coreset VCL
 tf.reset_default_graph()
@@ -73,7 +72,7 @@ coreset_size = 200
 data_gen = PermutedMnistGenerator(num_tasks)
 rand_vcl_result = vcl.run_vcl(hidden_size, no_epochs, data_gen, 
     coreset.rand_from_batch, coreset_size, batch_size, single_head)
-print rand_vcl_result
+print(rand_vcl_result)
 
 # Run k-center coreset VCL
 tf.reset_default_graph()
@@ -83,7 +82,7 @@ np.random.seed(1)
 data_gen = PermutedMnistGenerator(num_tasks)
 kcen_vcl_result = vcl.run_vcl(hidden_size, no_epochs, data_gen, 
     coreset.k_center, coreset_size, batch_size, single_head)
-print kcen_vcl_result
+print(kcen_vcl_result)
 
 # Plot average accuracy
 vcl_avg = np.nanmean(vcl_result, 1)
