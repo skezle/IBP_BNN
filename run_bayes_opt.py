@@ -26,8 +26,8 @@ def folder_name(experiment_name, param_bounds, bo_params, model_params, results_
 if __name__ == '__main__':
 
     bo_params = {'acq': 'ei',
-                 'init_points': 2,
-                 'n_iter':2}
+                 'init_points': 5,
+                 'n_iter': 5}
 
     param_bounds = {'alpha': (1, 5.),
                     'beta': (1, 5.),
@@ -225,7 +225,7 @@ if __name__ == '__main__':
         mf_model.train(x_train, y_train, head, model_params['no_epochs'],
                        model_params['batch_size'],
                        anneal_rate=model_params['anneal_rate'],
-                       min_temp=model_params['min_temp'])
+                       min_temp=lambda_1_opt)
 
         mf_weights, mf_variances, mf_betas = mf_model.get_weights()
 
