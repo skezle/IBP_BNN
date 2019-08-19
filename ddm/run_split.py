@@ -9,7 +9,7 @@ from ddm.alg.utils import plot
 from copy import deepcopy
 
 class SplitMnistGenerator():
-    def __init__(self, val=True, num_tasks=5):
+    def __init__(self, val=False, num_tasks=5):
         # f = gzip.open('data/mnist.pkl.gz', 'rb')
         # train_set, valid_set, test_set = cPickle.load(f)
         # f.close()
