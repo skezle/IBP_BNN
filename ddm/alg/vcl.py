@@ -3,7 +3,7 @@ import tensorflow as tf
 from ddm.alg.utils import get_scores, concatenate_results
 from ddm.alg.cla_models_multihead import Vanilla_NN, MFVI_NN, MFVI_IBP_NN
 
-def run_vcl(hidden_size, no_epochs, data_gen, coreset_method, coreset_size=0, batch_size=None, single_head=True):
+def run_vcl(hidden_size, no_epochs, data_gen, coreset_method, coreset_size=0, batch_size=None, single_head=True, val=False):
     in_dim, out_dim = data_gen.get_dims()
     x_coresets, y_coresets = [], []
     x_testsets, y_testsets = [], []
@@ -11,7 +11,10 @@ def run_vcl(hidden_size, no_epochs, data_gen, coreset_method, coreset_size=0, ba
     all_acc = np.array([])
 
     for task_id in range(data_gen.max_iter):
-        x_train, y_train, x_test, y_test = data_gen.next_task()
+        if val:
+            x_train, y_train, x_test, y_test, _, _ = data_gen.next_task()
+        else:
+            x_train, y_train, x_test, y_test = data_gen.next_task()
         x_testsets.append(x_test)
         y_testsets.append(y_test)
 

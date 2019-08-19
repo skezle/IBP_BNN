@@ -474,7 +474,8 @@ class MFVI_IBP_NN(Cla_NN):
                  no_train_samples=10, no_pred_samples=100, prev_means=None, prev_log_variances=None,
                  prev_betas=None, learning_rate=0.001,
                  prior_mean=0, prior_var=1, alpha0=5., beta0=1., lambda_1=1., lambda_2=1.,
-                 tensorboard_dir='logs', name='ibp', min_temp=0.5, tb_logging=True, output_tb_gradients=False):
+                 tensorboard_dir='logs', name='ibp', min_temp=0.5, tb_logging=True, output_tb_gradients=False,
+                 beta_1=1.0, beta_2=1.0, beta_3=1.0):
 
         super(MFVI_IBP_NN, self).__init__(input_size, hidden_size, output_size, training_size)
 
@@ -491,6 +492,9 @@ class MFVI_IBP_NN(Cla_NN):
         self.hidden_size = hidden_size
         self.tb_logging = tb_logging
         self.output_tb_gradients = output_tb_gradients
+        self.beta_1 = beta_1
+        self.beta_2 = beta_2
+        self.beta_3 = beta_3
 
         m, v, betas, self.size = self.create_weights(
             input_size, hidden_size, output_size, prev_means, prev_log_variances, prev_betas)
@@ -730,6 +734,8 @@ class MFVI_IBP_NN(Cla_NN):
             kl_beta += kl_beta_contrib
             kl_bern += kl_bern_contrib
 
+        # contribution from the head networks
+        # no IBP layer applied to these weights
         no_tasks = len(self.W_last_m)
         din = self.size[-2]
         dout = self.size[-1]
@@ -752,7 +758,7 @@ class MFVI_IBP_NN(Cla_NN):
         self.kl_beta_contrib = kl_beta
         self.kl_bern_contrib = kl_bern
 
-        return kl + self.kl_beta_contrib + self.kl_bern_contrib
+        return self.beta_1 * kl + self.beta_2 * self.kl_beta_contrib + self.beta_3 * self.kl_bern_contrib
 
     def create_weights(self, in_dim, hidden_size, out_dim, prev_weights, prev_variances, prev_betas):
         hidden_size = deepcopy(hidden_size)

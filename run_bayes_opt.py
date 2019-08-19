@@ -5,6 +5,7 @@ import pickle
 import sys
 import copy
 import os.path
+from absl import flags
 from ddm.run_split import SplitMnistGenerator
 from ddm.alg.cla_models_multihead import MFVI_IBP_NN, Vanilla_NN
 from ddm.alg.utils import get_scores, concatenate_results
@@ -17,6 +18,22 @@ import matplotlib
 matplotlib.use('agg')
 import matplotlib.pyplot as plt
 
+FLAGS = flags.FLAGS
+
+flags.DEFINE_string('tag',
+                    '',
+                    'Tag for saving pickle files.')
+flags.DEFINE_float('beta_1',
+                   1.0,
+                   'Gauss KL coefficient.')
+flags.DEFINE_float('beta_2',
+                   1.0,
+                   'Beta KL coefficient.')
+flags.DEFINE_float('beta_1',
+                   1.0,
+                   'Bernoulli KL coefficient.')
+
+
 def folder_name(experiment_name, param_bounds, bo_params, model_params, results_folder="./results"):
     pp = ''.join('{}:{}|'.format(key, val) for key, val in sorted(param_bounds.items()))[:-1]
     bp = ''.join('{}:{}|'.format(key, val) for key, val in sorted(bo_params.items()))[:-1]
@@ -25,9 +42,11 @@ def folder_name(experiment_name, param_bounds, bo_params, model_params, results_
 
 if __name__ == '__main__':
 
+    experiment_name = 'ibp_split_mnist_bo_{}'.format(FLAGS.tag)
+
     bo_params = {'acq': 'ei',
-                 'init_points': 2,
-                 'n_iter': 2}
+                 'init_points': 5,
+                 'n_iter': 10}
 
     param_bounds = {'alpha': (1, 5.),
                     'beta': (1, 5.),
@@ -36,10 +55,13 @@ if __name__ == '__main__':
 
     model_params = {'hidden_size': [100],
                     'batch_size': 128,
-                    'no_epochs': 200,
+                    'no_epochs': 500,
                     'learning_rate': 0.0001,
                     'anneal_rate': 0.0,
-                    'pred_samples': 100}
+                    'pred_samples': 100,
+                    'beta_1': FLAGS.beta_1,
+                    'beta_2': FLAGS.beta_2,
+                    'beta_3': FLAGS.beta_3}
 
     ############
     ## Run BO ##
@@ -105,11 +127,13 @@ if __name__ == '__main__':
                                    lambda_1=lambda_1,  # initial temperature of the variational posterior for task 1
                                    lambda_2=lambda_2,  # temperature of the Concrete prior
                                    no_pred_samples=model_params_cv['pred_samples'],
-                                   name='ibp_bo_alpha_{:.02}_beta_{:.02}_lambda_1_{:.02}_lambda_2_{:.02}'.format(alpha,
-                                                                                                                beta,
-                                                                                                                lambda_1,
-                                                                                                                lambda_2),
-                                   output_tb_gradients=True)
+                                   name='{}_{:.02}_beta_{:.02}_lambda_1_{:.02}_lambda_2_{:.02}'.format(experiment_name,
+                                                                                                       beta, lambda_1,
+                                                                                                       lambda_2,),
+                                   output_tb_gradients=True,
+                                   beta_1=model_params_cv['beta_1'],
+                                   beta_2=model_params_cv['beta_2'],
+                                   beta_3=model_params_cv['beta_3'])
 
             mf_model.train(x_train, y_train, head, model_params_cv['no_epochs'],
                            model_params_cv['batch_size'],
@@ -127,7 +151,6 @@ if __name__ == '__main__':
     # Folder for storing results
     results_folder = "./results/"
 
-    experiment_name = 'ibp_split_mnist_bo'
     folder = folder_name(results_folder=results_folder,
                          experiment_name=experiment_name,
                          param_bounds=param_bounds,
@@ -173,8 +196,6 @@ if __name__ == '__main__':
     np.random.seed(1)
 
     ibp_acc = np.array([])
-
-    model_params['no_epochs'] = 500 # hack!!!
 
     coreset_size = 0
     val = True
@@ -222,7 +243,10 @@ if __name__ == '__main__':
                                lambda_1=lambda_1_opt,
                                lambda_2=lambda_2_opt,
                                no_pred_samples=model_params['pred_samples'],
-                               name='ibp_bo_opt')
+                               name='ibp_bo_opt_{}'.format(FLAGS.tag),
+                               beta_1=model_params['beta_1'],
+                               beta_2=model_params['beta_2'],
+                               beta_3=model_params['beta_3'])
 
         mf_model.train(x_train, y_train, head, model_params['no_epochs'],
                        model_params['batch_size'],
@@ -251,9 +275,9 @@ if __name__ == '__main__':
     batch_size = 128
     no_epochs = 500
 
-    data_gen = SplitMnistGenerator()
+    data_gen = SplitMnistGenerator(val=True)
     vcl_result = run_vcl(hidden_size, no_epochs, data_gen,
-                         lambda a: a, coreset_size, batch_size, single_head)
+                         lambda a: a, coreset_size, batch_size, single_head, val=True)
 
     _ibp_acc = np.nanmean(ibp_acc, 1)
     _vcl_result = np.nanmean(vcl_result, 1)
