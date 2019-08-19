@@ -26,8 +26,8 @@ def folder_name(experiment_name, param_bounds, bo_params, model_params, results_
 if __name__ == '__main__':
 
     bo_params = {'acq': 'ei',
-                 'init_points': 5,
-                 'n_iter': 5}
+                 'init_points': 2,
+                 'n_iter': 2}
 
     param_bounds = {'alpha': (1, 5.),
                     'beta': (1, 5.),
