@@ -125,14 +125,6 @@ if __name__ == '__main__':
 
         return np.nanmean(ibp_acc)
 
-    bo = BayesianOptimization(cv_exp, param_bounds)
-    bo.maximize()
-
-
-    ######################
-    ## Store BO results ##
-    ######################
-
     # Folder for storing results
     results_folder = "./results/"
 
@@ -145,16 +137,29 @@ if __name__ == '__main__':
 
     os.makedirs(folder, exist_ok=True)
 
-    with open(os.path.join(folder, 'res_all.pkl'), 'wb') as input_file:
-        pickle.dump(bo.res, input_file)
+    if os.path.exists(folder):
+        print("Loading cached results")
+        with open(os.path.join(folder, 'res_max.pkl'), 'rb') as f:
+            a = pickle.load(f)
+            alpha_opt = a['params']['alpha']
+            beta_opt = a['params']['beta']
+            lambda_1_opt = a['params']['lambda_1']
+            lambda_2_opt = a['params']['lambda_2']
+    else:
+        print("Running BayesOpt")
+        bo = BayesianOptimization(cv_exp, param_bounds)
+        bo.maximize()
 
-    with open(os.path.join(folder, 'res_max.pkl'), 'wb') as input_file:
-        pickle.dump(bo.max, input_file)
+        with open(os.path.join(folder, 'res_all.pkl'), 'wb') as input_file:
+            pickle.dump(bo.res, input_file)
 
-    alpha_opt = bo.max['params']['alpha']
-    beta_opt = bo.max['params']['beta']
-    lambda_1_opt = bo.max['params']['lambda_1']
-    lambda_2_opt = bo.max['params']['lambda_2']
+        with open(os.path.join(folder, 'res_max.pkl'), 'wb') as input_file:
+            pickle.dump(bo.max, input_file)
+
+        alpha_opt = bo.max['params']['alpha']
+        beta_opt = bo.max['params']['beta']
+        lambda_1_opt = bo.max['params']['lambda_1']
+        lambda_2_opt = bo.max['params']['lambda_2']
     print("alpha_opt: {}".format(alpha_opt))
     print("beta_opt: {}".format(beta_opt))
     print("lambda_1_opt: {}".format(lambda_1_opt))
@@ -213,8 +218,8 @@ if __name__ == '__main__':
                                alpha0=alpha_opt,
                                beta0=beta_opt,
                                learning_rate=model_params['learning_rate'],
-                               temp=lambda_1_opt,
-                               temp_prior=lambda_2_opt,
+                               lambda_1=lambda_1_opt,
+                               lambda_2=lambda_2_opt,
                                no_pred_samples=model_params['pred_samples'],
                                name='ibp_bo_opt')
 
