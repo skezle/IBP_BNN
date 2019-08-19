@@ -34,7 +34,7 @@ parser.add_argument('--beta_3', action='store',
                     type=float,
                     default=1.0,
                     help='Bernoulli KL coefficient.')
-parser.add_argument('-t', action='store',
+parser.add_argument('--tag', action='store',
                     dest='tag',
                     help='Tag to use in naming file outputs')
 
