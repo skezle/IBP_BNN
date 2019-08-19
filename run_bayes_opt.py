@@ -29,7 +29,7 @@ flags.DEFINE_float('beta_1',
 flags.DEFINE_float('beta_2',
                    1.0,
                    'Beta KL coefficient.')
-flags.DEFINE_float('beta_1',
+flags.DEFINE_float('beta_3',
                    1.0,
                    'Bernoulli KL coefficient.')
 
