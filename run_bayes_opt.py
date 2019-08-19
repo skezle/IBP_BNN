@@ -17,8 +17,7 @@ import matplotlib
 matplotlib.use('agg')
 import matplotlib.pyplot as plt
 
-def folder_name(experiment_name, param_bounds, bo_params, data_params, model_params, train_params, optim_params,
-                results_folder="./results"):
+def folder_name(experiment_name, param_bounds, bo_params, model_params, results_folder="./results"):
     pp = ''.join('{}:{}|'.format(key, val) for key, val in sorted(param_bounds.items()))[:-1]
     bp = ''.join('{}:{}|'.format(key, val) for key, val in sorted(bo_params.items()))[:-1]
     mp = ''.join('{}:{}|'.format(key, val) for key, val in sorted(model_params.items()))[:-1]
@@ -27,8 +26,8 @@ def folder_name(experiment_name, param_bounds, bo_params, data_params, model_par
 if __name__ == '__main__':
 
     bo_params = {'acq': 'ei',
-                 'init_points': 5,
-                 'n_iter': 5}
+                 'init_points': 2,
+                 'n_iter':2}
 
     param_bounds = {'alpha': (1, 5.),
                     'beta': (1, 5.),
