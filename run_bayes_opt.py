@@ -256,8 +256,9 @@ if __name__ == '__main__':
     _ibp_acc = np.nanmean(ibp_acc, 1)
     _vcl_result = np.nanmean(vcl_result, 1)
 
-    plt.rc('text', usetex=True)
-    # plt.rc('font', family='serif')
+    with open(os.path.join(folder, 'res.pkl'), 'wb') as input_file:
+        pickle.dump({'vcl+ibp': ibp_acc,
+                     'vcl': vcl_result}, input_file)
 
     fig = plt.figure(figsize=(7, 3))
     ax = plt.gca()
@@ -269,10 +270,6 @@ if __name__ == '__main__':
     ax.legend()
     fig.savefig("bo_ibp_vcl_res.png", bbox_inches='tight')
     plt.close()
-
-    with open(os.path.join(folder, 'res.pkl'), 'wb') as input_file:
-        pickle.dump({'vcl+ibp': ibp_acc,
-                     'vcl': vcl_result}, input_file)
 
     print("Finished running.")
 
