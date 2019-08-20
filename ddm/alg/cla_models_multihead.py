@@ -596,10 +596,11 @@ class MFVI_IBP_NN(Cla_NN):
             log_pis.append(self.log_pi)
             # Concrete reparam
             z_log_sample = reparameterize_discrete(self.log_pi, self.temp, size=(K_ibp, batch_size, dout))
-            z_discrete = tf.sigmoid(z_log_sample) # (K_ibp, batch_size, dout)
+            z_discrete = tf.expand_dims(tf.reduce_mean(tf.sigmoid(z_log_sample), axis=0), 0)# (K_ibp, batch_size, dout) --> (1, batch_size, dout)
+
             self.Z.append(z_discrete)
             log_z_sample.append(z_log_sample)
-
+            print(z_discrete.get_shape())
             # multiplication by IBP mask
             pre = tf.add(tf.einsum('mni,mio->mno', act, _weights), _biases) # m = samples, n = din, i=input d, o=output d
             act = tf.multiply(tf.nn.relu(pre), z_discrete) # [K, din, dout]
@@ -619,6 +620,7 @@ class MFVI_IBP_NN(Cla_NN):
         act = tf.expand_dims(act, 3) # [K, din, dout, 1]
         _weights = tf.expand_dims(_weights, 1) # [K, 1, dout, 2]
         pre = tf.add(tf.reduce_sum(act * _weights, 2), _biases)
+        print(pre.get_shape())
         return pre, prior_log_pis, log_pis, log_z_sample
 
     def lof(self, nu):
@@ -990,7 +992,7 @@ class MFVI_IBP_NN(Cla_NN):
                 print("Epoch:", '%04d' % (epoch+1), "train cost=", \
                     "{:.9f}".format(avg_cost))
             costs.append(avg_cost)
-        self.save(log_folder, sess)
+        self.save(log_folder)
         print("Optimization Finished!")
         writer.close()
         return costs
