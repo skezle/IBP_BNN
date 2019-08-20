@@ -471,7 +471,7 @@ class MFVI_NN(Cla_NN):
 """
 class MFVI_IBP_NN(Cla_NN):
     def __init__(self, input_size, hidden_size, output_size, training_size,
-                 no_train_samples=10, no_pred_samples=100, prev_means=None, prev_log_variances=None,
+                 no_train_samples=10, no_pred_samples=100, num_ibp_samples=10, prev_means=None, prev_log_variances=None,
                  prev_betas=None, learning_rate=0.001,
                  prior_mean=0, prior_var=1, alpha0=5., beta0=1., lambda_1=1., lambda_2=1.,
                  tensorboard_dir='logs', name='ibp', min_temp=0.5, tb_logging=True, output_tb_gradients=False,
@@ -488,7 +488,7 @@ class MFVI_IBP_NN(Cla_NN):
         self.min_temp = min_temp
         self.tensorboard_dir = tensorboard_dir
         self.name = name
-        self.num_ibp_samples = 1
+        self.num_ibp_samples = num_ibp_samples
         self.hidden_size = hidden_size
         self.tb_logging = tb_logging
         self.output_tb_gradients = output_tb_gradients

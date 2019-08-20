@@ -57,20 +57,21 @@ if __name__ == '__main__':
     experiment_name = 'ibp_split_mnist_bo_{}'.format(args.tag)
 
     bo_params = {'acq': 'ei',
-                 'init_points': 5,
+                 'init_points': 10,
                  'n_iter': 10}
 
     param_bounds = {'alpha': (1, 5.),
-                    'beta': (1, 5.),
+                    'beta': (1, 2.),
                     'lambda_1': (0.1, 1.0),
                     'lambda_2': (0.1, 1.0)}
 
     model_params = {'hidden_size': [100],
                     'batch_size': 128,
                     'no_epochs': 500,
-                    'learning_rate': 0.0001,
+                    'learning_rate': 0.001,
                     'anneal_rate': 0.0,
                     'pred_samples': 100,
+                    'num_ibp_samples': 10,
                     'beta_1': args.beta_1,
                     'beta_2': args.beta_2,
                     'beta_3': args.beta_3}
@@ -130,6 +131,7 @@ if __name__ == '__main__':
                                    model_params_cv['hidden_size'],
                                    out_dim,
                                    x_train.shape[0],
+                                   num_ibp_samples=model_params_cv['num_ibp_samples'],
                                    prev_means=mf_weights,
                                    prev_log_variances=mf_variances,
                                    prev_betas=mf_betas,
@@ -246,6 +248,7 @@ if __name__ == '__main__':
                                model_params['hidden_size'],
                                out_dim,
                                x_train.shape[0],
+                               num_ibp_samples=model_params['num_ibp_samples'],
                                prev_means=mf_weights,
                                prev_log_variances=mf_variances,
                                prev_betas=mf_betas,
@@ -272,8 +275,6 @@ if __name__ == '__main__':
 
         mf_model.close_session()
 
-    ibp_acc
-
     ####################################
     ## Run constraited VCL comparison ##
     ####################################
@@ -288,25 +289,32 @@ if __name__ == '__main__':
     no_epochs = 500
 
     data_gen = SplitMnistGenerator(val=True)
-    vcl_result = run_vcl(hidden_size, no_epochs, data_gen,
+    vcl_result1 = run_vcl(hidden_size, no_epochs, data_gen,
+                         lambda a: a, coreset_size, batch_size, single_head, val=True)
+
+    hidden_size = [100]
+    vcl_result2 = run_vcl(hidden_size, no_epochs, data_gen,
                          lambda a: a, coreset_size, batch_size, single_head, val=True)
 
     _ibp_acc = np.nanmean(ibp_acc, 1)
-    _vcl_result = np.nanmean(vcl_result, 1)
+    _vcl_result1 = np.nanmean(vcl_result1, 1)
+    _vcl_result2 = np.nanmean(vcl_result2, 1)
 
     with open(os.path.join(folder, 'res.pkl'), 'wb') as input_file:
         pickle.dump({'vcl+ibp': ibp_acc,
-                     'vcl': vcl_result}, input_file)
+                     'vcl_small': vcl_result1,
+                     'vcl_large': vcl_result2}, input_file)
 
     fig = plt.figure(figsize=(7, 3))
     ax = plt.gca()
     plt.plot(np.arange(len(_ibp_acc)) + 1, _ibp_acc, label='VCL + IBP', marker='o')
-    plt.plot(np.arange(len(_vcl_result)) + 1, _vcl_result, label='VCL', marker='o')
+    plt.plot(np.arange(len(_vcl_result1)) + 1, _vcl_result1, label='VCL h10', marker='o')
+    plt.plot(np.arange(len(_vcl_result2)) + 1, _vcl_result2, label='VCL h100', marker='o')
     ax.set_xticks(range(1, len(_ibp_acc) + 1))
     ax.set_ylabel('Average accuracy')
     ax.set_xlabel('\# tasks')
     ax.legend()
-    fig.savefig("bo_ibp_vcl_res.png", bbox_inches='tight')
+    fig.savefig("bo_ibp_vcl_res_{}.png".format(args.tag), bbox_inches='tight')
     plt.close()
 
     print("Finished running.")
