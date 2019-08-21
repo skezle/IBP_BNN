@@ -662,6 +662,7 @@ class MFVI_IBP_NN(Cla_NN):
             tf.summary.scalar("elbo", self.cost)
             tf.summary.scalar("loglik", self.ll)
             tf.summary.scalar("kl", self.kl)
+            tf.summary.scalar("kl_gauss", self.kl_gauss)
             tf.summary.scalar("kl_bern", self.kl_bern_contrib)
             tf.summary.scalar("kl_beta", self.kl_beta_contrib)
             tf.summary.scalar("acc", self.acc)
@@ -757,10 +758,11 @@ class MFVI_IBP_NN(Cla_NN):
             mu_diff_term = 0.5 * tf.reduce_sum((tf.exp(v) + (m0 - m) ** 2) / v0)
             kl += const_term + log_std_diff + mu_diff_term
 
-        self.kl_beta_contrib = kl_beta
-        self.kl_bern_contrib = kl_bern
+        self.kl_bern_contrib = self.beta_2*kl_bern
+        self.kl_beta_contrib = self.beta_3*kl_beta
+        self.kl_gauss = self.beta_1 * kl
 
-        return self.beta_1 * kl + self.beta_2 * self.kl_beta_contrib + self.beta_3 * self.kl_bern_contrib
+        return self.kl_gauss + self.kl_beta_contrib + self.kl_bern_contrib
 
     def create_weights(self, in_dim, hidden_size, out_dim, prev_weights, prev_variances, prev_betas):
         hidden_size = deepcopy(hidden_size)
