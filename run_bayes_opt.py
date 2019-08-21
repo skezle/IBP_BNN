@@ -61,7 +61,7 @@ if __name__ == '__main__':
                  'n_iter': 10}
 
     param_bounds = {'alpha': (1, 5.),
-                    'beta': (1, 2.),
+                    'beta': (1, 1.),
                     'lambda_1': (0.1, 1.0),
                     'lambda_2': (0.1, 1.0)}
 
