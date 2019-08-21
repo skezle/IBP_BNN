@@ -230,6 +230,8 @@ class MFVI_NN(Cla_NN):
         self.no_pred_samples = no_pred_samples
         self.pred = self._prediction(self.x, self.task_idx, self.no_pred_samples)
         self.cost = tf.div(self._KL_term(), training_size) - self._logpred(self.x, self.y, self.task_idx)
+
+        self.acc = self._accuracy(self.x, self.y, self.task_idx)
         
         self.assign_optimizer(learning_rate)
         self.assign_session()
@@ -273,6 +275,12 @@ class MFVI_NN(Cla_NN):
         targets = tf.tile(tf.expand_dims(targets, 0), [self.no_train_samples, 1, 1])
         log_lik = - tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(logits=pred, labels=targets))
         return log_lik
+
+    def _accuracy(self, inputs, targets, task_idx):
+        pred = self._prediction(inputs, task_idx, self.no_pred_samples)
+        targets = tf.tile(tf.expand_dims(targets, 0), [self.no_pred_samples, 1, 1])
+        correct_prediction = tf.equal(tf.argmax(pred, 2), tf.argmax(targets, 2))
+        return tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
 
     def _KL_term(self):
         kl = 0
