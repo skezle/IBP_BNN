@@ -78,7 +78,7 @@ if __name__ == '__main__':
                  'init_points': 5,
                  'n_iter': 10}
 
-    param_bounds = {'alpha': (0.1, 5.),
+    param_bounds = {'alpha': (1.0, 5.),
                     'beta': (0.1, 1.),
                     'lambda_1': (0.1, 1.0),
                     'lambda_2': (0.1, 1.0)}
@@ -86,7 +86,7 @@ if __name__ == '__main__':
     model_params = {'hidden_size': [100],
                     'batch_size': 128,
                     'no_epochs': 500,
-                    'learning_rate': 0.001,
+                    'learning_rate': 0.0001,
                     'anneal_rate': 0.0,
                     'pred_samples': 100,
                     'num_ibp_samples': 10,
