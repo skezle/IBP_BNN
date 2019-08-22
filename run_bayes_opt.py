@@ -57,11 +57,11 @@ if __name__ == '__main__':
     experiment_name = 'ibp_split_mnist_bo_{}'.format(args.tag)
 
     bo_params = {'acq': 'ei',
-                 'init_points': 10,
+                 'init_points': 5,
                  'n_iter': 10}
 
-    param_bounds = {'alpha': (1, 5.),
-                    'beta': (1, 1.),
+    param_bounds = {'alpha': (0.1, 2.),
+                    'beta': (0.1, 1.),
                     'lambda_1': (0.1, 1.0),
                     'lambda_2': (0.1, 1.0)}
 
@@ -283,7 +283,7 @@ if __name__ == '__main__':
     tf.reset_default_graph()
     tf.set_random_seed(12)
     np.random.seed(1)
-    hidden_size = [10]
+    hidden_size = [5]
     coreset_size = 0
     batch_size = 128
     no_epochs = 500
@@ -292,24 +292,31 @@ if __name__ == '__main__':
     vcl_result1 = run_vcl(hidden_size, no_epochs, data_gen,
                          lambda a: a, coreset_size, batch_size, single_head, val=True)
 
-    hidden_size = [100]
+    hidden_size = [10]
     vcl_result2 = run_vcl(hidden_size, no_epochs, data_gen,
                          lambda a: a, coreset_size, batch_size, single_head, val=True)
+
+    hidden_size = [50]
+    vcl_result3 = run_vcl(hidden_size, no_epochs, data_gen,
+                          lambda a: a, coreset_size, batch_size, single_head, val=True)
 
     _ibp_acc = np.nanmean(ibp_acc, 1)
     _vcl_result1 = np.nanmean(vcl_result1, 1)
     _vcl_result2 = np.nanmean(vcl_result2, 1)
+    _vcl_result3 = np.nanmean(vcl_result3, 1)
 
     with open(os.path.join(folder, 'res.pkl'), 'wb') as input_file:
-        pickle.dump({'vcl+ibp': ibp_acc,
-                     'vcl_small': vcl_result1,
-                     'vcl_large': vcl_result2}, input_file)
+        pickle.dump({'vcl_ibp': ibp_acc,
+                     'vcl_h5': vcl_result1,
+                     'vcl_h10': vcl_result2,
+                     'vcl_h50': vcl_result3}, input_file)
 
     fig = plt.figure(figsize=(7, 3))
     ax = plt.gca()
     plt.plot(np.arange(len(_ibp_acc)) + 1, _ibp_acc, label='VCL + IBP', marker='o')
-    plt.plot(np.arange(len(_vcl_result1)) + 1, _vcl_result1, label='VCL h10', marker='o')
-    plt.plot(np.arange(len(_vcl_result2)) + 1, _vcl_result2, label='VCL h100', marker='o')
+    plt.plot(np.arange(len(_vcl_result1)) + 1, _vcl_result1, label='VCL h5', marker='o')
+    plt.plot(np.arange(len(_vcl_result2)) + 1, _vcl_result2, label='VCL h10', marker='o')
+    plt.plot(np.arange(len(_vcl_result3)) + 1, _vcl_result3, label='VCL h50', marker='o')
     ax.set_xticks(range(1, len(_ibp_acc) + 1))
     ax.set_ylabel('Average accuracy')
     ax.set_xlabel('\# tasks')
