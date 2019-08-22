@@ -7,6 +7,7 @@ import copy
 import os.path
 import argparse
 from ddm.run_split import SplitMnistGenerator
+from ddm.run_not import NotMnistGenerator
 from ddm.alg.cla_models_multihead import MFVI_IBP_NN, Vanilla_NN
 from ddm.alg.utils import get_scores, concatenate_results
 from ddm.alg.vcl import run_vcl
@@ -38,12 +39,29 @@ parser.add_argument('--tag', action='store',
                     dest='tag',
                     help='Tag to use in naming file outputs')
 
+parser.add_argument('--dataset', action='store',
+                    dest='dataset',
+                    default='split',
+                    help='String to desribe the dataset to use for LL.')
+
 args = parser.parse_args()
 
 print('beta_1       = {!r}'.format(args.beta_1))
 print('beta_2       = {!r}'.format(args.beta_2))
 print('beta_3       = {!r}'.format(args.beta_3))
+print('dataset      = {!r}'.format(args.dataset))
 print('tag          = {!r}'.format(args.tag))
+
+def get_data_generator():
+    if args.dataset == 'split':
+        val = True
+        data_gen = SplitMnistGenerator(val)
+    elif args.dataset == 'not':
+        data_gen = NotMnistGenerator()
+    else:
+        raise ValueError('No dataset: {}'.format(args.dataset))
+
+    return data_gen
 
 
 def folder_name(experiment_name, param_bounds, bo_params, model_params, results_folder="./results"):
@@ -60,7 +78,7 @@ if __name__ == '__main__':
                  'init_points': 5,
                  'n_iter': 10}
 
-    param_bounds = {'alpha': (0.1, 2.),
+    param_bounds = {'alpha': (0.1, 5.),
                     'beta': (0.1, 1.),
                     'lambda_1': (0.1, 1.0),
                     'lambda_2': (0.1, 1.0)}
@@ -79,7 +97,6 @@ if __name__ == '__main__':
     ############
     ## Run BO ##
     ############
-
     def cv_exp(alpha, beta, lambda_1, lambda_2):
         """ Runs BayesOpt on Split MNIST for lifelong learning with the BNN+IBP prior
 
@@ -94,23 +111,16 @@ if __name__ == '__main__':
 
         model_params_cv = copy.deepcopy(model_params)
 
-        val = True
-        data_gen = SplitMnistGenerator(val)
+        data_gen = get_data_generator()
         single_head = False
         in_dim, out_dim = data_gen.get_dims()
-        x_testsets, y_testsets = [], []
         x_valsets, y_valsets = [], []
         for task_id in range(data_gen.max_iter):
 
             tf.reset_default_graph()
-            if val:
-                x_train, y_train, x_test, y_test, x_val, y_val = data_gen.next_task()
-                x_valsets.append(x_val)
-                y_valsets.append(y_val)
-            else:
-                x_train, y_train, x_test, y_test = data_gen.next_task()
-            x_testsets.append(x_test)
-            y_testsets.append(y_test)
+            x_train, y_train, _, _, x_val, y_val = data_gen.next_task()
+            x_valsets.append(x_val)
+            y_valsets.append(y_val)
 
             # Set the readout head to train
             head = 0 if single_head else task_id
@@ -213,21 +223,14 @@ if __name__ == '__main__':
     ibp_acc = np.array([])
 
     coreset_size = 0
-    val = True
-    data_gen = SplitMnistGenerator(val)
+    data_gen = get_data_generator()
     single_head = False
     in_dim, out_dim = data_gen.get_dims()
     x_testsets, y_testsets = [], []
-    x_valsets, y_valsets = [], []
     for task_id in range(data_gen.max_iter):
 
         tf.reset_default_graph()
-        if val:
-            x_train, y_train, x_test, y_test, x_val, y_val = data_gen.next_task()
-            x_valsets.append(x_val)
-            y_valsets.append(y_val)
-        else:
-            x_train, y_train, x_test, y_test = data_gen.next_task()
+        x_train, y_train, x_test, y_test, _, _ = data_gen.next_task()
         x_testsets.append(x_test)
         y_testsets.append(y_test)
 
@@ -290,14 +293,16 @@ if __name__ == '__main__':
     batch_size = 128
     no_epochs = 500
 
-    data_gen = SplitMnistGenerator(val=True)
+    data_gen = get_data_generator()
     vcl_result1 = run_vcl(hidden_size, no_epochs, data_gen,
                          lambda a: a, coreset_size, batch_size, single_head, val=True)
 
+    data_gen = get_data_generator()
     hidden_size = [10]
     vcl_result2 = run_vcl(hidden_size, no_epochs, data_gen,
                          lambda a: a, coreset_size, batch_size, single_head, val=True)
 
+    data_gen = get_data_generator()
     hidden_size = [50]
     vcl_result3 = run_vcl(hidden_size, no_epochs, data_gen,
                           lambda a: a, coreset_size, batch_size, single_head, val=True)
