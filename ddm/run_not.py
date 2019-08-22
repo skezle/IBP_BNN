@@ -4,6 +4,9 @@ import gzip
 import pickle
 import sys
 import pdb
+import os.path
+import sys
+sys.path.append('../')
 from ddm.alg.cla_models_multihead import Vanilla_NN, MFVI_IBP_NN
 from ddm.alg.vcl import run_vcl
 from ddm.alg.utils import get_scores, concatenate_results
@@ -15,7 +18,8 @@ import matplotlib.pyplot as plt
 
 class NotMnistGenerator():
     def __init__(self):
-        with open('ddm/data/notMNIST.pickle', 'rb') as f:
+        cwd = os.getcwd()
+        with open(os.path.join(cwd, 'data/notMNIST.pickle'), 'rb') as f:
             d = pickle.load(f, encoding='latin1')
         self.X_train = d['train_dataset'].reshape((-1, 28*28))
         self.train_label = d['train_labels']
