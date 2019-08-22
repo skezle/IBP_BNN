@@ -147,7 +147,8 @@ if __name__ == '__main__':
                                    output_tb_gradients=True,
                                    beta_1=model_params_cv['beta_1'],
                                    beta_2=model_params_cv['beta_2'],
-                                   beta_3=model_params_cv['beta_3'])
+                                   beta_3=model_params_cv['beta_3'],
+                                   epsilon=0.1)
 
             mf_model.train(x_train, y_train, head, model_params_cv['no_epochs'],
                            model_params_cv['batch_size'],
@@ -261,7 +262,8 @@ if __name__ == '__main__':
                                name='opt_{}'.format(experiment_name),
                                beta_1=model_params['beta_1'],
                                beta_2=model_params['beta_2'],
-                               beta_3=model_params['beta_3'])
+                               beta_3=model_params['beta_3'],
+                               epsilon=0.1)
 
         mf_model.train(x_train, y_train, head, model_params['no_epochs'],
                        model_params['batch_size'],

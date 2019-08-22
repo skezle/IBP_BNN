@@ -483,7 +483,7 @@ class MFVI_IBP_NN(Cla_NN):
                  prev_betas=None, learning_rate=0.001,
                  prior_mean=0, prior_var=1, alpha0=5., beta0=1., lambda_1=1., lambda_2=1.,
                  tensorboard_dir='logs', name='ibp', min_temp=0.5, tb_logging=True, output_tb_gradients=False,
-                 beta_1=1.0, beta_2=1.0, beta_3=1.0):
+                 beta_1=1.0, beta_2=1.0, beta_3=1.0, epsilon=1e-8):
 
         super(MFVI_IBP_NN, self).__init__(input_size, hidden_size, output_size, training_size)
 
@@ -530,7 +530,7 @@ class MFVI_IBP_NN(Cla_NN):
         self.cost = self.kl - self.ll
         self.acc = self._accuracy(self.x, self.y, self.task_idx)
 
-        self.assign_optimizer(learning_rate)
+        self.assign_optimizer(learning_rate, epsilon)
 
         self.saver = tf.train.Saver()
 
@@ -538,9 +538,8 @@ class MFVI_IBP_NN(Cla_NN):
 
         self.assign_session()
 
-    def assign_optimizer(self, learning_rate=0.001):
-        tvars = tf.trainable_variables()
-        self.optim = tf.train.AdamOptimizer(learning_rate)
+    def assign_optimizer(self, learning_rate=0.001, epsilon=1e-8):
+        self.optim = tf.train.AdamOptimizer(learning_rate, epsilon=epsilon)
         grads = self.optim.compute_gradients(self.cost)
         # Debug
         if self.output_tb_gradients:
