@@ -109,3 +109,4 @@ dgm
 improved_ddm
 logs/
 *.pickle
+results/
