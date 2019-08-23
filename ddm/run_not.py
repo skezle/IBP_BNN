@@ -127,8 +127,8 @@ if __name__ == "__main__":
 
             acc = get_scores(mf_model, x_testsets, y_testsets, single_head)
             ibp_acc = concatenate_results(acc, ibp_acc)
-            vcl_ibp_accs[i, :, :] = ibp_acc
             mf_model.close_session()
+        vcl_ibp_accs[i, :, :] = ibp_acc
 
 
         # Run Vanilla VCL
