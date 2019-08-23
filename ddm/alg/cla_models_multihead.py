@@ -8,10 +8,6 @@ from utils import reparameterize_beta, reparameterize_discrete
 
 config = tf.ConfigProto()
 config.gpu_options.allow_growth = True
-config.log_device_placement=True
-
-np.random.seed(0)
-tf.set_random_seed(0)
 
 eps = 1e-16
 
