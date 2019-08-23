@@ -21,8 +21,8 @@ class SplitMnistGenerator():
         # f.close()
         self.val = val
         self.num_tasks = num_tasks
-
-        with gzip.open('ddm/data/mnist.pkl.gz', 'rb') as f:
+        cwd = os.getcwd()
+        with gzip.open(os.path.join(cwd, 'data/mnist.pkl.gz'), 'rb') as f:
             train_set, valid_set, test_set = pickle.load(f, encoding='latin1')
 
         if self.val:
