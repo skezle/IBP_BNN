@@ -3,8 +3,8 @@ import pdb
 import tensorflow as tf
 import numpy as np
 from copy import deepcopy
-from ddm.alg.training_utils import kl_beta_reparam, kl_discrete, kl_concrete
-from ddm.alg.utils import reparameterize_beta, reparameterize_discrete
+from training_utils import kl_beta_reparam, kl_discrete, kl_concrete
+from utils import reparameterize_beta, reparameterize_discrete
 
 config = tf.ConfigProto()
 config.gpu_options.allow_growth = True

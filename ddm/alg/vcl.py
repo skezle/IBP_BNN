@@ -1,7 +1,7 @@
 import numpy as np
 import tensorflow as tf
-from ddm.alg.utils import get_scores, concatenate_results
-from ddm.alg.cla_models_multihead import Vanilla_NN, MFVI_NN, MFVI_IBP_NN
+from utils import get_scores, concatenate_results
+from cla_models_multihead import Vanilla_NN, MFVI_NN, MFVI_IBP_NN
 
 def run_vcl(hidden_size, no_epochs, data_gen, coreset_method, coreset_size=0, batch_size=None, single_head=True, val=False,
             verbose=True):

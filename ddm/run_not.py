@@ -4,10 +4,10 @@ import pickle
 import pdb
 import os.path
 import sys
-sys.path.append('../')
-from ddm.alg.cla_models_multihead import Vanilla_NN, MFVI_IBP_NN
-from ddm.alg.vcl import run_vcl
-from ddm.alg.utils import get_scores, concatenate_results
+sys.path.extend(['alg/'])
+from cla_models_multihead import Vanilla_NN, MFVI_IBP_NN
+from vcl import run_vcl
+from utils import get_scores, concatenate_results
 from copy import deepcopy
 
 import matplotlib

@@ -5,10 +5,10 @@ import pickle
 import sys
 import os.path
 import argparse
-sys.path.append('../')
-from ddm.alg.vcl import run_vcl
-from ddm.alg.cla_models_multihead import Vanilla_NN, MFVI_IBP_NN
-from ddm.alg.utils import concatenate_results, get_scores
+sys.path.extend(['alg/'])
+from vcl import run_vcl
+from cla_models_multihead import Vanilla_NN, MFVI_IBP_NN
+from utils import concatenate_results, get_scores
 from copy import deepcopy
 
 import matplotlib
