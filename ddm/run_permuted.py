@@ -11,7 +11,7 @@ from copy import deepcopy
 
 class PermutedMnistGenerator():
     def __init__(self, max_iter=10):
-        with gzip.open('ddm/data/mnist.pkl.gz', 'rb') as f:
+        with gzip.open('data/mnist.pkl.gz', 'rb') as f:
             train_set, valid_set, test_set = pickle.load(f, encoding='latin1')
 
         self.X_train = np.vstack((train_set[0], valid_set[0]))

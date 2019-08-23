@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 
 class NotMnistGenerator():
     def __init__(self):
-        with open('ddm/data/notMNIST.pickle', 'rb') as f:
+        with open('data/notMNIST.pickle', 'rb') as f:
             d = pickle.load(f, encoding='latin1')
         self.X_train = d['train_dataset'].reshape((-1, 28*28))
         self.train_label = d['train_labels']
