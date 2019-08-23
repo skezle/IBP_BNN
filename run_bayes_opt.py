@@ -19,39 +19,6 @@ import matplotlib
 matplotlib.use('agg')
 import matplotlib.pyplot as plt
 
-parser = argparse.ArgumentParser()
-parser.add_argument('--beta_1', action='store',
-                    dest='beta_1',
-                    type=float,
-                    default=1.0,
-                    help='Gauss KL coefficient.')
-parser.add_argument('--beta_2', action='store',
-                    dest='beta_2',
-                    type=float,
-                    default=1.0,
-                    help='Beta KL coefficient.')
-parser.add_argument('--beta_3', action='store',
-                    dest='beta_3',
-                    type=float,
-                    default=1.0,
-                    help='Bernoulli KL coefficient.')
-parser.add_argument('--tag', action='store',
-                    dest='tag',
-                    help='Tag to use in naming file outputs')
-
-parser.add_argument('--dataset', action='store',
-                    dest='dataset',
-                    default='split',
-                    help='String to desribe the dataset to use for LL.')
-
-args = parser.parse_args()
-
-print('beta_1       = {!r}'.format(args.beta_1))
-print('beta_2       = {!r}'.format(args.beta_2))
-print('beta_3       = {!r}'.format(args.beta_3))
-print('dataset      = {!r}'.format(args.dataset))
-print('tag          = {!r}'.format(args.tag))
-
 def get_data_generator():
     if args.dataset == 'split':
         val = True
@@ -71,6 +38,39 @@ def folder_name(experiment_name, param_bounds, bo_params, model_params, results_
     return os.path.join(results_folder, experiment_name, pp, bp, mp)
 
 if __name__ == '__main__':
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--beta_1', action='store',
+                        dest='beta_1',
+                        type=float,
+                        default=1.0,
+                        help='Gauss KL coefficient.')
+    parser.add_argument('--beta_2', action='store',
+                        dest='beta_2',
+                        type=float,
+                        default=1.0,
+                        help='Beta KL coefficient.')
+    parser.add_argument('--beta_3', action='store',
+                        dest='beta_3',
+                        type=float,
+                        default=1.0,
+                        help='Bernoulli KL coefficient.')
+    parser.add_argument('--tag', action='store',
+                        dest='tag',
+                        help='Tag to use in naming file outputs')
+
+    parser.add_argument('--dataset', action='store',
+                        dest='dataset',
+                        default='split',
+                        help='String to desribe the dataset to use for LL.')
+
+    args = parser.parse_args()
+
+    print('beta_1       = {!r}'.format(args.beta_1))
+    print('beta_2       = {!r}'.format(args.beta_2))
+    print('beta_3       = {!r}'.format(args.beta_3))
+    print('dataset      = {!r}'.format(args.dataset))
+    print('tag          = {!r}'.format(args.tag))
 
     experiment_name = 'ibp_split_mnist_bo_{}'.format(args.tag)
 

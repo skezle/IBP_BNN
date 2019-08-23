@@ -15,20 +15,6 @@ import matplotlib
 matplotlib.use('agg')
 import matplotlib.pyplot as plt
 
-parser = argparse.ArgumentParser()
-
-parser.add_argument('--difficult', action='store_true',
-                    default=False,
-                    dest='difficult',
-                    help='Whether to start with the most difficult task.')
-parser.add_argument('--tag', action='store',
-                    dest='tag',
-                    help='Tag to use in naming file outputs')
-args = parser.parse_args()
-
-print('difficult    = {!r}'.format(args.difficult))
-print('tag          = {!r}'.format(args.tag))
-
 class SplitMnistGenerator():
     def __init__(self, val=False, num_tasks=5, difficult=False):
         # f = gzip.open('data/mnist.pkl.gz', 'rb')
@@ -105,6 +91,21 @@ class SplitMnistGenerator():
                 return next_x_train, next_y_train, next_x_test, next_y_test
 
 if __name__ == "__main__":
+
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument('--difficult', action='store_true',
+                        default=False,
+                        dest='difficult',
+                        help='Whether to start with the most difficult task.')
+    parser.add_argument('--tag', action='store',
+                        dest='tag',
+                        help='Tag to use in naming file outputs')
+    args = parser.parse_args()
+
+    print('difficult    = {!r}'.format(args.difficult))
+    print('tag          = {!r}'.format(args.tag))
+
     seeds = [12, 13, 14, 15, 16]
 
     vcl_ibp_accs = np.zeros((len(seeds), 5, 5))
