@@ -276,7 +276,7 @@ if __name__ == '__main__':
         mf_weights, mf_variances, mf_betas = mf_model.get_weights()
 
         acc = get_scores(mf_model, x_testsets, y_testsets, single_head)
-        ibp_acc = concatenate_results(acc, ibp_acc) # first col is performance on the first task, secdon col on the second etc.
+        ibp_acc = concatenate_results(acc, ibp_acc) # first col is performance on the first task, second col on the second etc.
 
         mf_model.close_session()
 

@@ -4,6 +4,7 @@ import gzip
 import pickle
 import sys
 import os.path
+import argparse
 sys.path.append('../')
 from ddm.alg.vcl import run_vcl
 from ddm.alg.cla_models_multihead import Vanilla_NN, MFVI_IBP_NN
@@ -14,13 +15,28 @@ import matplotlib
 matplotlib.use('agg')
 import matplotlib.pyplot as plt
 
+parser = argparse.ArgumentParser()
+
+parser.add_argument('--difficult', action='store_true',
+                    default=False,
+                    dest='difficult',
+                    help='Whether to start with the most difficult task.')
+parser.add_argument('--tag', action='store',
+                    dest='tag',
+                    help='Tag to use in naming file outputs')
+args = parser.parse_args()
+
+print('difficult    = {!r}'.format(args.difficult))
+print('tag          = {!r}'.format(args.tag))
+
 class SplitMnistGenerator():
-    def __init__(self, val=False, num_tasks=5):
+    def __init__(self, val=False, num_tasks=5, difficult=False):
         # f = gzip.open('data/mnist.pkl.gz', 'rb')
         # train_set, valid_set, test_set = cPickle.load(f)
         # f.close()
         self.val = val
         self.num_tasks = num_tasks
+        self.difficult = difficult # make the hardest task the first to see if the number of active neurons can shrink
         cwd = os.getcwd()
         with gzip.open(os.path.join(cwd, 'data/mnist.pkl.gz'), 'rb') as f:
             train_set, valid_set, test_set = pickle.load(f, encoding='latin1')
@@ -41,8 +57,12 @@ class SplitMnistGenerator():
             self.sets_0 = [0]
             self.sets_1 = [1]
         else:
-            self.sets_0 = [0, 2, 4, 6, 8]
-            self.sets_1 = [1, 3, 5, 7, 9]
+            if self.difficult:
+                self.sets_0 = [4, 0, 2, 6, 8]
+                self.sets_1 = [5, 1, 3, 7, 9]
+            else:
+                self.sets_0 = [0, 2, 4, 6, 8]
+                self.sets_1 = [1, 3, 5, 7, 9]
 
         self.max_iter = len(self.sets_0)
         self.cur_iter = 0
@@ -102,14 +122,13 @@ if __name__ == "__main__":
         no_epochs = 500
         ibp_samples = 10
 
-        # Run vanilla VCL
         tf.set_random_seed(s)
         np.random.seed(1)
 
         ibp_acc = np.array([])
 
         coreset_size = 0
-        data_gen = SplitMnistGenerator(val=val)
+        data_gen = SplitMnistGenerator(val=val, difficult=args.difficult)
         single_head = False
         in_dim, out_dim = data_gen.get_dims()
         x_testsets, y_testsets = [], []
@@ -138,7 +157,8 @@ if __name__ == "__main__":
                                    prev_means=mf_weights,
                                    prev_log_variances=mf_variances, prev_betas=mf_betas,
                                    alpha0=5., beta0=1.,
-                                   learning_rate=0.0001, lambda_1=1.0, lambda_2=1.0, no_pred_samples=100)
+                                   learning_rate=0.0001, lambda_1=1.0, lambda_2=1.0, no_pred_samples=100,
+                                   name='ibp_split_mnist_run{0}_{1}'.format(i+1, args.tag))
 
             mf_model.train(x_train, y_train, head, no_epochs, bsize,
                            anneal_rate=0.0, min_temp=1.0)
@@ -187,10 +207,10 @@ if __name__ == "__main__":
     ax.set_xlabel('\# tasks')
     ax.set_title('Split Mnist')
     ax.legend()
-    fig.savefig('split_mnist_accs.png', bbox_inches='tight')
+    fig.savefig('split_mnist_accs_{}.png'.format(args.tag), bbox_inches='tight')
     plt.close()
 
-    with open('results/split_mnist_res5.pkl', 'wb') as input_file:
+    with open('results/split_mnist_res5_{}.pkl'.format(args.tag), 'wb') as input_file:
         pickle.dump({'vcl_ibp': vcl_ibp_accs,
                      'vcl_h10': vcl_h10_accs,
                      'vcl_h5': vcl_h5_accs,

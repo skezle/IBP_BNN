@@ -81,7 +81,6 @@ if __name__ == "__main__":
         no_epochs = 500
         ibp_samples = 10
 
-        # Run vanilla VCL
         tf.set_random_seed(s)
         np.random.seed(1)
 
@@ -117,7 +116,8 @@ if __name__ == "__main__":
                                    prev_means=mf_weights,
                                    prev_log_variances=mf_variances, prev_betas=mf_betas,
                                    alpha0=5., beta0=1.,
-                                   learning_rate=0.0001, lambda_1=1.0, lambda_2=1.0, no_pred_samples=100)
+                                   learning_rate=0.0001, lambda_1=1.0, lambda_2=1.0, no_pred_samples=100,
+                                   name='ibp_not_split_mnist_run{}'.format(i+1))
 
             mf_model.train(x_train, y_train, head, no_epochs, bsize,
                            anneal_rate=0.0, min_temp=1.0)
