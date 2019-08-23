@@ -23,8 +23,7 @@ class SplitMnistGenerator():
         self.val = val
         self.num_tasks = num_tasks
         self.difficult = difficult # make the hardest task the first to see if the number of active neurons can shrink
-        cwd = os.getcwd()
-        with gzip.open(os.path.join(cwd, 'ddm/data/mnist.pkl.gz'), 'rb') as f:
+        with gzip.open('ddm/data/mnist.pkl.gz', 'rb') as f:
             train_set, valid_set, test_set = pickle.load(f, encoding='latin1')
 
         if self.val:
