@@ -84,7 +84,7 @@ if __name__ == '__main__':
                     'lambda_2': (0.1, 1.0)}
 
     model_params = {'hidden_size': [100],
-                    'batch_size': 128,
+                    'batch_size': 512,
                     'no_epochs': 500,
                     'learning_rate': 0.0001,
                     'anneal_rate': 0.0,
@@ -290,7 +290,7 @@ if __name__ == '__main__':
     np.random.seed(1)
     hidden_size = [5]
     coreset_size = 0
-    batch_size = 128
+    batch_size = 512
     no_epochs = 500
 
     data_gen = get_data_generator()

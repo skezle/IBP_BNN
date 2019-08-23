@@ -990,8 +990,8 @@ class MFVI_IBP_NN(Cla_NN):
                 # Compute average loss
                 avg_cost += c / total_batch
 
-                # run summaries every 100 steps
-                if global_step % 100 == 1:
+                # run summaries every 500 steps
+                if global_step % 500 == 1:
                     summary = sess.run([self.summary_op],
                                     feed_dict={self.x: batch_x, self.y: batch_y, self.task_idx: task_idx,
                                                self.training: True,
