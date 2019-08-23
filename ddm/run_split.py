@@ -3,6 +3,8 @@ import tensorflow as tf
 import gzip
 import pickle
 import sys
+import os.path
+sys.path.append('../')
 from ddm.alg.vcl import run_vcl
 from ddm.alg.cla_models_multihead import Vanilla_NN, MFVI_IBP_NN
 from ddm.alg.utils import concatenate_results, get_scores

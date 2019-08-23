@@ -1,8 +1,6 @@
 import numpy as np
 import tensorflow as tf
-import gzip
 import pickle
-import sys
 import pdb
 import os.path
 import sys
