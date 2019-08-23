@@ -130,7 +130,7 @@ if __name__ == '__main__':
             if task_id == 0:
                 ml_model = Vanilla_NN(in_dim, model_params_cv['hidden_size'], out_dim, x_train.shape[0])
                 ml_model.train(x_train, y_train, task_id, 100,
-                               model_params_cv['batch_size'])
+                               model_params_cv['batch_size'], verbose=False)
                 mf_weights = ml_model.get_weights()
                 mf_variances = None
                 mf_betas = None
@@ -163,7 +163,7 @@ if __name__ == '__main__':
             mf_model.train(x_train, y_train, head, model_params_cv['no_epochs'],
                            model_params_cv['batch_size'],
                            anneal_rate=model_params_cv['anneal_rate'],
-                           min_temp=lambda_1)
+                           min_temp=lambda_1, verbose=False)
             mf_weights, mf_variances, mf_betas = mf_model.get_weights()
 
             acc = get_scores(mf_model, x_valsets, y_valsets, single_head)
@@ -271,7 +271,7 @@ if __name__ == '__main__':
         mf_model.train(x_train, y_train, head, model_params['no_epochs'],
                        model_params['batch_size'],
                        anneal_rate=model_params['anneal_rate'],
-                       min_temp=lambda_1_opt)
+                       min_temp=lambda_1_opt, verbose=False)
 
         mf_weights, mf_variances, mf_betas = mf_model.get_weights()
 
@@ -295,17 +295,17 @@ if __name__ == '__main__':
 
     data_gen = get_data_generator()
     vcl_result1 = run_vcl(hidden_size, no_epochs, data_gen,
-                         lambda a: a, coreset_size, batch_size, single_head, val=True)
+                         lambda a: a, coreset_size, batch_size, single_head, val=True, verbose=False)
 
     data_gen = get_data_generator()
     hidden_size = [10]
     vcl_result2 = run_vcl(hidden_size, no_epochs, data_gen,
-                         lambda a: a, coreset_size, batch_size, single_head, val=True)
+                         lambda a: a, coreset_size, batch_size, single_head, val=True, verbose=False)
 
     data_gen = get_data_generator()
     hidden_size = [50]
     vcl_result3 = run_vcl(hidden_size, no_epochs, data_gen,
-                          lambda a: a, coreset_size, batch_size, single_head, val=True)
+                          lambda a: a, coreset_size, batch_size, single_head, val=True, verbose=False)
 
     _ibp_acc = np.nanmean(ibp_acc, 1)
     _vcl_result1 = np.nanmean(vcl_result1, 1)

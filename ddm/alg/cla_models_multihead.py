@@ -8,6 +8,7 @@ from ddm.alg.utils import reparameterize_beta, reparameterize_discrete
 
 config = tf.ConfigProto()
 config.gpu_options.allow_growth = True
+config.log_device_placement=True
 
 np.random.seed(0)
 tf.set_random_seed(0)
@@ -68,7 +69,8 @@ class Cla_NN(object):
         self.sess = tf.Session(config=config)
         self.sess.run(init)
 
-    def train(self, x_train, y_train, task_idx, no_epochs=1000, batch_size=100, display_epoch=5):
+    def train(self, x_train, y_train, task_idx, no_epochs=1000, batch_size=100, display_epoch=5,
+              verbose=True):
         N = x_train.shape[0]
         if batch_size > N:
             batch_size = N
@@ -97,11 +99,10 @@ class Cla_NN(object):
                 # Compute average loss
                 avg_cost += c / total_batch
             # Display logs per epoch step
-            if epoch % display_epoch == 0:
+            if verbose and epoch % display_epoch == 0:
                 print("Epoch:", '%04d' % (epoch+1), "cost=", \
                     "{:.9f}".format(avg_cost))
             costs.append(avg_cost)
-        print("Optimization Finished!")
         return costs
 
     def prediction(self, x_test, task_idx):
@@ -951,7 +952,8 @@ class MFVI_IBP_NN(Cla_NN):
         return [W_m, b_m, W_last_m, b_last_m], [W_v, b_v, W_last_v, b_last_v], \
                [betas_a, betas_b]
 
-    def train(self, x_train, y_train, task_idx, no_epochs=1000, batch_size=100, display_epoch=5, anneal_rate=0.0001, min_temp=0.5):
+    def train(self, x_train, y_train, task_idx, no_epochs=1000, batch_size=100, display_epoch=5,
+              anneal_rate=0.0001, min_temp=0.5, verbose=True):
         N = x_train.shape[0]
         if batch_size > N:
             batch_size = N
@@ -997,12 +999,11 @@ class MFVI_IBP_NN(Cla_NN):
                     writer.add_summary(summary, global_step)
                     temp = np.maximum(temp * np.exp(-anneal_rate*global_step), min_temp)
             # Display logs per epoch step
-            if epoch % display_epoch == 0:
+            if verbose and epoch % display_epoch == 0:
                 print("Epoch:", '%04d' % (epoch+1), "train cost=", \
                     "{:.9f}".format(avg_cost))
             costs.append(avg_cost)
         self.save(log_folder)
-        print("Optimization Finished!")
         writer.close()
         return costs
 
