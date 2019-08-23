@@ -92,6 +92,9 @@ if __name__ == "__main__":
     vcl_h10_accs = np.zeros((len(seeds), 5, 5))
     vcl_h50_accs = np.zeros((len(seeds), 5, 5))
 
+    # We don't need a validation set
+    val = False
+
     for i in range(len(seeds)):
         s = seeds[i]
         hidden_size = [100]
@@ -106,14 +109,14 @@ if __name__ == "__main__":
         ibp_acc = np.array([])
 
         coreset_size = 0
-        data_gen = SplitMnistGenerator(val=False)
+        data_gen = SplitMnistGenerator(val=val)
         single_head = False
         in_dim, out_dim = data_gen.get_dims()
         x_testsets, y_testsets = [], []
         for task_id in range(data_gen.max_iter):
 
             tf.reset_default_graph()
-            x_train, y_train, x_test, y_test, _, _ = data_gen.next_task()
+            x_train, y_train, x_test, y_test = data_gen.next_task()
             x_testsets.append(x_test)
             y_testsets.append(y_test)
 
@@ -150,23 +153,23 @@ if __name__ == "__main__":
         # Comparison with other single layer neural networks
         tf.reset_default_graph()
         hidden_size = [10]
-        data_gen = SplitMnistGenerator(val=False)
+        data_gen = SplitMnistGenerator(val=val)
         vcl_result_h10 = run_vcl(hidden_size, no_epochs, data_gen,
-                                 lambda a: a, coreset_size, batch_size, single_head, val=True)
+                                 lambda a: a, coreset_size, batch_size, single_head, val=val)
         vcl_h10_accs[i, :, :] = vcl_result_h10
 
         tf.reset_default_graph()
         hidden_size = [5]
-        data_gen = SplitMnistGenerator(val=False)
+        data_gen = SplitMnistGenerator(val=val)
         vcl_result_h5 = run_vcl(hidden_size, no_epochs, data_gen,
-                                lambda a: a, coreset_size, batch_size, single_head, val=True)
+                                lambda a: a, coreset_size, batch_size, single_head, val=val)
         vcl_h5_accs[i, :, :] = vcl_result_h5
 
         tf.reset_default_graph()
         hidden_size = [50]
-        data_gen = SplitMnistGenerator(val=False)
+        data_gen = SplitMnistGenerator(val=val)
         vcl_result_h50 = run_vcl(hidden_size, no_epochs, data_gen,
-                                 lambda a: a, coreset_size, batch_size, single_head, val=True)
+                                 lambda a: a, coreset_size, batch_size, single_head, val=val)
         vcl_h50_accs[i, :, :] = vcl_result_h50
 
     _ibp_acc = np.nanmean(vcl_ibp_accs, (0, 1))
