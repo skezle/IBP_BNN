@@ -115,6 +115,12 @@ if __name__ == "__main__":
     # We don't need a validation set
     val = False
 
+    # params
+    alpha0 = 5.0
+    beta0 = 0.1
+    lambda_1 = 0.1
+    lambda_2 = 1.0
+
     for i in range(len(seeds)):
         s = seeds[i]
         hidden_size = [100]
@@ -156,8 +162,8 @@ if __name__ == "__main__":
             mf_model = MFVI_IBP_NN(in_dim, hidden_size, out_dim, x_train.shape[0], num_ibp_samples=ibp_samples,
                                    prev_means=mf_weights,
                                    prev_log_variances=mf_variances, prev_betas=mf_betas,
-                                   alpha0=5., beta0=1.,
-                                   learning_rate=0.0001, lambda_1=1.0, lambda_2=1.0, no_pred_samples=100,
+                                   alpha0=alpha0, beta0=beta0, learning_rate=0.0001,
+                                   lambda_1=lambda_1, lambda_2=lambda_2, no_pred_samples=100,
                                    name='ibp_split_mnist_run{0}_{1}'.format(i+1, args.tag))
 
             mf_model.train(x_train, y_train, head, no_epochs, bsize,
