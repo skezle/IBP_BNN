@@ -6,11 +6,12 @@ import sys
 import copy
 import os.path
 import argparse
-from ddm.run_split import SplitMnistGenerator
-from ddm.run_not import NotMnistGenerator
-from ddm.alg.cla_models_multihead import MFVI_IBP_NN, Vanilla_NN
-from ddm.alg.utils import get_scores, concatenate_results
-from ddm.alg.vcl import run_vcl
+sys.path.extend(['alg/'])
+from run_split import SplitMnistGenerator
+from run_not import NotMnistGenerator
+from cla_models_multihead import MFVI_IBP_NN, Vanilla_NN
+from utils import get_scores, concatenate_results
+from vcl import run_vcl
 from copy import deepcopy
 
 from bayes_opt import BayesianOptimization
