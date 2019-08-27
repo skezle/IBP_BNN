@@ -110,3 +110,4 @@ improved_ddm
 logs/
 *.pickle
 results/
+*.png
