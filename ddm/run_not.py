@@ -4,6 +4,7 @@ import pickle
 import pdb
 import os.path
 import sys
+import argparse
 sys.path.extend(['alg/'])
 from cla_models_multihead import Vanilla_NN, MFVI_IBP_NN
 from vcl import run_vcl
@@ -66,6 +67,15 @@ class NotMnistGenerator():
 
 if __name__ == "__main__":
 
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument('--tag', action='store',
+                        dest='tag',
+                        help='Tag to use in naming file outputs')
+    args = parser.parse_args()
+
+    print('tag          = {!r}'.format(args.tag))
+
     seeds = [12, 13, 14, 15, 16]
 
     vcl_ibp_accs = np.zeros((len(seeds), 5, 5))
@@ -122,7 +132,7 @@ if __name__ == "__main__":
                                    prev_log_variances=mf_variances, prev_betas=mf_betas,
                                    alpha0=alpha0, beta0=beta0,
                                    learning_rate=0.0001, lambda_1=lambda_1, lambda_2=lambda_2, no_pred_samples=100,
-                                   name='ibp_not_split_mnist_run{}'.format(i+1))
+                                   name='ibp_not_split_mnist_run{0}_{1}'.format(i+1, args.tag))
 
             mf_model.train(x_train, y_train, head, no_epochs, bsize,
                            anneal_rate=0.0, min_temp=1.0)
@@ -172,10 +182,10 @@ if __name__ == "__main__":
     ax.set_xlabel('\# tasks')
     ax.set_title('Split notMnist')
     ax.legend()
-    fig.savefig('split_not_mnist_accs.png', bbox_inches='tight')
+    fig.savefig('split_not_mnist_accs_{}.png'.format(args.tag), bbox_inches='tight')
     plt.close()
 
-    with open('results/split_not_mnist_res5.pkl', 'wb') as input_file:
+    with open('results/split_not_mnist_res5_{}.pkl'.format(args.tag), 'wb') as input_file:
         pickle.dump({'vcl_ibp': vcl_ibp_accs,
                      'vcl_h10': vcl_h10_accs,
                      'vcl_h5': vcl_h5_accs,
