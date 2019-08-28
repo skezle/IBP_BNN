@@ -125,7 +125,7 @@ if __name__ == "__main__":
         s = seeds[i]
         hidden_size = [100]
         batch_size = 128
-        no_epochs = 500
+        no_epochs = 1000
         ibp_samples = 10
 
         tf.set_random_seed(s)
@@ -150,6 +150,8 @@ if __name__ == "__main__":
             bsize = x_train.shape[0] if (batch_size is None) else batch_size
 
             # Train network with maximum likelihood to initialize first model
+            # lambda_1 --> temp of the variational Concrete posterior
+            # lambda_2 --> temp of the relaxed prior, for task != 0 this should be lambda_1!!!
             if task_id == 0:
                 ml_model = Vanilla_NN(in_dim, hidden_size, out_dim, x_train.shape[0])
                 ml_model.train(x_train, y_train, task_id, no_epochs, bsize)
@@ -163,7 +165,9 @@ if __name__ == "__main__":
                                    prev_means=mf_weights,
                                    prev_log_variances=mf_variances, prev_betas=mf_betas,
                                    alpha0=alpha0, beta0=beta0, learning_rate=0.0001,
-                                   lambda_1=lambda_1, lambda_2=lambda_2, no_pred_samples=100,
+                                   lambda_1=lambda_1,
+                                   lambda_2=lambda_2 if task_id == 0 else lambda_1,
+                                   no_pred_samples=100,
                                    name='ibp_split_mnist_run{0}_{1}'.format(i+1, args.tag))
 
             mf_model.train(x_train, y_train, head, no_epochs, bsize,

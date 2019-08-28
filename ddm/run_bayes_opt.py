@@ -150,7 +150,7 @@ if __name__ == '__main__':
                                    beta0=beta,
                                    learning_rate=model_params_cv['learning_rate'],
                                    lambda_1=lambda_1,  # initial temperature of the variational posterior for task 1
-                                   lambda_2=lambda_2,  # temperature of the Concrete prior
+                                   lambda_2=lambda_2 if task_id == 0 else lambda_1,  # temperature of the Concrete prior, should be the temp of the posterior for other tasks.
                                    no_pred_samples=model_params_cv['pred_samples'],
                                    name='{}_alpha_{:.02}_beta_{:.02}_lambda_1_{:.02}_lambda_2_{:.02}'.format(experiment_name,
                                                                                                              alpha, beta, lambda_1,
@@ -261,7 +261,7 @@ if __name__ == '__main__':
                                beta0=beta_opt,
                                learning_rate=model_params['learning_rate'],
                                lambda_1=lambda_1_opt,
-                               lambda_2=lambda_2_opt,
+                               lambda_2=lambda_2_opt if task_id == 0 else lambda_1_opt,
                                no_pred_samples=model_params['pred_samples'],
                                name='opt_{}'.format(experiment_name),
                                beta_1=model_params['beta_1'],

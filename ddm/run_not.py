@@ -93,7 +93,7 @@ if __name__ == "__main__":
         s = seeds[i]
         hidden_size = [100]
         batch_size = 128
-        no_epochs = 500
+        no_epochs = 1000
         ibp_samples = 10
 
         tf.set_random_seed(s)
@@ -127,11 +127,16 @@ if __name__ == "__main__":
                 ml_model.close_session()
 
             # Train on non-coreset data
+            # lambda_1 --> temp of the variational Concrete posterior
+            # lambda_2 --> temp of the relaxed prior, for task != 0 this should be lambda_1!!!
             mf_model = MFVI_IBP_NN(in_dim, hidden_size, out_dim, x_train.shape[0], num_ibp_samples=ibp_samples,
                                    prev_means=mf_weights,
                                    prev_log_variances=mf_variances, prev_betas=mf_betas,
                                    alpha0=alpha0, beta0=beta0,
-                                   learning_rate=0.0001, lambda_1=lambda_1, lambda_2=lambda_2, no_pred_samples=100,
+                                   learning_rate=0.0001,
+                                   lambda_1=lambda_1,
+                                   lambda_2=lambda_2 if task_id == 0 else lambda_1,
+                                   no_pred_samples=100,
                                    name='ibp_not_split_mnist_run{0}_{1}'.format(i+1, args.tag))
 
             mf_model.train(x_train, y_train, head, no_epochs, bsize,
