@@ -285,7 +285,7 @@ if __name__ == "__main__":
     for i in range(len(seeds)):
         s = seeds[i]
         hidden_size = [100]
-        batch_size = 128
+        batch_size = 512
         no_epochs = 1000
         ibp_samples = 10
 
@@ -296,6 +296,7 @@ if __name__ == "__main__":
 
         coreset_size = 0
         single_head = False
+        data_gen = get_datagen()
         in_dim, out_dim = data_gen.get_dims()
         x_testsets, y_testsets = [], []
         for task_id in range(data_gen.max_iter):
