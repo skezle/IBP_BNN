@@ -84,15 +84,15 @@ if __name__ == "__main__":
     vcl_h50_accs = np.zeros((len(seeds), 5, 5))
 
     # bayes_opt params
-    alpha0 = 2.9
+    alpha0 = 5.0
     beta0 = 1.0
-    lambda_1 = 0.1
+    lambda_1 = 1.0
     lambda_2 = 1.0
 
     for i in range(len(seeds)):
         s = seeds[i]
         hidden_size = [100]
-        batch_size = 128
+        batch_size = 256
         no_epochs = 1000
         ibp_samples = 10
 
