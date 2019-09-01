@@ -4,7 +4,7 @@ from utils import get_scores, concatenate_results
 from cla_models_multihead import Vanilla_NN, MFVI_NN, MFVI_IBP_NN
 
 def run_vcl(hidden_size, no_epochs, data_gen, coreset_method, coreset_size=0, batch_size=None, single_head=True, val=False,
-            verbose=True):
+            verbose=True, name='vcl'):
     in_dim, out_dim = data_gen.get_dims()
     x_coresets, y_coresets = [], []
     x_testsets, y_testsets = [], []
@@ -36,7 +36,8 @@ def run_vcl(hidden_size, no_epochs, data_gen, coreset_method, coreset_size=0, ba
             x_coresets, y_coresets, x_train, y_train = coreset_method(x_coresets, y_coresets, x_train, y_train, coreset_size)
 
         # Train on non-coreset data
-        mf_model = MFVI_NN(in_dim, hidden_size, out_dim, x_train.shape[0], prev_means=mf_weights, prev_log_variances=mf_variances)
+        mf_model = MFVI_NN(in_dim, hidden_size, out_dim, x_train.shape[0], prev_means=mf_weights, prev_log_variances=mf_variances,
+                           name=name)
         mf_model.train(x_train, y_train, head, no_epochs, bsize, display_epoch=5, verbose=verbose)
         mf_weights, mf_variances = mf_model.get_weights()
 

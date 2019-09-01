@@ -278,14 +278,14 @@ if __name__ == "__main__":
 
     # params
     alpha0 = 5.0
-    beta0 = 0.1
+    beta0 = 1.0
     lambda_1 = 1.0
     lambda_2 = 1.0
 
     for i in range(len(seeds)):
         s = seeds[i]
         hidden_size = [100]
-        batch_size = 512
+        batch_size = 256
         no_epochs = 1000
         ibp_samples = 10
 
@@ -349,21 +349,24 @@ if __name__ == "__main__":
         hidden_size = [10]
         data_gen = get_datagen()
         vcl_result_h10 = run_vcl(hidden_size, no_epochs, data_gen,
-                                 lambda a: a, coreset_size, batch_size, single_head, val=val)
+                                 lambda a: a, coreset_size, batch_size, single_head, val=val,
+                                 name='vcl_h10_{2}_run{0}_{1}'.format(i+1, args.tag, args.dataset))
         vcl_h10_accs[i, :, :] = vcl_result_h10
 
         tf.reset_default_graph()
         hidden_size = [5]
         data_gen = get_datagen()
         vcl_result_h5 = run_vcl(hidden_size, no_epochs, data_gen,
-                                lambda a: a, coreset_size, batch_size, single_head, val=val)
+                                lambda a: a, coreset_size, batch_size, single_head, val=val,
+                                name='vcl_h5_{2}_run{0}_{1}'.format(i+1, args.tag, args.dataset))
         vcl_h5_accs[i, :, :] = vcl_result_h5
 
         tf.reset_default_graph()
         hidden_size = [50]
         data_gen = get_datagen()
         vcl_result_h50 = run_vcl(hidden_size, no_epochs, data_gen,
-                                 lambda a: a, coreset_size, batch_size, single_head, val=val)
+                                 lambda a: a, coreset_size, batch_size, single_head, val=val,
+                                 name='vcl_h50_{2}_run{0}_{1}'.format(i + 1, args.tag, args.dataset))
         vcl_h50_accs[i, :, :] = vcl_result_h50
 
     _ibp_acc = np.nanmean(vcl_ibp_accs, (0, 1))

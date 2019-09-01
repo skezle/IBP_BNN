@@ -209,9 +209,12 @@ class Vanilla_NN(Cla_NN):
 class MFVI_NN(Cla_NN):
     def __init__(self, input_size, hidden_size, output_size, training_size, 
         no_train_samples=10, no_pred_samples=100, prev_means=None, prev_log_variances=None, learning_rate=0.001, 
-        prior_mean=0, prior_var=1):
+        prior_mean=0, prior_var=1, tensorboard_dir='logs', name='vcl'):
 
         super(MFVI_NN, self).__init__(input_size, hidden_size, output_size, training_size)
+        self.tensorboard_dir = tensorboard_dir
+        self.name = name
+
         m, v, self.size = self.create_weights(
             input_size, hidden_size, output_size, prev_means, prev_log_variances)
         self.W_m, self.b_m, self.W_last_m, self.b_last_m = m[0], m[1], m[2], m[3]
@@ -229,9 +232,18 @@ class MFVI_NN(Cla_NN):
         self.cost = tf.div(self._KL_term(), training_size) - self._logpred(self.x, self.y, self.task_idx)
 
         self.acc = self._accuracy(self.x, self.y, self.task_idx)
+
+        self.create_summaries()
         
         self.assign_optimizer(learning_rate)
         self.assign_session()
+
+    def create_summaries(self):
+        """Creates summaries in TensorBoard"""
+        with tf.name_scope("summaries"):
+            tf.summary.scalar("elbo", self.cost)
+            tf.summary.scalar("acc", self.acc)
+            self.summary_op = tf.summary.merge_all()
 
     def _prediction(self, inputs, task_idx, no_samples):
         return self._prediction_layer(inputs, task_idx, no_samples)
@@ -468,6 +480,54 @@ class MFVI_NN(Cla_NN):
         b_last_v.append(bi_v)
             
         return [W_m, b_m, W_last_m, b_last_m], [W_v, b_v, W_last_v, b_last_v]
+
+    def train(self, x_train, y_train, task_idx, no_epochs=1000, batch_size=100, display_epoch=5,
+              verbose=True):
+        N = x_train.shape[0]
+        if batch_size > N:
+            batch_size = N
+
+        sess = self.sess
+        costs = []
+        global_step = 0
+        log_folder = os.path.join(self.tensorboard_dir, "graph_{}_task{}".format(self.name, task_idx))
+        writer = tf.summary.FileWriter(log_folder, sess.graph)
+        # Training cycle
+        for epoch in range(no_epochs):
+            perm_inds = list(range(x_train.shape[0]))
+            np.random.shuffle(perm_inds)
+            cur_x_train = x_train[perm_inds]
+            cur_y_train = y_train[perm_inds]
+
+            avg_cost = 0.
+            total_batch = int(np.ceil(N * 1.0 / batch_size))
+            # Loop over all batches
+            for i in range(total_batch):
+                start_ind = i*batch_size
+                end_ind = np.min([(i+1)*batch_size, N])
+                batch_x = cur_x_train[start_ind:end_ind, :]
+                batch_y = cur_y_train[start_ind:end_ind, :]
+                # Run optimization op (backprop) and cost op (to get loss value)
+                _, c = sess.run(
+                    [self.train_step, self.cost],
+                    feed_dict={self.x: batch_x, self.y: batch_y, self.task_idx: task_idx})
+                # Compute average loss
+                avg_cost += c / total_batch
+
+                # output to tb
+                if global_step % 500 == 1:
+                    summary = sess.run([self.summary_op],
+                                    feed_dict={self.x: batch_x, self.y: batch_y, self.task_idx: task_idx})[0]
+                    writer.add_summary(summary, global_step)
+
+                global_step += 1
+            # Display logs per epoch step
+            if verbose and epoch % display_epoch == 0:
+                print("Epoch:", '%04d' % (epoch+1), "cost=", \
+                    "{:.9f}".format(avg_cost))
+            costs.append(avg_cost)
+        writer.close()
+        return costs
 
 
 """ Bayesian Neural Network with Mean field VI approximation + IBP
