@@ -212,6 +212,7 @@ class MFVI_NN(Cla_NN):
         prior_mean=0, prior_var=1, tensorboard_dir='logs', name='vcl'):
 
         super(MFVI_NN, self).__init__(input_size, hidden_size, output_size, training_size)
+
         self.tensorboard_dir = tensorboard_dir
         self.name = name
 
@@ -236,10 +237,13 @@ class MFVI_NN(Cla_NN):
         self.create_summaries()
         
         self.assign_optimizer(learning_rate)
+
+        self.create_summaries()
+
         self.assign_session()
 
     def create_summaries(self):
-        """Creates summaries in TensorBoard"""
+        # Creates summaries in TensorBoard
         with tf.name_scope("summaries"):
             tf.summary.scalar("elbo", self.cost)
             tf.summary.scalar("acc", self.acc)
@@ -483,15 +487,15 @@ class MFVI_NN(Cla_NN):
 
     def train(self, x_train, y_train, task_idx, no_epochs=1000, batch_size=100, display_epoch=5,
               verbose=True):
+
         N = x_train.shape[0]
         if batch_size > N:
             batch_size = N
 
-        sess = self.sess
         costs = []
         global_step = 0
         log_folder = os.path.join(self.tensorboard_dir, "graph_{}_task{}".format(self.name, task_idx))
-        writer = tf.summary.FileWriter(log_folder, sess.graph)
+        writer = tf.summary.FileWriter(log_folder, self.sess.graph)
         # Training cycle
         for epoch in range(no_epochs):
             perm_inds = list(range(x_train.shape[0]))
@@ -507,17 +511,18 @@ class MFVI_NN(Cla_NN):
                 end_ind = np.min([(i+1)*batch_size, N])
                 batch_x = cur_x_train[start_ind:end_ind, :]
                 batch_y = cur_y_train[start_ind:end_ind, :]
+
                 # Run optimization op (backprop) and cost op (to get loss value)
-                _, c = sess.run(
+                _, c = self.sess.run(
                     [self.train_step, self.cost],
                     feed_dict={self.x: batch_x, self.y: batch_y, self.task_idx: task_idx})
                 # Compute average loss
                 avg_cost += c / total_batch
 
                 # output to tb
-                if global_step % 500 == 1:
-                    summary = sess.run([self.summary_op],
-                                    feed_dict={self.x: batch_x, self.y: batch_y, self.task_idx: task_idx})[0]
+                if global_step % 500 == 0:
+                    summary = self.sess.run([self.summary_op],
+                                       feed_dict={self.x: batch_x, self.y: batch_y, self.task_idx: task_idx})[0]
                     writer.add_summary(summary, global_step)
 
                 global_step += 1
@@ -528,6 +533,15 @@ class MFVI_NN(Cla_NN):
             costs.append(avg_cost)
         writer.close()
         return costs
+
+    def get_graph_ops(self):
+        """ Useful for debugging
+        :return: None
+        """
+        g = tf.get_default_graph()
+        graph_op = g.get_operations()
+        for i in graph_op:
+            print(str(i.name))
 
 
 """ Bayesian Neural Network with Mean field VI approximation + IBP

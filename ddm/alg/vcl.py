@@ -12,6 +12,9 @@ def run_vcl(hidden_size, no_epochs, data_gen, coreset_method, coreset_size=0, ba
     all_acc = np.array([])
 
     for task_id in range(data_gen.max_iter):
+
+        tf.reset_default_graph()
+
         if val:
             x_train, y_train, x_test, y_test, _, _ = data_gen.next_task()
         else:
