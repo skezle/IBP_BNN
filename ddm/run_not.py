@@ -154,14 +154,16 @@ if __name__ == "__main__":
         hidden_size = [10]
         data_gen = NotMnistGenerator()
         vcl_result_h10 = run_vcl(hidden_size, no_epochs, data_gen,
-                             lambda a: a, coreset_size, batch_size, single_head, val=True)
+                                 lambda a: a, coreset_size, batch_size, single_head, val=True,
+                                 name='vcl_h10_{0}_run{1}'.format(args.tag, i + 1))
         vcl_h10_accs[i, :, :] = vcl_result_h10
 
         tf.reset_default_graph()
         hidden_size = [5]
         data_gen = NotMnistGenerator()
         vcl_result_h5 = run_vcl(hidden_size, no_epochs, data_gen,
-                                lambda a: a, coreset_size, batch_size, single_head, val=True)
+                                lambda a: a, coreset_size, batch_size, single_head, val=True,
+                                name='vcl_h5_{0}_run{1}'.format(args.tag, i + 1))
         vcl_h5_accs[i, :, :] = vcl_result_h5
 
         # Run Vanilla VCL
@@ -169,7 +171,8 @@ if __name__ == "__main__":
         hidden_size = [50]
         data_gen = NotMnistGenerator()
         vcl_result_h50 = run_vcl(hidden_size, no_epochs, data_gen,
-                                 lambda a: a, coreset_size, batch_size, single_head, val=True)
+                                 lambda a: a, coreset_size, batch_size, single_head, val=True,
+                                 name='vcl_h50_{0}_run{1}'.format(args.tag, i + 1))
         vcl_h50_accs[i, :, :] = vcl_result_h50
 
     _ibp_acc = np.nanmean(vcl_ibp_accs, (0, 1))
