@@ -106,6 +106,7 @@ if __name__ == "__main__":
         single_head = False
         in_dim, out_dim = data_gen.get_dims()
         x_testsets, y_testsets = [], []
+        Zs = []
         for task_id in range(data_gen.max_iter):
 
             tf.reset_default_graph()
@@ -145,6 +146,11 @@ if __name__ == "__main__":
 
             acc = get_scores(mf_model, x_testsets, y_testsets, single_head)
             ibp_acc = concatenate_results(acc, ibp_acc)
+
+            Zs.append(mf_model.sess.run(mf_model.Z, feed_dict={mf_model.x: x_test,
+                                                               mf_model.task_idx: task_id,
+                                                               mf_model.training: False, mf_model.temp: 1.0})[0])
+
             mf_model.close_session()
         vcl_ibp_accs[i, :, :] = ibp_acc
 
@@ -193,10 +199,25 @@ if __name__ == "__main__":
     fig.savefig('split_not_mnist_accs_{}.png'.format(args.tag), bbox_inches='tight')
     plt.close()
 
+    num_tasks = 5
+    fig, ax = plt.subplots(2, num_tasks, figsize=(16, 4))
+    for i in range(num_tasks):
+        ax[0][i].imshow(np.squeeze(Zs[i])[:50, :], cmap=plt.cm.Greys_r, vmin=0, vmax=1)
+        ax[0][i].set_xticklabels([])
+        ax[0][i].set_yticklabels([])
+        ax[1][i].hist(np.sum(np.squeeze(Zs[i]), axis=1), 10)
+        ax[1][i].set_yticklabels([])
+        ax[1][i].set_xlabel("Task {}".format(i + 1))
+        plt.savefig('plots/Zs_{0}.pdf'.format(args.tag), bbox_inches='tight')
+        fig.show()
+
+    print("Prop of neurons which are active for each task: ", [np.mean(Zs[i]) for i in range(num_tasks)])
+
     with open('results/split_not_mnist_res5_{}.pkl'.format(args.tag), 'wb') as input_file:
         pickle.dump({'vcl_ibp': vcl_ibp_accs,
                      'vcl_h10': vcl_h10_accs,
                      'vcl_h5': vcl_h5_accs,
-                     'vcl_h50': vcl_h50_accs}, input_file)
+                     'vcl_h50': vcl_h50_accs,
+                     'Z': Zs}, input_file)
 
     print("Finished running.")
