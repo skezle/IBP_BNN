@@ -71,7 +71,7 @@ def get_scores(model, x_testsets, y_testsets, single_head):
         cur_acc = len(np.where((pred_y - y) == 0)[0]) * 1.0 / y.shape[0]
         acc.append(cur_acc)
 
-    model.close_session()
+    #model.close_session()
 
     return acc
 
