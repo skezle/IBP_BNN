@@ -15,15 +15,24 @@ import matplotlib
 matplotlib.use('agg')
 import matplotlib.pyplot as plt
 
-class NotMnistGenerator():
-    def __init__(self):
+class NotMnistGenerator:
+    # train_size = 200000, valid_size = 10000, test_size = 10000
+    def __init__(self, noise=False):
+        self.noise = noise
         with open('data/notMNIST.pickle', 'rb') as f:
             d = pickle.load(f, encoding='latin1')
-        self.X_train = d['train_dataset'].reshape((-1, 28*28))
+        if self.noise:
+            c = 1.0
+        else:
+            c = 0.0
+        X_train = d['train_dataset'].reshape((-1, 28*28))
+        self.X_train = X_train + c * np.random.uniform(0.0, 1.0, X_train.shape)
         self.train_label = d['train_labels']
-        self.X_val = d['valid_dataset'].reshape((-1, 28*28))
+        X_val = d['valid_dataset'].reshape((-1, 28*28))
+        self.X_val = X_val + c * np.random.uniform(0.0, 1.0, X_val.shape)
         self.val_label = d['valid_labels']
-        self.X_test = d['test_dataset'].reshape((-1, 28*28))
+        X_test = d['test_dataset'].reshape((-1, 28*28))
+        self.X_test = X_test + c * np.random.uniform(0.0, 1.0, X_test.shape)
         self.test_label = d['test_labels']
 
         self.sets_0 = [0, 2, 4, 6, 8]
