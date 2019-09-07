@@ -81,9 +81,14 @@ if __name__ == "__main__":
     parser.add_argument('--tag', action='store',
                         dest='tag',
                         help='Tag to use in naming file outputs')
+    parser.add_argument('--noise', action='store_true',
+                        default=False,
+                        dest='noise',
+                        help='Whether use random uniform noise.')
     args = parser.parse_args()
 
     print('tag          = {!r}'.format(args.tag))
+    print('noise        = {!r}'.format(args.noise))
 
     seeds = [12, 13, 14, 15, 16]
 
@@ -111,7 +116,7 @@ if __name__ == "__main__":
         ibp_acc = np.array([])
 
         coreset_size = 0
-        data_gen = NotMnistGenerator()
+        data_gen = NotMnistGenerator(args.noise)
         single_head = False
         in_dim, out_dim = data_gen.get_dims()
         x_testsets, y_testsets = [], []
@@ -167,7 +172,7 @@ if __name__ == "__main__":
         # Run Vanilla VCL
         tf.reset_default_graph()
         hidden_size = [10]
-        data_gen = NotMnistGenerator()
+        data_gen = NotMnistGenerator(args.noise)
         vcl_result_h10 = run_vcl(hidden_size, no_epochs, data_gen,
                                  lambda a: a, coreset_size, batch_size, single_head, val=True,
                                  name='vcl_h10_{0}_run{1}'.format(args.tag, i + 1))
@@ -175,7 +180,7 @@ if __name__ == "__main__":
 
         tf.reset_default_graph()
         hidden_size = [5]
-        data_gen = NotMnistGenerator()
+        data_gen = NotMnistGenerator(args.noise)
         vcl_result_h5 = run_vcl(hidden_size, no_epochs, data_gen,
                                 lambda a: a, coreset_size, batch_size, single_head, val=True,
                                 name='vcl_h5_{0}_run{1}'.format(args.tag, i + 1))
@@ -184,7 +189,7 @@ if __name__ == "__main__":
         # Run Vanilla VCL
         tf.reset_default_graph()
         hidden_size = [50]
-        data_gen = NotMnistGenerator()
+        data_gen = NotMnistGenerator(args.noise)
         vcl_result_h50 = run_vcl(hidden_size, no_epochs, data_gen,
                                  lambda a: a, coreset_size, batch_size, single_head, val=True,
                                  name='vcl_h50_{0}_run{1}'.format(args.tag, i + 1))
