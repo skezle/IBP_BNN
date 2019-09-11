@@ -4,9 +4,9 @@ import gzip
 import sys
 import argparse
 sys.path.extend(['alg/'])
-import vcl import run_vcl
+from vcl import run_vcl
 from cla_models_multihead import Vanilla_NN, MFVI_IBP_NN
-import utils import get_scores, concatenate_results
+from utils import get_scores, concatenate_results
 import pickle
 from copy import deepcopy
 
