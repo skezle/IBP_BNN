@@ -2,12 +2,17 @@ import numpy as np
 import tensorflow as tf
 import gzip
 import sys
+import argparse
 sys.path.extend(['alg/'])
-import vcl
-import coreset
-import utils
+import vcl import run_vcl
+from cla_models_multihead import Vanilla_NN, MFVI_IBP_NN
+import utils import get_scores, concatenate_results
 import pickle
 from copy import deepcopy
+
+import matplotlib
+matplotlib.use('agg')
+import matplotlib.pyplot as plt
 
 class PermutedMnistGenerator():
     def __init__(self, max_iter=10):
@@ -47,45 +52,159 @@ class PermutedMnistGenerator():
 
             return next_x_train, next_y_train, next_x_test, next_y_test
 
-hidden_size = [100, 100]
-batch_size = 256
-no_epochs = 100
-single_head = True
-num_tasks = 5
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
 
-# Run vanilla VCL
-tf.set_random_seed(12)
-np.random.seed(1)
+    parser.add_argument('--tag', action='store',
+                        dest='tag',
+                        help='Tag to use in naming file outputs')
+    args = parser.parse_args()
 
-coreset_size = 0
-data_gen = PermutedMnistGenerator(num_tasks)
-vcl_result = vcl.run_vcl(hidden_size, no_epochs, data_gen, 
-    coreset.rand_from_batch, coreset_size, batch_size, single_head)
-print(vcl_result)
+    print('tag          = {!r}'.format(args.tag))
 
-# Run random coreset VCL
-tf.reset_default_graph()
-tf.set_random_seed(12)
-np.random.seed(1)
+    seeds = [12, 13, 14, 15, 16]
 
-coreset_size = 200
-data_gen = PermutedMnistGenerator(num_tasks)
-rand_vcl_result = vcl.run_vcl(hidden_size, no_epochs, data_gen, 
-    coreset.rand_from_batch, coreset_size, batch_size, single_head)
-print(rand_vcl_result)
+    vcl_ibp_accs = np.zeros((len(seeds), 5, 5))
+    vcl_h5_accs = np.zeros((len(seeds), 5, 5))
+    vcl_h10_accs = np.zeros((len(seeds), 5, 5))
+    vcl_h50_accs = np.zeros((len(seeds), 5, 5))
 
-# Run k-center coreset VCL
-tf.reset_default_graph()
-tf.set_random_seed(12)
-np.random.seed(1)
+    alpha0 = 5.0
+    beta0 = 1.0
+    lambda_1 = 1.0
+    lambda_2 = 1.0
 
-data_gen = PermutedMnistGenerator(num_tasks)
-kcen_vcl_result = vcl.run_vcl(hidden_size, no_epochs, data_gen, 
-    coreset.k_center, coreset_size, batch_size, single_head)
-print(kcen_vcl_result)
+    num_tasks = 5
 
-# Plot average accuracy
-vcl_avg = np.nanmean(vcl_result, 1)
-rand_vcl_avg = np.nanmean(rand_vcl_result, 1)
-kcen_vcl_avg = np.nanmean(kcen_vcl_result, 1)
-utils.plot('results/permuted.jpg', vcl_avg, rand_vcl_avg, kcen_vcl_avg)
+    for i in range(len(seeds)):
+        s = seeds[i]
+        hidden_size = [100]
+        batch_size = 256
+        no_epochs = 1000
+        ibp_samples = 10
+
+        tf.set_random_seed(s)
+        np.random.seed(1)
+
+        ibp_acc = np.array([])
+
+        coreset_size = 0
+        data_gen = PermutedMnistGenerator(num_tasks)
+        single_head = True
+        in_dim, out_dim = data_gen.get_dims()
+        x_testsets, y_testsets = [], []
+        Zs = []
+        for task_id in range(data_gen.max_iter):
+
+            tf.reset_default_graph()
+            x_train, y_train, x_test, y_test = data_gen.next_task()
+            x_testsets.append(x_test)
+            y_testsets.append(y_test)
+
+            # Set the readout head to train
+            head = 0 if single_head else task_id
+            bsize = x_train.shape[0] if (batch_size is None) else batch_size
+
+            # Train network with maximum likelihood to initialize first model
+            if task_id == 0:
+                ml_model = Vanilla_NN(in_dim, hidden_size, out_dim, x_train.shape[0])
+                ml_model.train(x_train, y_train, task_id, no_epochs, bsize)
+                mf_weights = ml_model.get_weights()
+                mf_variances = None
+                mf_betas = None
+                ml_model.close_session()
+
+            # Train on non-coreset data
+            # lambda_1 --> temp of the variational Concrete posterior
+            # lambda_2 --> temp of the relaxed prior, for task != 0 this should be lambda_1!!!
+            mf_model = MFVI_IBP_NN(in_dim, hidden_size, out_dim, x_train.shape[0], num_ibp_samples=ibp_samples,
+                                   prev_means=mf_weights,
+                                   prev_log_variances=mf_variances, prev_betas=mf_betas,
+                                   alpha0=alpha0, beta0=beta0,
+                                   learning_rate=0.0001,
+                                   lambda_1=lambda_1,
+                                   lambda_2=lambda_2 if task_id == 0 else lambda_1,
+                                   no_pred_samples=100,
+                                   name='ibp_permuted_mnist_run{0}_{1}'.format(i+1, args.tag))
+
+            mf_model.train(x_train, y_train, head, no_epochs, bsize,
+                           anneal_rate=0.0, min_temp=1.0)
+            mf_weights, mf_variances, mf_betas = mf_model.get_weights()
+
+            acc = get_scores(mf_model, x_testsets, y_testsets, single_head)
+            ibp_acc = concatenate_results(acc, ibp_acc)
+
+            Zs.append(mf_model.sess.run(mf_model.Z, feed_dict={mf_model.x: x_test,
+                                                               mf_model.task_idx: task_id,
+                                                               mf_model.training: False, mf_model.temp: 1.0})[0])
+
+            mf_model.close_session()
+        vcl_ibp_accs[i, :, :] = ibp_acc
+
+
+        # Run Vanilla VCL
+        tf.reset_default_graph()
+        hidden_size = [10]
+        data_gen = PermutedMnistGenerator(num_tasks)
+        vcl_result_h10 = run_vcl(hidden_size, no_epochs, data_gen,
+                                 lambda a: a, coreset_size, batch_size, single_head, val=False,
+                                 name='vcl_perm_h10_{0}_run{1}'.format(args.tag, i + 1))
+        vcl_h10_accs[i, :, :] = vcl_result_h10
+
+        tf.reset_default_graph()
+        hidden_size = [5]
+        data_gen = PermutedMnistGenerator(num_tasks)
+        vcl_result_h5 = run_vcl(hidden_size, no_epochs, data_gen,
+                                lambda a: a, coreset_size, batch_size, single_head, val=False,
+                                name='vcl_perm_h5_{0}_run{1}'.format(args.tag, i + 1))
+        vcl_h5_accs[i, :, :] = vcl_result_h5
+
+        # Run Vanilla VCL
+        tf.reset_default_graph()
+        hidden_size = [50]
+        data_gen = PermutedMnistGenerator(num_tasks)
+        vcl_result_h50 = run_vcl(hidden_size, no_epochs, data_gen,
+                                 lambda a: a, coreset_size, batch_size, single_head, val=False,
+                                 name='vcl_perm_h50_{0}_run{1}'.format(args.tag, i + 1))
+        vcl_h50_accs[i, :, :] = vcl_result_h50
+
+    _ibp_acc = np.nanmean(vcl_ibp_accs, (0, 1))
+    _vcl_result_h10 = np.nanmean(vcl_h10_accs, (0, 1))
+    _vcl_result_h5 = np.nanmean(vcl_h5_accs, (0, 1))
+    _vcl_result_h50 = np.nanmean(vcl_h50_accs, (0, 1))
+    fig = plt.figure(figsize=(7, 4))
+    ax = plt.gca()
+    plt.plot(np.arange(len(_ibp_acc)) + 1, _ibp_acc, label='VCL + IBP', marker='o')
+    plt.plot(np.arange(len(_ibp_acc)) + 1, _vcl_result_h10, label='VCL h10', marker='o')
+    plt.plot(np.arange(len(_ibp_acc)) + 1, _vcl_result_h5, label='VCL h5', marker='o')
+    plt.plot(np.arange(len(_ibp_acc)) + 1, _vcl_result_h50, label='VCL h50', marker='o')
+    ax.set_xticks(range(1, len(_ibp_acc) + 1))
+    ax.set_ylabel('Average accuracy')
+    ax.set_xlabel('\# tasks')
+    ax.set_title('Permuted MNIST')
+    ax.legend()
+    fig.savefig('permuted_mnist_accs_{}.png'.format(args.tag), bbox_inches='tight')
+    plt.close()
+
+    num_tasks = 5
+    fig, ax = plt.subplots(2, num_tasks, figsize=(16, 4))
+    for i in range(num_tasks):
+        ax[0][i].imshow(np.squeeze(Zs[i])[:50, :], cmap=plt.cm.Greys_r, vmin=0, vmax=1)
+        ax[0][i].set_xticklabels([])
+        ax[0][i].set_yticklabels([])
+        ax[1][i].hist(np.sum(np.squeeze(Zs[i]), axis=1), 10)
+        ax[1][i].set_yticklabels([])
+        ax[1][i].set_xlabel("Task {}".format(i + 1))
+        plt.savefig('plots/Zs_{0}.pdf'.format(args.tag), bbox_inches='tight')
+        fig.show()
+
+    print("Prop of neurons which are active for each task: ", [np.mean(Zs[i]) for i in range(num_tasks)])
+
+    with open('results/permuted_mnist_res5_{}.pkl'.format(args.tag), 'wb') as input_file:
+        pickle.dump({'vcl_ibp': vcl_ibp_accs,
+                     'vcl_h10': vcl_h10_accs,
+                     'vcl_h5': vcl_h5_accs,
+                     'vcl_h50': vcl_h50_accs,
+                     'Z': Zs}, input_file)
+
+    print("Finished running.")
