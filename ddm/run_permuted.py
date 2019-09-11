@@ -35,7 +35,7 @@ class PermutedMnistGenerator():
             raise Exception('Number of tasks exceeded!')
         else:
             np.random.seed(self.cur_iter)
-            perm_inds = range(self.X_train.shape[1])
+            perm_inds = list(range(self.X_train.shape[1]))
             np.random.shuffle(perm_inds)
 
             # Retrieve train data
