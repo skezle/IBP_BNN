@@ -233,8 +233,6 @@ class MFVI_NN(Cla_NN):
         self.cost = tf.div(self._KL_term(), training_size) - self._logpred(self.x, self.y, self.task_idx)
 
         self.acc = self._accuracy(self.x, self.y, self.task_idx)
-
-        self.create_summaries()
         
         self.assign_optimizer(learning_rate)
 
@@ -286,6 +284,9 @@ class MFVI_NN(Cla_NN):
     def _logpred(self, inputs, targets, task_idx):
         pred = self._prediction(inputs, task_idx, self.no_train_samples)
         targets = tf.tile(tf.expand_dims(targets, 0), [self.no_train_samples, 1, 1])
+        # https://stats.stackexchange.com/questions/327348/how-is-softmax-cross-entropy-with-logits-different-from-softmax-cross-entropy-wi/327396
+        # be careful as now v2 can pass gradients through to targets! --> targets is a placeholder so okay.
+        # x_ent = - log_lik
         log_lik = - tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(logits=pred, labels=targets))
         return log_lik
 
@@ -494,7 +495,7 @@ class MFVI_NN(Cla_NN):
 
         costs = []
         global_step = 0
-        log_folder = os.path.join(self.tensorboard_dir, "graph_{}_task{}".format(self.name, task_idx))
+        log_folder = os.path.join(self.tensorboard_dir, "graph_{}".format(self.name ))
         writer = tf.summary.FileWriter(log_folder, self.sess.graph)
         # Training cycle
         for epoch in range(no_epochs):
@@ -773,6 +774,7 @@ class MFVI_IBP_NN(Cla_NN):
         """
         pred, _, _, _ = self._prediction(inputs, task_idx, self.no_train_samples)
         targets = tf.tile(tf.expand_dims(targets, 0), [self.no_train_samples, 1, 1])
+        # x_ent = - log_lik
         log_lik = - tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(logits=pred, labels=targets))
         return log_lik
 
@@ -1032,7 +1034,7 @@ class MFVI_IBP_NN(Cla_NN):
         costs = []
         global_step = 0
         temp = self.lambda_1
-        log_folder = os.path.join(self.tensorboard_dir, "graph_{}_task{}".format(self.name, task_idx))
+        log_folder = os.path.join(self.tensorboard_dir, "graph_{}".format(self.name))
         writer = tf.summary.FileWriter(log_folder, sess.graph)
         # Training cycle
         for epoch in range(no_epochs):
