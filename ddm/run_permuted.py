@@ -125,7 +125,7 @@ if __name__ == "__main__":
                                    lambda_1=lambda_1,
                                    lambda_2=lambda_2 if task_id == 0 else lambda_1,
                                    no_pred_samples=100,
-                                   name='ibp_permuted_mnist_run{0}_{1}'.format(i+1, args.tag))
+                                   name='ibp_permuted_mnist_run{0}_{1}_task{2}'.format(i+1, args.tag, task_id+1))
 
             mf_model.train(x_train, y_train, head, no_epochs, bsize,
                            anneal_rate=0.0, min_temp=1.0)

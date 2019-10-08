@@ -40,7 +40,7 @@ def run_vcl(hidden_size, no_epochs, data_gen, coreset_method, coreset_size=0, ba
 
         # Train on non-coreset data
         mf_model = MFVI_NN(in_dim, hidden_size, out_dim, x_train.shape[0], prev_means=mf_weights, prev_log_variances=mf_variances,
-                           name=name)
+                           name="{0}_task{1}".format(name, task_id+1))
         mf_model.train(x_train, y_train, head, no_epochs, bsize, display_epoch=5, verbose=verbose)
         mf_weights, mf_variances = mf_model.get_weights()
 
