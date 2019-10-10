@@ -52,7 +52,7 @@ def run_vcl(hidden_size, no_epochs, data_gen, coreset_method, coreset_size=0, ba
 
     return all_acc
 
-def run_vcl_ibp(hidden_size, no_epochs, data_gen, run_index, tag, dataset,
+def run_vcl_ibp(hidden_size, no_epochs, data_gen, name,
                 val, batch_size=None, single_head=True, alpha0=5.0,
                 beta0 = 1.0, lambda_1 = 1.0, lambda_2 = 1.0, learning_rate=0.0001,
                 no_pred_samples=100, ibp_samples = 10):
@@ -93,8 +93,7 @@ def run_vcl_ibp(hidden_size, no_epochs, data_gen, run_index, tag, dataset,
                                lambda_1=lambda_1,
                                lambda_2=lambda_2 if task_id == 0 else lambda_1,
                                no_pred_samples=no_pred_samples,
-                               name='ibp_{0}_run{1}_{2}_task{3}'.format(dataset, run_index + 1, tag,
-                                                                        task_id + 1))
+                               name='{0}_task{1}'.format(name, task_id + 1))
 
         mf_model.train(x_train, y_train, head, no_epochs, bsize,
                        anneal_rate=0.0, min_temp=1.0)

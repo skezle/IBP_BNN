@@ -298,10 +298,12 @@ if __name__ == "__main__":
         coreset_size = 0
         single_head = False
         data_gen = get_datagen()
+        name = "ibp_split_{0}_run{1}_{2}".format(args.dataset,
+                                                 i + 1, args.tag)
         # Z matrix for each task is outout
         # This is overwritten for each run
         acc, Zs = run_vcl_ibp(hidden_size=hidden_size, no_epochs=no_epochs, data_gen=data_gen,
-                          run_index=i, tag=args.tag, dataset=args.dataset,
+                          name=name,
                           val=val, batch_size=None, single_head=True, alpha0=5.0,
                           beta0 = 1.0, lambda_1 = 1.0, lambda_2 = 1.0, learning_rate=0.0001,
                           no_pred_samples=100, ibp_samples = 10)
@@ -362,7 +364,7 @@ if __name__ == "__main__":
         ax[1][i].hist(np.sum(np.squeeze(Zs[i]), axis=1), 10)
         ax[1][i].set_yticklabels([])
         ax[1][i].set_xlabel("Task {}".format(i + 1))
-        plt.savefig('plots/Zs_{0}.pdf'.format(args.tag), bbox_inches='tight')
+        plt.savefig('plots/Zs_split_mnist_{0}.pdf'.format(args.tag), bbox_inches='tight')
         fig.show()
 
     print("Prop of neurons which are active for each task: ", [np.mean(Zs[i]) for i in range(num_tasks)])
