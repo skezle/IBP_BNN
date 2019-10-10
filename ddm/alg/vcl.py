@@ -52,15 +52,21 @@ def run_vcl(hidden_size, no_epochs, data_gen, coreset_method, coreset_size=0, ba
 
     return all_acc
 
-def run_vcl_ibp(hidden_size, no_epochs, data_gen, batch_size=None, single_head=True, alpha0=5.0, learning_rate=0.01,
-                temp_prior=1.0, no_pred_samples=100, tau0=0.1, tau_anneal_rate=0.0, tau_min=0.1):
+def run_vcl_ibp(hidden_size, no_epochs, data_gen, run_index, tag, dataset,
+                val, batch_size=None, single_head=True, alpha0=5.0,
+                beta0 = 1.0, lambda_1 = 1.0, lambda_2 = 1.0, learning_rate=0.0001,
+                no_pred_samples=100, ibp_samples = 10):
+
     in_dim, out_dim = data_gen.get_dims()
     x_testsets, y_testsets = [], []
-
-    all_acc = np.array([])
-
+    Zs = []
     for task_id in range(data_gen.max_iter):
-        x_train, y_train, x_test, y_test = data_gen.next_task()
+
+        tf.reset_default_graph()
+        if val:
+            x_train, y_train, x_test, y_test, _, _ = data_gen.next_task()
+        else:
+            x_train, y_train, x_test, y_test = data_gen.next_task()
         x_testsets.append(x_test)
         y_testsets.append(y_test)
 
@@ -69,6 +75,8 @@ def run_vcl_ibp(hidden_size, no_epochs, data_gen, batch_size=None, single_head=T
         bsize = x_train.shape[0] if (batch_size is None) else batch_size
 
         # Train network with maximum likelihood to initialize first model
+        # lambda_1 --> temp of the variational Concrete posterior
+        # lambda_2 --> temp of the relaxed prior, for task != 0 this should be lambda_1!!!
         if task_id == 0:
             ml_model = Vanilla_NN(in_dim, hidden_size, out_dim, x_train.shape[0])
             ml_model.train(x_train, y_train, task_id, no_epochs, bsize)
@@ -78,18 +86,26 @@ def run_vcl_ibp(hidden_size, no_epochs, data_gen, batch_size=None, single_head=T
             ml_model.close_session()
 
         # Train on non-coreset data
-        mf_model = MFVI_IBP_NN(in_dim, hidden_size, out_dim, x_train.shape[0], prev_means=mf_weights,
-                           prev_log_variances=mf_variances, prev_betas=mf_betas,alpha0=alpha0,
-                           learning_rate=learning_rate, temp_prior=temp_prior, no_pred_samples=no_pred_samples)
-        mf_model.train(x_train, y_train, head, no_epochs, bsize, tau0=tau0,
-                   anneal_rate=tau_anneal_rate, min_temp=tau_min)
+        mf_model = MFVI_IBP_NN(in_dim, hidden_size, out_dim, x_train.shape[0], num_ibp_samples=ibp_samples,
+                               prev_means=mf_weights,
+                               prev_log_variances=mf_variances, prev_betas=mf_betas,
+                               alpha0=alpha0, beta0=beta0, learning_rate=learning_rate,
+                               lambda_1=lambda_1,
+                               lambda_2=lambda_2 if task_id == 0 else lambda_1,
+                               no_pred_samples=no_pred_samples,
+                               name='ibp_{0}_run{1}_{2}_task{3}'.format(dataset, run_index + 1, tag,
+                                                                        task_id + 1))
+
+        mf_model.train(x_train, y_train, head, no_epochs, bsize,
+                       anneal_rate=0.0, min_temp=1.0)
         mf_weights, mf_variances, mf_betas = mf_model.get_weights()
 
         acc = get_scores(mf_model, x_testsets, y_testsets, single_head)
-        all_acc = concatenate_results(acc, all_acc)
+
+        Zs.append(mf_model.sess.run(mf_model.Z, feed_dict={mf_model.x: x_test,
+                                                           mf_model.task_idx: task_id,
+                                                           mf_model.training: False, mf_model.temp: 1.0})[0])
 
         mf_model.close_session()
 
-    return all_acc
-
-# TODO: new run vcl run function
+    return acc, Zs

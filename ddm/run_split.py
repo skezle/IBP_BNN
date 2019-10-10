@@ -6,7 +6,7 @@ import sys
 import os.path
 import argparse
 sys.path.extend(['alg/'])
-from vcl import run_vcl
+from vcl import run_vcl, run_vcl_ibp
 from cla_models_multihead import Vanilla_NN, MFVI_IBP_NN
 from utils import concatenate_results, get_scores
 from copy import deepcopy
@@ -261,6 +261,7 @@ if __name__ == "__main__":
     vcl_h5_accs = np.zeros((len(seeds), 5, 5))
     vcl_h10_accs = np.zeros((len(seeds), 5, 5))
     vcl_h50_accs = np.zeros((len(seeds), 5, 5))
+    all_Zs = []
 
     # We don't need a validation set
     val = False
@@ -297,50 +298,15 @@ if __name__ == "__main__":
         coreset_size = 0
         single_head = False
         data_gen = get_datagen()
-        in_dim, out_dim = data_gen.get_dims()
-        x_testsets, y_testsets = [], []
-        for task_id in range(data_gen.max_iter):
-
-            tf.reset_default_graph()
-            if val:
-                x_train, y_train, x_test, y_test, _, _ = data_gen.next_task()
-            else:
-                x_train, y_train, x_test, y_test = data_gen.next_task()
-            x_testsets.append(x_test)
-            y_testsets.append(y_test)
-
-            # Set the readout head to train
-            head = 0 if single_head else task_id
-            bsize = x_train.shape[0] if (batch_size is None) else batch_size
-
-            # Train network with maximum likelihood to initialize first model
-            # lambda_1 --> temp of the variational Concrete posterior
-            # lambda_2 --> temp of the relaxed prior, for task != 0 this should be lambda_1!!!
-            if task_id == 0:
-                ml_model = Vanilla_NN(in_dim, hidden_size, out_dim, x_train.shape[0])
-                ml_model.train(x_train, y_train, task_id, no_epochs, bsize)
-                mf_weights = ml_model.get_weights()
-                mf_variances = None
-                mf_betas = None
-                ml_model.close_session()
-
-            # Train on non-coreset data
-            mf_model = MFVI_IBP_NN(in_dim, hidden_size, out_dim, x_train.shape[0], num_ibp_samples=ibp_samples,
-                                   prev_means=mf_weights,
-                                   prev_log_variances=mf_variances, prev_betas=mf_betas,
-                                   alpha0=alpha0, beta0=beta0, learning_rate=0.0001,
-                                   lambda_1=lambda_1,
-                                   lambda_2=lambda_2 if task_id == 0 else lambda_1,
-                                   no_pred_samples=100,
-                                   name='ibp_split_mnist_{2}_run{0}_{1}_task{3}'.format(i+1, args.tag, args.dataset, task_id+1))
-
-            mf_model.train(x_train, y_train, head, no_epochs, bsize,
-                           anneal_rate=0.0, min_temp=1.0)
-            mf_weights, mf_variances, mf_betas = mf_model.get_weights()
-
-            acc = get_scores(mf_model, x_testsets, y_testsets, single_head)
-            ibp_acc = concatenate_results(acc, ibp_acc)
-            mf_model.close_session()
+        # Z matrix for each task is outout
+        # This is overwritten for each run
+        acc, Zs = run_vcl_ibp(hidden_size=hidden_size, no_epochs=no_epochs, data_gen=data_gen,
+                          run_index=i, tag=args.tag, dataset=args.dataset,
+                          val=val, batch_size=None, single_head=True, alpha0=5.0,
+                          beta0 = 1.0, lambda_1 = 1.0, lambda_2 = 1.0, learning_rate=0.0001,
+                          no_pred_samples=100, ibp_samples = 10)
+        ibp_acc = concatenate_results(acc, ibp_acc)
+        all_Zs.append(Zs)
         vcl_ibp_accs[i, :, :] = ibp_acc
 
         # Run Vanilla VCL
@@ -387,10 +353,25 @@ if __name__ == "__main__":
     fig.savefig('split_mnist_accs_{}.png'.format(args.tag), bbox_inches='tight')
     plt.close()
 
+    num_tasks = 5
+    fig, ax = plt.subplots(2, num_tasks, figsize=(16, 4))
+    for i in range(num_tasks):
+        ax[0][i].imshow(np.squeeze(Zs[i])[:50, :], cmap=plt.cm.Greys_r, vmin=0, vmax=1)
+        ax[0][i].set_xticklabels([])
+        ax[0][i].set_yticklabels([])
+        ax[1][i].hist(np.sum(np.squeeze(Zs[i]), axis=1), 10)
+        ax[1][i].set_yticklabels([])
+        ax[1][i].set_xlabel("Task {}".format(i + 1))
+        plt.savefig('plots/Zs_{0}.pdf'.format(args.tag), bbox_inches='tight')
+        fig.show()
+
+    print("Prop of neurons which are active for each task: ", [np.mean(Zs[i]) for i in range(num_tasks)])
+
     with open('results/split_mnist_res5_{}.pkl'.format(args.tag), 'wb') as input_file:
         pickle.dump({'vcl_ibp': vcl_ibp_accs,
                      'vcl_h10': vcl_h10_accs,
                      'vcl_h5': vcl_h5_accs,
-                     'vcl_h50': vcl_h50_accs}, input_file)
+                     'vcl_h50': vcl_h50_accs,
+                     'Z': all_Zs}, input_file)
 
     print("Finished running.")
