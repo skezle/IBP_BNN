@@ -1090,6 +1090,23 @@ class MFVI_IBP_NN(Cla_NN):
                                                                     self.training: False, self.temp: self.min_temp})[0]
         return prob
 
+    def mutual_information(self, x_test, task_idx):
+        """ Based off of Yarin's thesis.
+
+        :param x_test: test data (n, d)
+        :param task_idx: int
+        :return:
+        """
+        mc_samples = [self.sess.run([self.pred],
+                                    feed_dict={self.x: x_test, self.task_idx: task_idx,
+                                               self.training: False, self.temp: self.min_temp})[0] for _ in range(10)]
+        expected_p = np.mean(mc_samples, axis=0)
+        predictive_entropy = -np.sum(expected_p * np.log(expected_p), axis=-1)
+        mc_entropy = np.sum(mc_samples * np.log(mc_samples), axis=-1)
+        expected_entropy = -np.mean(mc_entropy, axis=0)
+        mi = predictive_entropy - expected_entropy
+        return mi
+
     def save(self, model_dir):
         self.saver.save(self.sess, os.path.join(model_dir, "model.ckpt"))
 
