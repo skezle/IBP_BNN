@@ -33,7 +33,7 @@ class SplitMnistBackgroundGenerator:
             self.train_label = all[:n_train, -1:]
             self.X_test = all[n_train:(n_train+n_test), :-1]
             self.test_label = all[n_train:(n_train+n_test), -1:]
-            self.X_val = all[(n_train+n_test):, -1:]
+            self.X_val = all[(n_train+n_test):, :-1]
             self.val_label = all[(n_train+n_test):, -1:]
         else:
             n_train = 52000
@@ -106,7 +106,7 @@ class SplitMnistRandomGenerator:
             self.train_label = all[:n_train, -1:]
             self.X_test = all[n_train:(n_train+n_test), :-1]
             self.test_label = all[n_train:(n_train+n_test), -1:]
-            self.X_val = all[(n_train+n_test):, -1:]
+            self.X_val = all[(n_train+n_test):, :-1]
             self.val_label = all[(n_train+n_test):, -1:]
         else:
             n_train = 52000
