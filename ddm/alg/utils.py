@@ -75,12 +75,12 @@ def get_scores(model, x_testsets, y_testsets, single_head):
 
     return acc
 
-def get_uncertainties(model, x_testsets, y_testsets, single_head):
+def get_uncertainties(model, x_testsets, y_testsets, single_head, task_id):
     # uncertainties of test set like in Uncertainty in Deep Learning
     # Gal p. 53.
     uncert = []
     for i in range(len(x_testsets)):
-        head = 0 if single_head else i
+        head = 0 if single_head else (task_id if i > task_id else i) # ensures we use the final multi-head model which is available
         x_test, ytext = x_testsets[i], y_testsets[i]
         mi = model.mutual_information(x_test, head)
         uncert.append(mi)
