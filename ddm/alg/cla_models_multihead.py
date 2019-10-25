@@ -1110,8 +1110,8 @@ class MFVI_IBP_NN(Cla_NN):
         #pdb.set_trace()
         eps = 1e-16
         expected_p = np.mean(mc_samples_ar, axis=0)
-        predictive_entropy = -np.sum(expected_p * np.log(expected_p), axis=-1) # (test_set_size, )
-        mc_entropy = np.sum(mc_samples_ar * np.log(mc_samples_ar), axis=-1)
+        predictive_entropy = -np.sum(expected_p * np.log(expected_p+eps), axis=-1) # (test_set_size, )
+        mc_entropy = np.sum(mc_samples_ar * np.log(mc_samples_ar+eps), axis=-1)
         expected_entropy = -np.mean(mc_entropy, axis=0) # (test_set_size, )
         mi = np.mean(predictive_entropy - expected_entropy)
         return mi
