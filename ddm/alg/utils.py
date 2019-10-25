@@ -9,9 +9,9 @@ eps = 1e-16
 def kumaraswamy_sample(a, b, size):
     """
 
-    :param a: beta param a \in [din, dout]
-    :param b: beta param b \in [din, dout]
-    :return: sample \in [K, din, dout]
+    :param a: beta param a \in [dout]
+    :param b: beta param b \in [dout]
+    :return: sample \in [K, batch_size, dout]
     """
     u = tf.random_uniform(shape=size, minval=1e-4, maxval=1.-1e-4, dtype=tf.float32)
     return tf.exp((1. / (a + eps)) * tf.log(1. - tf.exp((1. / (b + eps)) * tf.log(u)) + eps))
@@ -74,6 +74,22 @@ def get_scores(model, x_testsets, y_testsets, single_head):
     #model.close_session()
 
     return acc
+
+def get_uncertainties(model, x_testsets, y_testsets, single_head):
+    # uncertainties of test set like in Uncertainty in Deep Learning
+    # Gal p. 53.
+    uncert = []
+
+    for i in range(len(x_testsets)):
+
+        head = 0 if single_head else i
+        x_test, ytext = x_testsets[i], y_testsets[i]
+
+        mi = model.mutual_information(x_test, head)
+        mi_mean = np.mean(mi, axis=0) # TODO: shape!
+        uncert.append(mi_mean)
+
+    return uncert
 
 def concatenate_results(score, all_score):
     if all_score.size == 0:
