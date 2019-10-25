@@ -1108,7 +1108,10 @@ class MFVI_IBP_NN(Cla_NN):
         mc_samples = [self.sess.run([self.pred],
                                     feed_dict={self.x: x_test, self.task_idx: task_idx,
                                                self.training: False, self.temp: self.min_temp})[0] for _ in range(10)]
+
+        mc_samples_ar = np.concatenate(mc_samples, axis=0)
         pdb.set_trace()
+
         expected_p = np.mean(mc_samples, axis=0)
         predictive_entropy = -np.sum(expected_p * np.log(expected_p), axis=-1)
         mc_entropy = np.sum(mc_samples * np.log(mc_samples), axis=-1)
