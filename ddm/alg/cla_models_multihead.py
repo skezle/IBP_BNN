@@ -253,7 +253,8 @@ class MFVI_NN(Cla_NN):
     # this samples a layer at a time
     def _prediction_layer(self, inputs, task_idx, no_samples):
         K = no_samples
-        act = tf.tile(tf.expand_dims(inputs, 0), [K, 1, 1])        
+        act = tf.tile(tf.expand_dims(inputs, 0), [K, 1, 1])
+        #act_local = tf.tile(tf.expand_dims(inputs, 0), [K, 1, 1])
         for i in range(self.no_layers-1):
             din = self.size[i]
             dout = self.size[i+1]
@@ -264,6 +265,13 @@ class MFVI_NN(Cla_NN):
             biases = tf.add(tf.multiply(eps_b, tf.exp(0.5*self.b_v[i])), self.b_m[i])
             pre = tf.add(tf.einsum('mni,mio->mno', act, weights), biases)
             act = tf.nn.relu(pre)
+
+            # # apply local reparameterisation trick: sample activations before applying the non-linearity
+            # m_h = tf.add(tf.einsum('mni,mio->mno', act_local, self.W_m[i]), self.b_m[i])
+            # v_h = tf.einsum('mni,mio->mno', tf.square(act_local), tf.square(tf.exp(0.5*self.W_v[i])))
+            # pre_local = m_h + tf.sqrt(v_h + 1e-6) * tf.random_normal(tf.shape(v_h), dtype=tf.float32)
+            # act_local = tf.nn.relu(pre_local)
+
         din = self.size[-2]
         dout = self.size[-1]
         eps_w = tf.random_normal((K, din, dout), 0, 1, dtype=tf.float32)
