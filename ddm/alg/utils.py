@@ -79,16 +79,11 @@ def get_uncertainties(model, x_testsets, y_testsets, single_head):
     # uncertainties of test set like in Uncertainty in Deep Learning
     # Gal p. 53.
     uncert = []
-
     for i in range(len(x_testsets)):
-
         head = 0 if single_head else i
         x_test, ytext = x_testsets[i], y_testsets[i]
-
         mi = model.mutual_information(x_test, head)
-        mi_mean = np.mean(mi, axis=0) # TODO: shape!
-        uncert.append(mi_mean)
-
+        uncert.append(mi)
     return uncert
 
 def concatenate_results(score, all_score):
