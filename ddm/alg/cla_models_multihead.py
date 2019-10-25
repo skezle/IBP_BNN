@@ -1111,9 +1111,9 @@ class MFVI_IBP_NN(Cla_NN):
 
         expected_p = np.mean(mc_samples_ar, axis=0)
         predictive_entropy = -np.sum(expected_p * np.log(expected_p), axis=-1)
-        mc_entropy = np.sum(mc_samples * np.log(mc_samples), axis=-1)
+        mc_entropy = np.sum(mc_samples_ar * np.log(mc_samples_ar), axis=-1)
         expected_entropy = -np.mean(mc_entropy, axis=0)
-        mi = predictive_entropy - expected_entropy
+        mi = np.mean(predictive_entropy - expected_entropy)
         return mi
 
     def save(self, model_dir):
