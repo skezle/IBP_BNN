@@ -285,7 +285,7 @@ if __name__ == "__main__":
 
     for i in range(len(seeds)):
         s = seeds[i]
-        hidden_size = [100]
+        hidden_size = [100, 100]
         batch_size = 256
         no_epochs = 1000
         ibp_samples = 10
@@ -314,7 +314,7 @@ if __name__ == "__main__":
         # Run Vanilla VCL
         # Comparison with other single layer neural networks
         tf.reset_default_graph()
-        hidden_size = [10]
+        hidden_size = [10, 10]
         data_gen = get_datagen()
         vcl_result_h10 = run_vcl(hidden_size, no_epochs, data_gen,
                                  lambda a: a, coreset_size, batch_size, single_head, val=val,
@@ -322,7 +322,7 @@ if __name__ == "__main__":
         vcl_h10_accs[i, :, :] = vcl_result_h10
 
         tf.reset_default_graph()
-        hidden_size = [5]
+        hidden_size = [5, 5]
         data_gen = get_datagen()
         vcl_result_h5 = run_vcl(hidden_size, no_epochs, data_gen,
                                 lambda a: a, coreset_size, batch_size, single_head, val=val,
@@ -330,7 +330,7 @@ if __name__ == "__main__":
         vcl_h5_accs[i, :, :] = vcl_result_h5
 
         tf.reset_default_graph()
-        hidden_size = [50]
+        hidden_size = [50, 50]
         data_gen = get_datagen()
         vcl_result_h50 = run_vcl(hidden_size, no_epochs, data_gen,
                                  lambda a: a, coreset_size, batch_size, single_head, val=val,
