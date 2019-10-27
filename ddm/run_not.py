@@ -9,6 +9,7 @@ sys.path.extend(['alg/'])
 from cla_models_multihead import Vanilla_NN, MFVI_IBP_NN
 from vcl import run_vcl, run_vcl_ibp
 from utils import get_scores, concatenate_results
+from visualise import plot_uncertainties
 from copy import deepcopy
 
 import matplotlib
@@ -91,11 +92,16 @@ if __name__ == "__main__":
     print('noise        = {!r}'.format(args.noise))
 
     seeds = [12, 13, 14, 15, 16]
+    num_tasks = 5
 
-    vcl_ibp_accs = np.zeros((len(seeds), 5, 5))
-    vcl_h5_accs = np.zeros((len(seeds), 5, 5))
-    vcl_h10_accs = np.zeros((len(seeds), 5, 5))
-    vcl_h50_accs = np.zeros((len(seeds), 5, 5))
+    vcl_ibp_accs = np.zeros((len(seeds), num_tasks, num_tasks))
+    vcl_h5_accs = np.zeros((len(seeds), num_tasks, num_tasks))
+    vcl_h10_accs = np.zeros((len(seeds), num_tasks, num_tasks))
+    vcl_h50_accs = np.zeros((len(seeds), num_tasks, num_tasks))
+    all_ibp_uncerts = np.zeros((len(seeds), num_tasks, num_tasks))
+    all_vcl_h5_uncerts = np.zeros((len(seeds), num_tasks, num_tasks))
+    all_vcl_h10_uncerts = np.zeros((len(seeds), num_tasks, num_tasks))
+    all_vcl_h50_uncerts = np.zeros((len(seeds), num_tasks, num_tasks))
     all_Zs = []
 
     # bayes_opt params
@@ -114,8 +120,6 @@ if __name__ == "__main__":
         tf.set_random_seed(s)
         np.random.seed(1)
 
-        ibp_acc = np.array([])
-
         coreset_size = 0
         data_gen = NotMnistGenerator(args.noise)
         single_head = False
@@ -123,40 +127,42 @@ if __name__ == "__main__":
         name = "ibp_{0}_run{1}_{2}".format("not", i + 1, args.tag)
         # Z matrix for each task is outout
         # This is overwritten for each run
-        acc, Zs = run_vcl_ibp(hidden_size=hidden_size, no_epochs=no_epochs, data_gen=data_gen,
-                              name=name,
-                              val=val, batch_size=None, single_head=True, alpha0=5.0,
-                              beta0=1.0, lambda_1=1.0, lambda_2=1.0, learning_rate=0.0001,
-                              no_pred_samples=100, ibp_samples=10)
-        ibp_acc = concatenate_results(acc, ibp_acc)
+        ibp_acc, Zs, uncerts = run_vcl_ibp(hidden_size=hidden_size, no_epochs=no_epochs, data_gen=data_gen,
+                                           name=name, val=val, batch_size=None, single_head=True, alpha0=5.0,
+                                           beta0=1.0, lambda_1=1.0, lambda_2=1.0, learning_rate=0.0001,
+                                           no_pred_samples=100, ibp_samples=10)
         all_Zs.append(Zs)
         vcl_ibp_accs[i, :, :] = ibp_acc
+        all_ibp_uncerts[i, :, :] = uncerts
 
         # Run Vanilla VCL
         tf.reset_default_graph()
-        hidden_size = [10]
+        hidden_size = [10, 10]
         data_gen = NotMnistGenerator(args.noise)
-        vcl_result_h10 = run_vcl(hidden_size, no_epochs, data_gen,
-                                 lambda a: a, coreset_size, batch_size, single_head, val=val,
-                                 name='vcl_h10_{0}_run{1}'.format(args.tag, i + 1))
+        vcl_result_h10, uncerts = run_vcl(hidden_size, no_epochs, data_gen,
+                                          lambda a: a, coreset_size, batch_size, single_head, val=val,
+                                          name='vcl_h10_{0}_run{1}'.format(args.tag, i + 1))
         vcl_h10_accs[i, :, :] = vcl_result_h10
+        all_vcl_h10_uncerts[i, :, :] = uncerts
 
         tf.reset_default_graph()
         hidden_size = [5]
         data_gen = NotMnistGenerator(args.noise)
-        vcl_result_h5 = run_vcl(hidden_size, no_epochs, data_gen,
-                                lambda a: a, coreset_size, batch_size, single_head, val=val,
-                                name='vcl_h5_{0}_run{1}'.format(args.tag, i + 1))
+        vcl_result_h5, uncerts = run_vcl(hidden_size, no_epochs, data_gen,
+                                         lambda a: a, coreset_size, batch_size, single_head, val=val,
+                                         name='vcl_h5_{0}_run{1}'.format(args.tag, i + 1))
         vcl_h5_accs[i, :, :] = vcl_result_h5
+        all_vcl_h5_uncerts[i, :, :] = uncerts
 
         # Run Vanilla VCL
         tf.reset_default_graph()
         hidden_size = [50]
         data_gen = NotMnistGenerator(args.noise)
-        vcl_result_h50 = run_vcl(hidden_size, no_epochs, data_gen,
-                                 lambda a: a, coreset_size, batch_size, single_head, val=val,
-                                 name='vcl_h50_{0}_run{1}'.format(args.tag, i + 1))
+        vcl_result_h50, uncerts = run_vcl(hidden_size, no_epochs, data_gen,
+                                          lambda a: a, coreset_size, batch_size, single_head, val=val,
+                                          name='vcl_h50_{0}_run{1}'.format(args.tag, i + 1))
         vcl_h50_accs[i, :, :] = vcl_result_h50
+        all_vcl_h50_uncerts[i, :, :] = uncerts
 
     _ibp_acc = np.nanmean(vcl_ibp_accs, (0, 1))
     _vcl_result_h10 = np.nanmean(vcl_h10_accs, (0, 1))
@@ -191,11 +197,19 @@ if __name__ == "__main__":
 
     print("Prop of neurons which are active for each task: ", [np.mean(Zs[i]) for i in range(num_tasks)])
 
+    # Uncertainties
+    plot_uncertainties(num_tasks, all_ibp_uncerts, all_vcl_h5_uncerts, all_vcl_h10_uncerts,
+                       all_vcl_h50_uncerts, args.tag)
+
     with open('results/split_not_mnist_res5_{}.pkl'.format(args.tag), 'wb') as input_file:
         pickle.dump({'vcl_ibp': vcl_ibp_accs,
                      'vcl_h10': vcl_h10_accs,
                      'vcl_h5': vcl_h5_accs,
                      'vcl_h50': vcl_h50_accs,
+                     'uncerts_ibp': all_ibp_uncerts,
+                     'uncerts_vcl_h5': all_vcl_h5_uncerts,
+                     'uncerts_vcl_h10': all_vcl_h10_uncerts,
+                     'uncerts_vcl_h50': all_vcl_h50_uncerts,
                      'Z': all_Zs}, input_file)
 
     print("Finished running.")

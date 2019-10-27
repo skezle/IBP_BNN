@@ -9,6 +9,7 @@ sys.path.extend(['alg/'])
 from vcl import run_vcl, run_vcl_ibp
 from cla_models_multihead import Vanilla_NN, MFVI_IBP_NN
 from utils import concatenate_results, get_scores
+from visualise import plot_uncertainties
 from copy import deepcopy
 
 import matplotlib
@@ -262,18 +263,17 @@ if __name__ == "__main__":
     print('dataset      = {!r}'.format(args.dataset))
     print('tag          = {!r}'.format(args.tag))
 
-
-
     seeds = [12, 13, 14, 15, 16]
+    num_tasks = 5
 
-    vcl_ibp_accs = np.zeros((len(seeds), 5, 5))
-    vcl_h5_accs = np.zeros((len(seeds), 5, 5))
-    vcl_h10_accs = np.zeros((len(seeds), 5, 5))
-    vcl_h50_accs = np.zeros((len(seeds), 5, 5))
-    all_ibp_uncerts = np.zeros((len(seeds), 5, 5))
-    all_vcl_h5_uncerts = np.zeros((len(seeds), 5, 5))
-    all_vcl_h10_uncerts = np.zeros((len(seeds), 5, 5))
-    all_vcl_h50_uncerts = np.zeros((len(seeds), 5, 5))
+    vcl_ibp_accs = np.zeros((len(seeds), num_tasks, num_tasks))
+    vcl_h5_accs = np.zeros((len(seeds), num_tasks, num_tasks))
+    vcl_h10_accs = np.zeros((len(seeds), num_tasks, num_tasks))
+    vcl_h50_accs = np.zeros((len(seeds), num_tasks, num_tasks))
+    all_ibp_uncerts = np.zeros((len(seeds), num_tasks, num_tasks))
+    all_vcl_h5_uncerts = np.zeros((len(seeds), num_tasks, num_tasks))
+    all_vcl_h10_uncerts = np.zeros((len(seeds), num_tasks, num_tasks))
+    all_vcl_h50_uncerts = np.zeros((len(seeds), num_tasks, num_tasks))
     all_Zs = []
 
     # We don't need a validation set
@@ -305,8 +305,6 @@ if __name__ == "__main__":
 
         tf.set_random_seed(s)
         np.random.seed(1)
-
-        ibp_acc = np.array([])
 
         coreset_size = 0
         single_head = False
@@ -384,8 +382,10 @@ if __name__ == "__main__":
 
     print("Prop of neurons which are active for each task: ", [np.mean(Zs[i]) for i in range(num_tasks)])
 
-    # TODO: plot all uncertainties
-    
+    # Uncertainties
+    plot_uncertainties(num_tasks, all_ibp_uncerts, all_vcl_h5_uncerts, all_vcl_h10_uncerts,
+                       all_vcl_h50_uncerts, args.tag)
+
     with open('results/split_mnist_res5_{}.pkl'.format(args.tag), 'wb') as input_file:
         pickle.dump({'vcl_ibp': vcl_ibp_accs,
                      'vcl_h10': vcl_h10_accs,
