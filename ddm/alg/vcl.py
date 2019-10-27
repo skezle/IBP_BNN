@@ -1,6 +1,6 @@
 import numpy as np
 import tensorflow as tf
-from utils import get_scores, concatenate_results
+from utils import get_scores, get_uncertainties, concatenate_results
 from cla_models_multihead import Vanilla_NN, MFVI_NN, MFVI_IBP_NN
 
 def run_vcl(hidden_size, no_epochs, data_gen, coreset_method, coreset_size=0, batch_size=None, single_head=True, val=False,
@@ -8,8 +8,20 @@ def run_vcl(hidden_size, no_epochs, data_gen, coreset_method, coreset_size=0, ba
     in_dim, out_dim = data_gen.get_dims()
     x_coresets, y_coresets = [], []
     x_testsets, y_testsets = [], []
+    all_x_testsets, all_y_testsets = [], []
 
     all_acc = np.array([])
+    all_uncerts = np.zeros((data_gen.max_iter, data_gen.max_iter))
+
+    for task_id in range(data_gen.max_iter):
+        if val:
+            _, _, x_test, y_test, _, _ = data_gen.next_task()
+        else:
+            _, _, x_test, y_test = data_gen.next_task()
+        all_x_testsets.append(x_test)
+        all_y_testsets.append(y_test)
+
+    data_gen.reset_cur_iter()
 
     for task_id in range(data_gen.max_iter):
 
@@ -48,9 +60,13 @@ def run_vcl(hidden_size, no_epochs, data_gen, coreset_method, coreset_size=0, ba
         acc = get_scores(mf_model, x_testsets, y_testsets, single_head)
         all_acc = concatenate_results(acc, all_acc)
 
+        uncert = get_uncertainties(mf_model, all_x_testsets, all_y_testsets,
+                                   single_head, task_id)
+        all_uncerts[task_id, :] = uncert
+
         mf_model.close_session()
 
-    return all_acc
+    return all_acc, all_uncerts
 
 def run_vcl_ibp(hidden_size, no_epochs, data_gen, name,
                 val, batch_size=None, single_head=True, alpha0=5.0,
@@ -58,8 +74,23 @@ def run_vcl_ibp(hidden_size, no_epochs, data_gen, name,
                 no_pred_samples=100, ibp_samples = 10):
 
     in_dim, out_dim = data_gen.get_dims()
+    all_acc = np.array([])
+    all_uncerts = np.zeros((data_gen.max_iter, data_gen.max_iter))
     x_testsets, y_testsets = [], []
+    all_x_testsets, all_y_testsets = [], []
     Zs = []
+
+    # get all testsets for uncertainy calculation
+    for task_id in range(data_gen.max_iter):
+        if val:
+            _, _, x_test, y_test, _, _ = data_gen.next_task()
+        else:
+            _, _, x_test, y_test = data_gen.next_task()
+        all_x_testsets.append(x_test)
+        all_y_testsets.append(y_test)
+
+    data_gen.reset_cur_iter()
+
     for task_id in range(data_gen.max_iter):
 
         tf.reset_default_graph()
@@ -99,12 +130,20 @@ def run_vcl_ibp(hidden_size, no_epochs, data_gen, name,
                        anneal_rate=0.0, min_temp=1.0)
         mf_weights, mf_variances, mf_betas = mf_model.get_weights()
 
+        # get accuracies for all test sets seen so far
         acc = get_scores(mf_model, x_testsets, y_testsets, single_head)
+        all_acc = concatenate_results(acc, all_acc)
 
+        # get Z matrices
         Zs.append(mf_model.sess.run(mf_model.Z, feed_dict={mf_model.x: x_test,
                                                            mf_model.task_idx: task_id,
                                                            mf_model.training: False, mf_model.temp: 1.0})[0])
 
+        # get uncertainties
+        uncert = get_uncertainties(mf_model, all_x_testsets, all_y_testsets,
+                                   single_head, task_id)
+        all_uncerts[task_id, :] = uncert
+
         mf_model.close_session()
 
-    return acc, Zs
+    return acc, Zs, all_uncerts
