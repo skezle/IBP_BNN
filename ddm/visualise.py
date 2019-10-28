@@ -59,3 +59,33 @@ def plot_uncertainties(num_tasks, all_ibp_uncerts, all_vcl_h5_uncerts, all_vcl_h
             ax[i].set_ylabel('Uncertainty', fontsize=legend_size)
     plt.savefig("plots/uncerts_{}.pdf".format(tag), bbox_inches='tight')
     fig.show()
+
+def plot_Zs(num_tasks, num_layers, Zs, dataset, tag):
+    # this is plotting the final run Zs
+    if num_layers == 1:
+        fig, ax = plt.subplots(2, num_tasks, figsize=(16, 4))
+        for i in range(num_tasks):
+            ax[0][i].imshow(np.squeeze(Zs[i])[:50, :], cmap=plt.cm.Greys_r, vmin=0, vmax=1)
+            ax[0][i].set_xticklabels([])
+            ax[0][i].set_yticklabels([])
+            ax[1][i].hist(np.sum(np.squeeze(Zs[i]), axis=1), 10)
+            ax[1][i].set_yticklabels([])
+            ax[1][i].set_xlabel("Task {}".format(i + 1))
+    elif num_layers == 2:
+        fig, ax = plt.subplots(4, num_tasks, figsize=(16, 4))
+        for i in range(num_tasks):
+            ax[0][i].imshow(np.squeeze(Zs[2*i])[:50, :], cmap=plt.cm.Greys_r, vmin=0, vmax=1)
+            ax[0][i].set_xticklabels([])
+            ax[0][i].set_yticklabels([])
+            ax[1][i].imshow(np.squeeze(Zs[2*i + 1])[:50, :], cmap=plt.cm.Greys_r, vmin=0, vmax=1)
+            ax[1][i].set_xticklabels([])
+            ax[1][i].set_yticklabels([])
+            ax[2][i].hist(np.sum(np.squeeze(Zs[2*i]), axis=1), 10)
+            ax[2][i].set_yticklabels([])
+            ax[3][i].hist(np.sum(np.squeeze(Zs[2*i + 1]), axis=1), 10)
+            ax[3][i].set_yticklabels([])
+            ax[3][i].set_xlabel("Task {}".format(i + 1))
+    else:
+        raise ValueError
+    plt.savefig('plots/Zs_{0}_mnist_{1}.pdf'.format(dataset, tag), bbox_inches='tight')
+    fig.show()

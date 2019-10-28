@@ -9,7 +9,7 @@ sys.path.extend(['alg/'])
 from cla_models_multihead import Vanilla_NN, MFVI_IBP_NN
 from vcl import run_vcl, run_vcl_ibp
 from utils import get_scores, concatenate_results
-from visualise import plot_uncertainties
+from visualise import plot_uncertainties, plot_Zs
 from copy import deepcopy
 
 import matplotlib
@@ -93,6 +93,7 @@ if __name__ == "__main__":
 
     seeds = [12, 13, 14, 15, 16]
     num_tasks = 5
+    num_layers = 2
 
     vcl_ibp_accs = np.zeros((len(seeds), num_tasks, num_tasks))
     vcl_h5_accs = np.zeros((len(seeds), num_tasks, num_tasks))
@@ -112,10 +113,11 @@ if __name__ == "__main__":
 
     for i in range(len(seeds)):
         s = seeds[i]
-        hidden_size = [100]
+        hidden_size = [100]*num_layers
         batch_size = 256
         no_epochs = 1000
         ibp_samples = 10
+        no_pred_samples = 100
 
         tf.set_random_seed(s)
         np.random.seed(1)
@@ -127,17 +129,17 @@ if __name__ == "__main__":
         name = "ibp_{0}_run{1}_{2}".format("not", i + 1, args.tag)
         # Z matrix for each task is outout
         # This is overwritten for each run
-        ibp_acc, Zs, uncerts = run_vcl_ibp(hidden_size=hidden_size, no_epochs=no_epochs, data_gen=data_gen,
-                                           name=name, val=val, batch_size=None, single_head=True, alpha0=5.0,
-                                           beta0=1.0, lambda_1=1.0, lambda_2=1.0, learning_rate=0.0001,
-                                           no_pred_samples=100, ibp_samples=10)
+        ibp_acc, Zs, uncerts = run_vcl_ibp(hidden_size=hidden_size, no_epochs=[no_epochs*2] + [no_epochs]*4,
+                                           data_gen=data_gen, name=name, val=val, batch_size=None, single_head=True,
+                                           alpha0=alpha0, beta0=beta0, lambda_1=lambda_1, lambda_2=lambda_2,
+                                           learning_rate=0.0001, no_pred_samples=no_pred_samples, ibp_samples=ibp_samples)
         all_Zs.append(Zs)
         vcl_ibp_accs[i, :, :] = ibp_acc
         all_ibp_uncerts[i, :, :] = uncerts
 
         # Run Vanilla VCL
         tf.reset_default_graph()
-        hidden_size = [10, 10]
+        hidden_size = [10]*num_layers
         data_gen = NotMnistGenerator(args.noise)
         vcl_result_h10, uncerts = run_vcl(hidden_size, no_epochs, data_gen,
                                           lambda a: a, coreset_size, batch_size, single_head, val=val,
@@ -146,7 +148,7 @@ if __name__ == "__main__":
         all_vcl_h10_uncerts[i, :, :] = uncerts
 
         tf.reset_default_graph()
-        hidden_size = [5]
+        hidden_size = [5]*num_layers
         data_gen = NotMnistGenerator(args.noise)
         vcl_result_h5, uncerts = run_vcl(hidden_size, no_epochs, data_gen,
                                          lambda a: a, coreset_size, batch_size, single_head, val=val,
@@ -156,7 +158,7 @@ if __name__ == "__main__":
 
         # Run Vanilla VCL
         tf.reset_default_graph()
-        hidden_size = [50]
+        hidden_size = [50]*num_layers
         data_gen = NotMnistGenerator(args.noise)
         vcl_result_h50, uncerts = run_vcl(hidden_size, no_epochs, data_gen,
                                           lambda a: a, coreset_size, batch_size, single_head, val=val,
@@ -182,20 +184,10 @@ if __name__ == "__main__":
     fig.savefig('split_not_mnist_accs_{}.png'.format(args.tag), bbox_inches='tight')
     plt.close()
 
-    # this is plotting the final run Zs
-    num_tasks = 5
-    fig, ax = plt.subplots(2, num_tasks, figsize=(16, 4))
-    for i in range(num_tasks):
-        ax[0][i].imshow(np.squeeze(Zs[i])[:50, :], cmap=plt.cm.Greys_r, vmin=0, vmax=1)
-        ax[0][i].set_xticklabels([])
-        ax[0][i].set_yticklabels([])
-        ax[1][i].hist(np.sum(np.squeeze(Zs[i]), axis=1), 10)
-        ax[1][i].set_yticklabels([])
-        ax[1][i].set_xlabel("Task {}".format(i + 1))
-        plt.savefig('plots/Zs_not_mnist_{0}.pdf'.format(args.tag), bbox_inches='tight')
-        fig.show()
-
-    print("Prop of neurons which are active for each task: ", [np.mean(Zs[i]) for i in range(num_tasks)])
+    # were are only plotting the final optimisation of Zs (remember there are 5 repetitions of this)
+    print("length of Zs: {}".format(len(Zs)))
+    plot_Zs(num_tasks, num_layers, Zs, "not", args.tag)
+    print("Prop of neurons which are active for each task (and layer):", [np.mean(Zs[i]) for i in range(num_tasks*num_layers)])
 
     # Uncertainties
     plot_uncertainties(num_tasks, all_ibp_uncerts, all_vcl_h5_uncerts, all_vcl_h10_uncerts,

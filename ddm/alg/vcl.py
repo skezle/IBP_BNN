@@ -104,13 +104,17 @@ def run_vcl_ibp(hidden_size, no_epochs, data_gen, name,
         # Set the readout head to train
         head = 0 if single_head else task_id
         bsize = x_train.shape[0] if (batch_size is None) else batch_size
+        if isinstance(no_epochs, list):
+            n = no_epochs[task_id]
+        else:
+            n = no_epochs
 
         # Train network with maximum likelihood to initialize first model
         # lambda_1 --> temp of the variational Concrete posterior
         # lambda_2 --> temp of the relaxed prior, for task != 0 this should be lambda_1!!!
         if task_id == 0:
             ml_model = Vanilla_NN(in_dim, hidden_size, out_dim, x_train.shape[0])
-            ml_model.train(x_train, y_train, task_id, no_epochs, bsize)
+            ml_model.train(x_train, y_train, task_id, n, bsize)
             mf_weights = ml_model.get_weights()
             mf_variances = None
             mf_betas = None
@@ -126,7 +130,7 @@ def run_vcl_ibp(hidden_size, no_epochs, data_gen, name,
                                no_pred_samples=no_pred_samples,
                                name='{0}_task{1}'.format(name, task_id + 1))
 
-        mf_model.train(x_train, y_train, head, no_epochs, bsize,
+        mf_model.train(x_train, y_train, head, n, bsize,
                        anneal_rate=0.0, min_temp=1.0)
         mf_weights, mf_variances, mf_betas = mf_model.get_weights()
 
