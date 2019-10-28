@@ -66,6 +66,7 @@ if __name__ == "__main__":
     seeds = [12, 13, 14, 15, 16]
     num_tasks = 5
     num_layers = 2
+    log_dir = 'logs_new'
 
     vcl_ibp_accs = np.zeros((len(seeds), num_tasks, num_tasks))
     vcl_h5_accs = np.zeros((len(seeds), num_tasks, num_tasks))
@@ -81,8 +82,6 @@ if __name__ == "__main__":
     beta0 = 1.0
     lambda_1 = 1.0
     lambda_2 = 1.0
-
-    num_tasks = 5
 
     for i in range(len(seeds)):
         s = seeds[i]
@@ -104,7 +103,8 @@ if __name__ == "__main__":
         ibp_acc, Zs, uncerts = run_vcl_ibp(hidden_size=hidden_size, no_epochs=[no_epochs*2] + [no_epochs]*4,
                                            data_gen=data_gen, name=name, val=val, batch_size=None, single_head=True,
                                            alpha0=alpha0, beta0=beta0, lambda_1=lambda_1, lambda_2=lambda_2,
-                                           learning_rate=0.0001, no_pred_samples=100, ibp_samples=ibp_samples)
+                                           learning_rate=0.0001, no_pred_samples=100, ibp_samples=ibp_samples,
+                                           log_dir=log_dir)
         all_Zs.append(Zs)
         vcl_ibp_accs[i, :, :] = ibp_acc
         all_ibp_uncerts[i, :, :] = uncerts
@@ -115,7 +115,8 @@ if __name__ == "__main__":
         data_gen = PermutedMnistGenerator(num_tasks)
         vcl_result_h10, uncerts = run_vcl(hidden_size, no_epochs, data_gen,
                                           lambda a: a, coreset_size, batch_size, single_head, val=False,
-                                          name='vcl_perm_h10_{0}_run{1}'.format(args.tag, i + 1))
+                                          name='vcl_perm_h10_{0}_run{1}'.format(args.tag, i + 1),
+                                          log_dir=log_dir)
         vcl_h10_accs[i, :, :] = vcl_result_h10
         all_vcl_h10_uncerts[i, :, :] = uncerts
 
@@ -123,8 +124,9 @@ if __name__ == "__main__":
         hidden_size = [5]*num_layers
         data_gen = PermutedMnistGenerator(num_tasks)
         vcl_result_h5, uncerts = run_vcl(hidden_size, no_epochs, data_gen,
-                                lambda a: a, coreset_size, batch_size, single_head, val=False,
-                                name='vcl_perm_h5_{0}_run{1}'.format(args.tag, i + 1))
+                                         lambda a: a, coreset_size, batch_size, single_head, val=False,
+                                         name='vcl_perm_h5_{0}_run{1}'.format(args.tag, i + 1),
+                                         log_dir=log_dir)
         vcl_h5_accs[i, :, :] = vcl_result_h5
         all_vcl_h5_uncerts[i, :, :] = uncerts
 
@@ -133,8 +135,9 @@ if __name__ == "__main__":
         hidden_size = [50]*num_layers
         data_gen = PermutedMnistGenerator(num_tasks)
         vcl_result_h50, uncerts = run_vcl(hidden_size, no_epochs, data_gen,
-                                 lambda a: a, coreset_size, batch_size, single_head, val=False,
-                                 name='vcl_perm_h50_{0}_run{1}'.format(args.tag, i + 1))
+                                          lambda a: a, coreset_size, batch_size, single_head, val=False,
+                                          name='vcl_perm_h50_{0}_run{1}'.format(args.tag, i + 1),
+                                          log_dir=log_dir)
         vcl_h50_accs[i, :, :] = vcl_result_h50
         all_vcl_h50_uncerts[i, :, :] = uncerts
 
