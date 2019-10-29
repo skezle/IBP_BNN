@@ -1065,18 +1065,20 @@ class MFVI_IBP_NN(Cla_NN):
                     feed_dict={self.x: batch_x, self.y: batch_y, self.task_idx: task_idx, self.training: True, self.temp: temp})
                 #pdb.set_trace()
 
-                global_step += 1
                 # Compute average loss
                 avg_cost += c / total_batch
 
                 # run summaries every 500 steps
-                if global_step % 500 == 1:
+                if global_step % 500 == 0:
                     summary = sess.run([self.summary_op],
                                     feed_dict={self.x: batch_x, self.y: batch_y, self.task_idx: task_idx,
                                                self.training: True,
                                                self.temp: temp})[0]
                     writer.add_summary(summary, global_step)
                     temp = np.maximum(temp * np.exp(-anneal_rate*global_step), min_temp)
+
+                global_step += 1
+
             # Display logs per epoch step
             if verbose and epoch % display_epoch == 0:
                 print("Epoch:", '%04d' % (epoch+1), "train cost=", \
