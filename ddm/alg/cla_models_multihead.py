@@ -1054,7 +1054,6 @@ class MFVI_IBP_NN(Cla_NN):
             total_batch = int(np.ceil(N * 1.0 / batch_size))
             # Loop over all batches
             for i in range(total_batch):
-                pdb.set_trace()
                 start_ind = i*batch_size
                 end_ind = np.min([(i+1)*batch_size, N])
                 batch_x = cur_x_train[start_ind:end_ind, :]
