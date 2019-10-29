@@ -760,11 +760,10 @@ class MFVI_IBP_NN(Cla_NN):
                 tf.summary.histogram("v_beta_b_l{}".format(i), tf.cast(tf.math.softplus(tf.exp(tf.log(self.beta_b[i] + 1e-8))) + 0.01, tf.float32))
             for i in range(len(self.Z)):
                 # tf.summary.images expects 4-d tensor b x height x width x channels
-                self._Z = tf.identity(self.Z[i])
-                print("_Z: {}".format(self._Z.get_shape()))
-                Z_lof = tf.expand_dims(self.lof(tf.reduce_mean(self._Z, axis=0)), 0) # removing the samples col
+                print("Z: {}".format(self.Z[i].get_shape()))
+                _Z = tf.expand_dims(tf.reduce_mean(self.Z[i], axis=0), 0)[:, :50, :] # removing the samples col, and truncating the number of points to make tb faster (hopefully).
                 tf.summary.image("Z_{}".format(i),
-                                 tf.expand_dims(Z_lof, 3),
+                                 tf.expand_dims(_Z, 3),
                                  max_outputs=1)
 
                 tf.summary.histogram("Z_num_latent_factors_{}".format(i),
@@ -1097,24 +1096,6 @@ class MFVI_IBP_NN(Cla_NN):
         prob = self.sess.run([tf.nn.softmax(self.pred)], feed_dict={self.x: x_test, self.task_idx: task_idx,
                                                                     self.training: False, self.temp: self.min_temp})[0]
         return prob
-
-    def mutual_information(self, x_test, task_idx):
-        """ Based off of Yarin's thesis.
-
-        :param x_test: test data (n, d)
-        :param task_idx: int
-        :return:
-        """
-        mc_samples = [self.prediction_prob(x_test, task_idx) for _ in range(10)]
-        mc_samples_ar = np.concatenate(mc_samples, axis=0)
-        #pdb.set_trace()
-        eps = 1e-16
-        expected_p = np.mean(mc_samples_ar, axis=0)
-        predictive_entropy = -np.sum(expected_p * np.log(expected_p+eps), axis=-1) # (test_set_size, )
-        mc_entropy = np.sum(mc_samples_ar * np.log(mc_samples_ar+eps), axis=-1)
-        expected_entropy = -np.mean(mc_entropy, axis=0) # (test_set_size, )
-        mi = np.mean(predictive_entropy - expected_entropy)
-        return mi
 
     def save(self, model_dir):
         self.saver.save(self.sess, os.path.join(model_dir, "model.ckpt"))
