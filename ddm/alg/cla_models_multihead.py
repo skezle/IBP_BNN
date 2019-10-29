@@ -243,8 +243,8 @@ class MFVI_NN(Cla_NN):
     def create_summaries(self):
         # Creates summaries in TensorBoard
         with tf.name_scope("summaries"):
-            tf.summary.scalar("elbo", self.cost)
-            tf.summary.scalar("acc", self.acc)
+            tf.compat.v1.summary.scalar("elbo", self.cost)
+            tf.compat.v1.summary.scalar("acc", self.acc)
             self.summary_op = tf.summary.merge_all()
 
     def _prediction(self, inputs, task_idx, no_samples):
@@ -746,27 +746,27 @@ class MFVI_IBP_NN(Cla_NN):
     def create_summaries(self):
         """Creates summaries in TensorBoard"""
         with tf.name_scope("summaries"):
-            tf.summary.scalar("elbo", self.cost)
-            tf.summary.scalar("loglik", self.ll)
-            tf.summary.scalar("kl", self.kl)
-            tf.summary.scalar("kl_gauss", self.kl_gauss)
-            tf.summary.scalar("kl_bern", self.kl_bern_contrib)
-            tf.summary.scalar("kl_beta", self.kl_beta_contrib)
-            tf.summary.scalar("acc", self.acc)
+            tf.compat.v1.summary.scalar("elbo", self.cost)
+            tf.compat.v1.summary.scalar("loglik", self.ll)
+            tf.compat.v1.summary.scalar("kl", self.kl)
+            tf.compat.v1.summary.scalar("kl_gauss", self.kl_gauss)
+            tf.compat.v1.summary.scalar("kl_bern", self.kl_bern_contrib)
+            tf.compat.v1.summary.scalar("kl_beta", self.kl_beta_contrib)
+            tf.compat.v1.summary.scalar("acc", self.acc)
             Z_all = tf.reduce_sum([tf.cast(tf.reduce_sum(x), tf.float32) for x in self.Z]) / tf.reduce_sum([tf.cast(tf.size(x), tf.float32) for x in self.Z])
-            tf.summary.scalar("Z_av", Z_all)
+            tf.compat.v1.summary.scalar("Z_av", Z_all)
             for i in range(len(self.hidden_size)):
-                tf.summary.histogram("v_beta_a_l{}".format(i), tf.cast(tf.math.softplus(tf.exp(tf.log(self.beta_a[i] + 1e-8))) + 0.01, tf.float32))
-                tf.summary.histogram("v_beta_b_l{}".format(i), tf.cast(tf.math.softplus(tf.exp(tf.log(self.beta_b[i] + 1e-8))) + 0.01, tf.float32))
+                tf.compat.v1.summary.histogram("v_beta_a_l{}".format(i), tf.cast(tf.math.softplus(tf.exp(tf.log(self.beta_a[i] + 1e-8))) + 0.01, tf.float32))
+                tf.compat.v1.summary.histogram("v_beta_b_l{}".format(i), tf.cast(tf.math.softplus(tf.exp(tf.log(self.beta_b[i] + 1e-8))) + 0.01, tf.float32))
             for i in range(len(self.Z)):
                 # tf.summary.images expects 4-d tensor b x height x width x channels
                 print("Z: {}".format(self.Z[i].get_shape()))
                 _Z = tf.expand_dims(tf.reduce_mean(self.Z[i], axis=0), 0)[:, :50, :] # removing the samples col, and truncating the number of points to make tb faster (hopefully).
-                tf.summary.image("Z_{}".format(i),
+                tf.compat.v1.summary.image("Z_{}".format(i),
                                  tf.expand_dims(_Z, 3),
                                  max_outputs=1)
 
-                tf.summary.histogram("Z_num_latent_factors_{}".format(i),
+                tf.compat.v1.summary.histogram("Z_num_latent_factors_{}".format(i),
                                     tf.reduce_sum(tf.squeeze(self.Z[i]), axis=1))
 
             self.summary_op = tf.summary.merge_all()
@@ -1042,7 +1042,7 @@ class MFVI_IBP_NN(Cla_NN):
         global_step = 0
         temp = self.lambda_1
         log_folder = os.path.join(self.tensorboard_dir, "graph_{}".format(self.name))
-        writer = tf.summary.FileWriter(log_folder, sess.graph)
+        writer = tf.compat.v1.summary.FileWriter(log_folder, sess.graph)
         # Training cycle
         for epoch in range(no_epochs):
             perm_inds = list(range(x_train.shape[0]))
