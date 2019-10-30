@@ -216,6 +216,8 @@ class MFVI_NN(Cla_NN):
         self.tensorboard_dir = tensorboard_dir
         self.name = name
 
+        self.log_folder = os.path.join(self.tensorboard_dir, "graph_{}".format(self.name))
+
         m, v, self.size = self.create_weights(
             input_size, hidden_size, output_size, prev_means, prev_log_variances)
         self.W_m, self.b_m, self.W_last_m, self.b_last_m = m[0], m[1], m[2], m[3]
@@ -505,7 +507,7 @@ class MFVI_NN(Cla_NN):
 
         costs = []
         global_step = 0
-        self.log_folder = os.path.join(self.tensorboard_dir, "graph_{}".format(self.name ))
+
         writer = tf.summary.FileWriter(self.log_folder, self.sess.graph)
         # Training cycle
         for epoch in range(no_epochs):
@@ -592,6 +594,7 @@ class MFVI_IBP_NN(Cla_NN):
         self.beta_1 = beta_1
         self.beta_2 = beta_2
         self.beta_3 = beta_3
+        self.log_folder = os.path.join(self.tensorboard_dir, "graph_{}".format(self.name))
 
         m, v, betas, self.size = self.create_weights(
             input_size, hidden_size, output_size, prev_means, prev_log_variances, prev_betas)
@@ -1049,7 +1052,7 @@ class MFVI_IBP_NN(Cla_NN):
         costs = []
         global_step = 0
         temp = self.lambda_1
-        self.log_folder = os.path.join(self.tensorboard_dir, "graph_{}".format(self.name))
+
         writer = tf.compat.v1.summary.FileWriter(self.log_folder, sess.graph)
         # Training cycle
         for epoch in range(no_epochs):
