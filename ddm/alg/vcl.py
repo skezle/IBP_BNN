@@ -56,8 +56,10 @@ def run_vcl(hidden_size, no_epochs, data_gen, coreset_method, coreset_size=0, ba
                            name="{0}_task{1}".format(name, task_id+1), tensorboard_dir=log_dir)
 
         if os.path.isdir(mf_model.log_folder):
+            print("Restoring model from {}".format(mf_model.log_folder))
             mf_model.restore(mf_model.log_folder)
         else:
+            print("New model, training")
             mf_model.train(x_train, y_train, head, no_epochs, bsize, display_epoch=5, verbose=verbose)
 
         mf_weights, mf_variances = mf_model.get_weights()
@@ -138,8 +140,10 @@ def run_vcl_ibp(hidden_size, no_epochs, data_gen, name,
                                name='{0}_task{1}'.format(name, task_id + 1))
 
         if os.path.isdir(mf_model.log_folder):
+            print("Restoring model: {}".format(mf_model.log_folder))
             mf_model.restore(mf_model.log_folder)
         else:
+            print("New model, training")
             mf_model.train(x_train, y_train, head, n, bsize,
                            anneal_rate=0.0, min_temp=1.0)
         mf_weights, mf_variances, mf_betas = mf_model.get_weights()
