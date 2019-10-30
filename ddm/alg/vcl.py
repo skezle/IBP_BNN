@@ -1,3 +1,4 @@
+import os.path
 import numpy as np
 import tensorflow as tf
 from utils import get_scores, get_uncertainties, concatenate_results
@@ -53,7 +54,12 @@ def run_vcl(hidden_size, no_epochs, data_gen, coreset_method, coreset_size=0, ba
         # Train on non-coreset data
         mf_model = MFVI_NN(in_dim, hidden_size, out_dim, x_train.shape[0], prev_means=mf_weights, prev_log_variances=mf_variances,
                            name="{0}_task{1}".format(name, task_id+1), tensorboard_dir=log_dir)
-        mf_model.train(x_train, y_train, head, no_epochs, bsize, display_epoch=5, verbose=verbose)
+
+        if os.path.isdir(mf_model.log_folder):
+            mf_model.restore(mf_model.log_folder)
+        else:
+            mf_model.train(x_train, y_train, head, no_epochs, bsize, display_epoch=5, verbose=verbose)
+
         mf_weights, mf_variances = mf_model.get_weights()
 
         # Incorporate coreset data and make prediction
@@ -131,8 +137,11 @@ def run_vcl_ibp(hidden_size, no_epochs, data_gen, name,
                                tensorboard_dir=log_dir,
                                name='{0}_task{1}'.format(name, task_id + 1))
 
-        mf_model.train(x_train, y_train, head, n, bsize,
-                       anneal_rate=0.0, min_temp=1.0)
+        if os.path.isdir(mf_model.log_folder):
+            mf_model.restore(mf_model.log_folder)
+        else:
+            mf_model.train(x_train, y_train, head, n, bsize,
+                           anneal_rate=0.0, min_temp=1.0)
         mf_weights, mf_variances, mf_betas = mf_model.get_weights()
 
         # get accuracies for all test sets seen so far
@@ -142,7 +151,7 @@ def run_vcl_ibp(hidden_size, no_epochs, data_gen, name,
         # get Z matrices
         Zs.append(mf_model.sess.run(mf_model.Z, feed_dict={mf_model.x: x_test,
                                                            mf_model.task_idx: task_id,
-                                                           mf_model.training: False, mf_model.temp: 1.0})[0])
+                                                           mf_model.training: False, mf_model.temp: 1.0}))
 
         # get uncertainties
         uncert = get_uncertainties(mf_model, all_x_testsets, all_y_testsets,
@@ -151,4 +160,6 @@ def run_vcl_ibp(hidden_size, no_epochs, data_gen, name,
 
         mf_model.close_session()
 
-    return acc, Zs, all_uncerts
+    _Zs = [item for sublist in Zs for item in sublist]
+
+    return acc, _Zs, all_uncerts

@@ -53,6 +53,8 @@ class Cla_NN(object):
         self.x = tf.placeholder(tf.float32, [None, input_size], name='x')
         self.y = tf.placeholder(tf.float32, [None, output_size], name='y')
         self.task_idx = tf.placeholder(tf.int32, name='task_id')
+
+        self.saver = tf.train.Saver()
         
     def assign_optimizer(self, learning_rate=0.001):
         self.train_step = tf.train.AdamOptimizer(learning_rate).minimize(self.cost)
@@ -116,6 +118,12 @@ class Cla_NN(object):
 
     def close_session(self):
         self.sess.close()
+
+    def save(self, model_dir):
+        self.saver.save(self.sess, os.path.join(model_dir, "model.ckpt"))
+
+    def restore(self, model_dir):
+        self.saver.restore(self.sess, os.path.join(model_dir, "model.ckpt"))
 
 
 """ Neural Network Model """
@@ -503,8 +511,8 @@ class MFVI_NN(Cla_NN):
 
         costs = []
         global_step = 0
-        log_folder = os.path.join(self.tensorboard_dir, "graph_{}".format(self.name ))
-        writer = tf.summary.FileWriter(log_folder, self.sess.graph)
+        self.log_folder = os.path.join(self.tensorboard_dir, "graph_{}".format(self.name ))
+        writer = tf.summary.FileWriter(self.log_folder, self.sess.graph)
         # Training cycle
         for epoch in range(no_epochs):
             perm_inds = list(range(x_train.shape[0]))
@@ -540,6 +548,7 @@ class MFVI_NN(Cla_NN):
                 print("Epoch:", '%04d' % (epoch+1), "cost=", \
                     "{:.9f}".format(avg_cost))
             costs.append(avg_cost)
+        self.save(self.log_folder)
         writer.close()
         return costs
 
@@ -612,7 +621,7 @@ class MFVI_IBP_NN(Cla_NN):
 
         self.assign_optimizer(learning_rate, epsilon)
 
-        self.saver = tf.train.Saver()
+        # self.saver = tf.train.Saver()
 
         self.create_summaries()
 
@@ -707,7 +716,6 @@ class MFVI_IBP_NN(Cla_NN):
         act = tf.expand_dims(act, 3) # [K, din, dout, 1]
         _weights = tf.expand_dims(_weights, 1) # [K, 1, dout, 2]
         pre = tf.add(tf.reduce_sum(act * _weights, 2), _biases)
-        print(pre.get_shape())
         return pre, prior_log_pis, log_pis, log_z_sample
 
     def lof(self, nu):
@@ -1041,8 +1049,8 @@ class MFVI_IBP_NN(Cla_NN):
         costs = []
         global_step = 0
         temp = self.lambda_1
-        log_folder = os.path.join(self.tensorboard_dir, "graph_{}".format(self.name))
-        writer = tf.compat.v1.summary.FileWriter(log_folder, sess.graph)
+        self.log_folder = os.path.join(self.tensorboard_dir, "graph_{}".format(self.name))
+        writer = tf.compat.v1.summary.FileWriter(self.log_folder, sess.graph)
         # Training cycle
         for epoch in range(no_epochs):
             perm_inds = list(range(x_train.shape[0]))
@@ -1084,7 +1092,7 @@ class MFVI_IBP_NN(Cla_NN):
                 print("Epoch:", '%04d' % (epoch+1), "train cost=", \
                     "{:.9f}".format(avg_cost))
             costs.append(avg_cost)
-        self.save(log_folder)
+        self.save(self.log_folder)
         writer.close()
         return costs
 
@@ -1099,8 +1107,8 @@ class MFVI_IBP_NN(Cla_NN):
                                                                     self.training: False, self.temp: self.min_temp})[0]
         return prob
 
-    def save(self, model_dir):
-        self.saver.save(self.sess, os.path.join(model_dir, "model.ckpt"))
-
-    def restore(self, model_dir):
-        self.saver.restore(self.sess, os.path.join(model_dir, "model.ckpt"))
+    # def save(self, model_dir):
+    #     self.saver.save(self.sess, os.path.join(model_dir, "model.ckpt"))
+    #
+    # def restore(self, model_dir):
+    #     self.saver.restore(self.sess, os.path.join(model_dir, "model.ckpt"))

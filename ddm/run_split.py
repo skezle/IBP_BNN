@@ -371,7 +371,7 @@ if __name__ == "__main__":
     ax.set_xlabel('\# tasks')
     ax.set_title('Split Mnist')
     ax.legend()
-    fig.savefig('split_mnist_accs_{}.png'.format(args.tag), bbox_inches='tight')
+    fig.savefig('plots/split_mnist_accs_{}.png'.format(args.tag), bbox_inches='tight')
     plt.close()
 
     # we are only plotting the results from the final optimisation
