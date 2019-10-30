@@ -54,8 +54,6 @@ class Cla_NN(object):
         self.y = tf.placeholder(tf.float32, [None, output_size], name='y')
         self.task_idx = tf.placeholder(tf.int32, name='task_id')
 
-        self.saver = tf.train.Saver()
-        
     def assign_optimizer(self, learning_rate=0.001):
         self.train_step = tf.train.AdamOptimizer(learning_rate).minimize(self.cost)
 
@@ -118,12 +116,6 @@ class Cla_NN(object):
 
     def close_session(self):
         self.sess.close()
-
-    def save(self, model_dir):
-        self.saver.save(self.sess, os.path.join(model_dir, "model.ckpt"))
-
-    def restore(self, model_dir):
-        self.saver.restore(self.sess, os.path.join(model_dir, "model.ckpt"))
 
 
 """ Neural Network Model """
@@ -243,6 +235,8 @@ class MFVI_NN(Cla_NN):
         self.acc = self._accuracy(self.x, self.y, self.task_idx)
         
         self.assign_optimizer(learning_rate)
+
+        self.saver = tf.train.Saver()
 
         self.create_summaries()
 
@@ -561,6 +555,12 @@ class MFVI_NN(Cla_NN):
         for i in graph_op:
             print(str(i.name))
 
+    def save(self, model_dir):
+        self.saver.save(self.sess, os.path.join(model_dir, "model.ckpt"))
+
+    def restore(self, model_dir):
+        self.saver.restore(self.sess, os.path.join(model_dir, "model.ckpt"))
+
 
 """ Bayesian Neural Network with Mean field VI approximation + IBP
     
@@ -621,7 +621,7 @@ class MFVI_IBP_NN(Cla_NN):
 
         self.assign_optimizer(learning_rate, epsilon)
 
-        # self.saver = tf.train.Saver()
+        self.saver = tf.train.Saver()
 
         self.create_summaries()
 
@@ -1107,8 +1107,8 @@ class MFVI_IBP_NN(Cla_NN):
                                                                     self.training: False, self.temp: self.min_temp})[0]
         return prob
 
-    # def save(self, model_dir):
-    #     self.saver.save(self.sess, os.path.join(model_dir, "model.ckpt"))
-    #
-    # def restore(self, model_dir):
-    #     self.saver.restore(self.sess, os.path.join(model_dir, "model.ckpt"))
+    def save(self, model_dir):
+        self.saver.save(self.sess, os.path.join(model_dir, "model.ckpt"))
+
+    def restore(self, model_dir):
+        self.saver.restore(self.sess, os.path.join(model_dir, "model.ckpt"))
