@@ -53,7 +53,7 @@ def run_vcl(hidden_size, no_epochs, data_gen, coreset_method, coreset_size=0, ba
 
         # Train on non-coreset data
         mf_model = MFVI_NN(in_dim, hidden_size, out_dim, x_train.shape[0], prev_means=mf_weights, prev_log_variances=mf_variances,
-                           name="{0}_task{1}".format(name, task_id+1), tensorboard_dir=log_dir)
+                           name="{0}_task{1}".format(name, task_id+1), tensorboard_dir=log_dir, use_local_reparam=True)
 
         if os.path.isdir(mf_model.log_folder):
             print("Restoring model from {}".format(mf_model.log_folder))
@@ -137,7 +137,8 @@ def run_vcl_ibp(hidden_size, no_epochs, data_gen, name,
                                lambda_2=lambda_2 if task_id == 0 else lambda_1,
                                no_pred_samples=no_pred_samples,
                                tensorboard_dir=log_dir,
-                               name='{0}_task{1}'.format(name, task_id + 1))
+                               name='{0}_task{1}'.format(name, task_id + 1),
+                               use_local_reparam=True)
 
         if os.path.isdir(mf_model.log_folder):
             print("Restoring model: {}".format(mf_model.log_folder))

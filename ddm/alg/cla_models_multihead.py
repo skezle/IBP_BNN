@@ -587,7 +587,7 @@ class MFVI_IBP_NN(Cla_NN):
                  prev_betas=None, learning_rate=0.001,
                  prior_mean=0, prior_var=1, alpha0=5., beta0=1., lambda_1=1., lambda_2=1.,
                  tensorboard_dir='logs', name='ibp', min_temp=0.5, tb_logging=True, output_tb_gradients=False,
-                 beta_1=1.0, beta_2=1.0, beta_3=1.0, epsilon=1e-8):
+                 beta_1=1.0, beta_2=1.0, beta_3=1.0, epsilon=1e-8, use_local_reparam=True):
 
         super(MFVI_IBP_NN, self).__init__(input_size, hidden_size, output_size, training_size)
 
@@ -608,6 +608,7 @@ class MFVI_IBP_NN(Cla_NN):
         self.beta_2 = beta_2
         self.beta_3 = beta_3
         self.log_folder = os.path.join(self.tensorboard_dir, "graph_{}".format(self.name))
+        self.use_local_reparam = use_local_reparam
 
         m, v, betas, self.size = self.create_weights(
             input_size, hidden_size, output_size, prev_means, prev_log_variances, prev_betas)
@@ -661,7 +662,9 @@ class MFVI_IBP_NN(Cla_NN):
         self.train_step = self.optim.apply_gradients(grads_and_vars=grads)
 
     def _prediction(self, inputs, task_idx, no_samples):
-        return self._prediction_layer(inputs, task_idx, no_samples)
+        y, y_local, prior_log_pis, log_pis, log_z_sample = self._prediction_layer(inputs, task_idx, no_samples)
+        y_hat = y_local if self.use_local_reparam else y
+        return y_hat, prior_log_pis, log_pis, log_z_sample
 
     # this samples a layer at a time
     def _prediction_layer(self, inputs, task_idx, no_samples):
@@ -680,6 +683,7 @@ class MFVI_IBP_NN(Cla_NN):
         K = no_samples
         K_ibp = self.num_ibp_samples
         act = tf.tile(tf.expand_dims(inputs, 0), [K, 1, 1]) # [1, batch, d] --> [K, batch, d]
+        act_local = tf.tile(tf.expand_dims(inputs, 0), [K, 1, 1])
         self.Z = []
         log_z_sample = []
         log_pis = []
@@ -717,6 +721,14 @@ class MFVI_IBP_NN(Cla_NN):
             pre = tf.add(tf.einsum('mni,mio->mno', act, _weights), _biases) # m = samples, n = din, i=input d, o=output d
             act = tf.multiply(tf.nn.relu(pre), z_discrete) # [K, din, dout]
 
+            # apply local reparameterisation trick: sample activations before applying the non-linearity
+            m_h = tf.add(tf.einsum('mni,io->mno', act_local, self.W_m[i]), self.b_m[i])
+            v_h = tf.add(tf.einsum('mni,io->mno', tf.square(act_local), tf.square(tf.exp(0.5 * self.W_v[i]))),
+                         tf.square(tf.exp(0.5 * self.b_v[i])))
+            pre_local = m_h + tf.sqrt(v_h + 1e-6) * tf.random_normal(tf.shape(v_h), dtype=tf.float32)
+            act_local = tf.multiply(tf.nn.relu(pre_local), z_discrete)  # shape (K, batch_size (None, ?), out)
+
+
         din = self.size[-2]
         dout = self.size[-1]
         eps_w = tf.random_normal((K, din, dout), 0, 1, dtype=tf.float32)
@@ -732,7 +744,17 @@ class MFVI_IBP_NN(Cla_NN):
         act = tf.expand_dims(act, 3) # [K, din, dout, 1]
         _weights = tf.expand_dims(_weights, 1) # [K, 1, dout, 2]
         pre = tf.add(tf.reduce_sum(act * _weights, 2), _biases)
-        return pre, prior_log_pis, log_pis, log_z_sample
+
+        # apply local reparam trick to final output layer
+        _act_local = tf.expand_dims(act_local, 3)  # (K, batch_size, hidden, 1)
+        _Wtask_m = tf.expand_dims(tf.expand_dims(Wtask_m, 0), 1)
+        _Wtask_v = tf.expand_dims(tf.expand_dims(Wtask_v, 0), 1)
+
+        m_h = tf.add(tf.reduce_sum(_act_local * _Wtask_m, 2), btask_m)
+        v_h = tf.add(tf.reduce_sum(tf.square(_act_local) * tf.square(tf.exp(0.5 * Wtask_v)), 2),
+                     tf.square(tf.exp(0.5 * btask_v)))
+        pre_local = m_h + tf.sqrt(v_h + 1e-6) * tf.random_normal(tf.shape(v_h), dtype=tf.float32)  # (K, batch_size, out_dim)
+        return pre, pre_local, prior_log_pis, log_pis, log_z_sample
 
     def lof(self, nu):
         """Left ordering of binary matrix
