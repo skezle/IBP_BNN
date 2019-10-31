@@ -167,4 +167,4 @@ def run_vcl_ibp(hidden_size, no_epochs, data_gen, name,
 
     _Zs = [item for sublist in Zs for item in sublist]
 
-    return acc, _Zs, all_uncerts
+    return all_acc, _Zs, all_uncerts
