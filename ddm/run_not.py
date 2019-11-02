@@ -68,6 +68,9 @@ class NotMnistGenerator:
         # Get data input and output dimensions
         return self.X_train.shape[1], 2
 
+    def reset_cur_iter(self):
+        self.cur_iter = 0
+
     def next_task(self):
         if self.cur_iter >= self.max_iter:
             raise Exception('Number of tasks exceeded!')
