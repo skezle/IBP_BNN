@@ -55,18 +55,31 @@ class PermutedMnistGenerator():
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-
+    parser.add_argument('--single_head', action='store_true',
+                        default=False,
+                        dest='single_head',
+                        help='Whether to use a single head.')
+    parser.add_argument('--num_layers', action='store',
+                        dest='num_layers',
+                        default=1,
+                        type=int,
+                        help='Number of layers in the NNs.')
+    parser.add_argument('--log_dir', action='store',
+                        dest='log_dir',
+                        default='logs',
+                        help='TB Log directory.')
     parser.add_argument('--tag', action='store',
                         dest='tag',
                         help='Tag to use in naming file outputs')
     args = parser.parse_args()
 
+    print('single_head  = {!r}'.format(args.single_head))
+    print('num_layers   = {!r}'.format(args.num_layers))
+    print('log_dir      = {!r}'.format(args.log_dir))
     print('tag          = {!r}'.format(args.tag))
 
     seeds = [12, 13, 14, 15, 16]
     num_tasks = 5
-    num_layers = 2
-    log_dir = 'logs_new'
 
     vcl_ibp_accs = np.zeros((len(seeds), num_tasks, num_tasks))
     vcl_h5_accs = np.zeros((len(seeds), num_tasks, num_tasks))
@@ -85,7 +98,7 @@ if __name__ == "__main__":
 
     for i in range(len(seeds)):
         s = seeds[i]
-        hidden_size = [100]*num_layers
+        hidden_size = [100]*args.num_layers
         batch_size = 256
         no_epochs = 1000
         ibp_samples = 10
@@ -96,48 +109,48 @@ if __name__ == "__main__":
         val = False
         coreset_size = 0
         data_gen = PermutedMnistGenerator(num_tasks)
-        single_head = True
         name = "ibp_{0}_run{1}_{2}".format("perm", i + 1, args.tag)
         # Z matrix for each task is output
         # This is overwritten for each run
-        ibp_acc, Zs, uncerts = run_vcl_ibp(hidden_size=hidden_size, no_epochs=[no_epochs*2] + [no_epochs]*4,
-                                           data_gen=data_gen, name=name, val=val, batch_size=batch_size, single_head=single_head,
-                                           alpha0=alpha0, beta0=beta0, lambda_1=lambda_1, lambda_2=lambda_2,
+        ibp_acc, Zs, uncerts = run_vcl_ibp(hidden_size=hidden_size, no_epochs=[no_epochs]*num_tasks,
+                                           data_gen=data_gen, name=name, val=val, batch_size=batch_size,
+                                           single_head=args.single_head, alpha0=alpha0, beta0=beta0,
+                                           lambda_1=lambda_1, lambda_2=lambda_2,
                                            learning_rate=0.0001, no_pred_samples=100, ibp_samples=ibp_samples,
-                                           log_dir=log_dir)
+                                           log_dir=args.log_dir)
         all_Zs.append(Zs)
         vcl_ibp_accs[i, :, :] = ibp_acc
         all_ibp_uncerts[i, :, :] = uncerts
 
         # Run Vanilla VCL
         tf.reset_default_graph()
-        hidden_size = [10]*num_layers
+        hidden_size = [10]*args.num_layers
         data_gen = PermutedMnistGenerator(num_tasks)
         vcl_result_h10, uncerts = run_vcl(hidden_size, no_epochs, data_gen,
-                                          lambda a: a, coreset_size, batch_size, single_head, val=False,
+                                          lambda a: a, coreset_size, batch_size, args.single_head, val=False,
                                           name='vcl_perm_h10_{0}_run{1}'.format(args.tag, i + 1),
-                                          log_dir=log_dir)
+                                          log_dir=args.log_dir)
         vcl_h10_accs[i, :, :] = vcl_result_h10
         all_vcl_h10_uncerts[i, :, :] = uncerts
 
         tf.reset_default_graph()
-        hidden_size = [5]*num_layers
+        hidden_size = [5]*args.num_layers
         data_gen = PermutedMnistGenerator(num_tasks)
         vcl_result_h5, uncerts = run_vcl(hidden_size, no_epochs, data_gen,
-                                         lambda a: a, coreset_size, batch_size, single_head, val=False,
+                                         lambda a: a, coreset_size, batch_size, args.single_head, val=False,
                                          name='vcl_perm_h5_{0}_run{1}'.format(args.tag, i + 1),
-                                         log_dir=log_dir)
+                                         log_dir=args.log_dir)
         vcl_h5_accs[i, :, :] = vcl_result_h5
         all_vcl_h5_uncerts[i, :, :] = uncerts
 
         # Run Vanilla VCL
         tf.reset_default_graph()
-        hidden_size = [50]*num_layers
+        hidden_size = [50]*args.num_layers
         data_gen = PermutedMnistGenerator(num_tasks)
         vcl_result_h50, uncerts = run_vcl(hidden_size, no_epochs, data_gen,
-                                          lambda a: a, coreset_size, batch_size, single_head, val=False,
+                                          lambda a: a, coreset_size, batch_size, args.single_head, val=False,
                                           name='vcl_perm_h50_{0}_run{1}'.format(args.tag, i + 1),
-                                          log_dir=log_dir)
+                                          log_dir=args.log_dir)
         vcl_h50_accs[i, :, :] = vcl_result_h50
         all_vcl_h50_uncerts[i, :, :] = uncerts
 
@@ -161,9 +174,9 @@ if __name__ == "__main__":
 
     # we are only plotting the results from the final optimisation
     print("length of Zs: {}".format(len(Zs)))
-    plot_Zs(num_tasks, num_layers, Zs, "perm", args.tag)
+    plot_Zs(num_tasks, args.num_layers, Zs, "perm", args.tag)
     print("Prop of neurons which are active for each task (and layer):",
-          [np.mean(Zs[i]) for i in range(num_tasks * num_layers)])
+          [np.mean(Zs[i]) for i in range(num_tasks * args.num_layers)])
 
     # Uncertainties
     plot_uncertainties(num_tasks, all_ibp_uncerts, all_vcl_h5_uncerts, all_vcl_h10_uncerts,
