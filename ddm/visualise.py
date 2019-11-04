@@ -122,7 +122,7 @@ def plot_Zs(num_tasks, num_layers, Zs, dataset, tag):
             ax[3][i].set_yticklabels([])
             ax[3][i].set_xlabel("Task {}".format(i + 1))
             if i == 4:
-                cbar_ax = fig.add_axes([0.92, 0.57, 0.01, 0.28])
+                cbar_ax = fig.add_axes([1.0, 0.78, 0.01, 0.2]) # left, bottom, width, height
                 fig.colorbar(imgplot1, cax=cbar_ax)
                 fig.colorbar(imgplot2, cax=cbar_ax)
     else:
