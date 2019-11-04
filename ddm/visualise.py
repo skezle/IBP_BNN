@@ -28,7 +28,7 @@ def plot_uncertainties(num_tasks, all_ibp_uncerts, all_vcl_h5_uncerts, all_vcl_h
     tick_size = 14
     legend_size = 16
 
-    fig, ax = plt.subplots(1, 4, figsize=(16, 3))
+    fig, ax = plt.subplots(1, 4, figsize=(14, 3))
     for i in range(num_tasks):
         ax[0].plot(np.arange(len(all_ibp_uncerts_norm[i, :])) + 1, all_ibp_uncerts_norm[i, :],
                    label='Task {}'.format(i),
@@ -79,12 +79,14 @@ def plot_Zs(num_tasks, num_layers, Zs, dataset, tag):
     label_size = 16
     tick_size = 12
     legend_size = 12
+    no_active_neurons = [np.mean(np.asarray(np.squeeze(Zs[i] > 0.1)).astype(int)) for i in range(len(Zs))]
     if num_layers == 1:
         fig, ax = plt.subplots(2, num_tasks, figsize=(16, 4))
         for i in range(num_tasks):
             imgplot = ax[0][i].imshow(np.squeeze(Zs[i])[:50, :], cmap=plt.cm.Greys, vmin=0, vmax=1)
             ax[0][i].set_xticks(np.arange(0.0, 100, step=50))
             ax[0][i].set_xlabel('$k$', fontsize=legend_size)
+            ax[0][i].set_title('No active neurons: {:.2f}'.format(no_active_neurons[i]))
             ax[0][i].set_xticklabels([])
             ax[0][i].set_yticklabels([])
             ax[1][i].hist(np.sum(np.asarray(np.squeeze(Zs[i] > 0.1)).astype(int), axis=1), 8, alpha=0.7,
@@ -103,15 +105,17 @@ def plot_Zs(num_tasks, num_layers, Zs, dataset, tag):
             ax[0][i].set_xlabel('$k$', fontsize=legend_size)
             ax[0][i].set_xticklabels([])
             ax[0][i].set_yticklabels([])
+            ax[0][i].set_title('No active neurons: {:.2f}'.format(no_active_neurons[2*i]))
             ax[1][i].hist(np.sum(np.asarray(np.squeeze(Zs[2*i] > 0.1)).astype(int), axis=1), 8, alpha=0.7,
                           edgecolor='green',
                           linewidth=1.5)
             ax[1][i].set_yticklabels([])
-            imgplot2 = ax[2][i].imshow(np.squeeze(Zs[2 * i + 1])[:50, :], cmap=plt.cm.Greys, vmin=0, vmax=1)
+            imgplot2 = ax[2][i].imshow(np.squeeze(Zs[(2 * i) + 1])[:50, :], cmap=plt.cm.Greys, vmin=0, vmax=1)
             ax[2][i].set_xticks(np.arange(0.0, 100, step=50))
             ax[2][i].set_xlabel('$k$', fontsize=legend_size)
             ax[2][i].set_xticklabels([])
             ax[2][i].set_yticklabels([])
+            ax[2][i].set_title('No active neurons: {:.2f}'.format(no_active_neurons[(2 * i) + 1]))
             ax[3][i].hist(np.sum(np.asarray(np.squeeze(Zs[2*i + 1] > 0.1)).astype(int), axis=1), 8, alpha=0.7,
                           edgecolor='green',
                           linewidth=1.5)
