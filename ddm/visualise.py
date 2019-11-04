@@ -86,7 +86,7 @@ def plot_Zs(num_tasks, num_layers, Zs, dataset, tag):
             imgplot = ax[0][i].imshow(np.squeeze(Zs[i])[:50, :], cmap=plt.cm.Greys, vmin=0, vmax=1)
             ax[0][i].set_xticks(np.arange(0.0, 100, step=50))
             ax[0][i].set_xlabel('$k$', fontsize=legend_size)
-            ax[0][i].set_title('No active neurons: {:.2f}'.format(no_active_neurons[i]))
+            ax[0][i].set_title('No active neurons: {:.3f}'.format(no_active_neurons[i]))
             ax[0][i].set_xticklabels([])
             ax[0][i].set_yticklabels([])
             ax[1][i].hist(np.sum(np.asarray(np.squeeze(Zs[i] > 0.1)).astype(int), axis=1), 8, alpha=0.7,
@@ -105,7 +105,7 @@ def plot_Zs(num_tasks, num_layers, Zs, dataset, tag):
             ax[0][i].set_xlabel('$k$', fontsize=legend_size)
             ax[0][i].set_xticklabels([])
             ax[0][i].set_yticklabels([])
-            ax[0][i].set_title('No active neurons: {:.2f}'.format(no_active_neurons[2*i]))
+            ax[0][i].set_title('L1 No active neurons: {:.3f}'.format(no_active_neurons[2*i]))
             ax[1][i].hist(np.sum(np.asarray(np.squeeze(Zs[2*i] > 0.1)).astype(int), axis=1), 8, alpha=0.7,
                           edgecolor='green',
                           linewidth=1.5)
@@ -115,7 +115,7 @@ def plot_Zs(num_tasks, num_layers, Zs, dataset, tag):
             ax[2][i].set_xlabel('$k$', fontsize=legend_size)
             ax[2][i].set_xticklabels([])
             ax[2][i].set_yticklabels([])
-            ax[2][i].set_title('No active neurons: {:.2f}'.format(no_active_neurons[(2 * i) + 1]))
+            ax[2][i].set_title('L2 No active neurons: {:.3f}'.format(no_active_neurons[(2 * i) + 1]))
             ax[3][i].hist(np.sum(np.asarray(np.squeeze(Zs[2*i + 1] > 0.1)).astype(int), axis=1), 8, alpha=0.7,
                           edgecolor='green',
                           linewidth=1.5)
@@ -127,5 +127,6 @@ def plot_Zs(num_tasks, num_layers, Zs, dataset, tag):
                 fig.colorbar(imgplot2, cax=cbar_ax)
     else:
         raise ValueError
+    fig.tight_layout()
     plt.savefig('plots/Zs_{0}_mnist_{1}.pdf'.format(dataset, tag), bbox_inches='tight')
     fig.show()
