@@ -5,7 +5,7 @@ from utils import get_scores, get_uncertainties, concatenate_results
 from cla_models_multihead import Vanilla_NN, MFVI_NN, MFVI_IBP_NN
 
 def run_vcl(hidden_size, no_epochs, data_gen, coreset_method, coreset_size=0, batch_size=None, single_head=True, val=False,
-            verbose=True, name='vcl', log_dir='logs'):
+            verbose=True, name='vcl', log_dir='logs', use_local_reparam=False):
     in_dim, out_dim = data_gen.get_dims()
     x_coresets, y_coresets = [], []
     x_testsets, y_testsets = [], []
@@ -53,7 +53,7 @@ def run_vcl(hidden_size, no_epochs, data_gen, coreset_method, coreset_size=0, ba
 
         # Train on non-coreset data
         mf_model = MFVI_NN(in_dim, hidden_size, out_dim, x_train.shape[0], prev_means=mf_weights, prev_log_variances=mf_variances,
-                           name="{0}_task{1}".format(name, task_id+1), tensorboard_dir=log_dir, use_local_reparam=True)
+                           name="{0}_task{1}".format(name, task_id+1), tensorboard_dir=log_dir, use_local_reparam=use_local_reparam)
 
         if os.path.isdir(mf_model.log_folder):
             print("Restoring model from {}".format(mf_model.log_folder))
@@ -79,12 +79,14 @@ def run_vcl(hidden_size, no_epochs, data_gen, coreset_method, coreset_size=0, ba
 def run_vcl_ibp(hidden_size, no_epochs, data_gen, name,
                 val, batch_size=None, single_head=True, alpha0=5.0,
                 beta0 = 1.0, lambda_1 = 1.0, lambda_2 = 1.0, learning_rate=0.0001,
-                no_pred_samples=100, ibp_samples = 10, log_dir='logs'):
+                no_pred_samples=100, ibp_samples = 10, log_dir='logs',
+                run_val_set=False, use_local_reparam=False):
 
     in_dim, out_dim = data_gen.get_dims()
     all_acc = np.array([])
     all_uncerts = np.zeros((data_gen.max_iter, data_gen.max_iter))
     x_testsets, y_testsets = [], []
+    x_valsets, y_valsets = [], []
     all_x_testsets, all_y_testsets = [], []
     Zs = []
 
@@ -103,7 +105,9 @@ def run_vcl_ibp(hidden_size, no_epochs, data_gen, name,
 
         tf.reset_default_graph()
         if val:
-            x_train, y_train, x_test, y_test, _, _ = data_gen.next_task()
+            x_train, y_train, x_test, y_test, x_val, y_val = data_gen.next_task()
+            x_valsets.append(x_val)
+            y_valsets.append(y_val)
         else:
             x_train, y_train, x_test, y_test = data_gen.next_task()
         x_testsets.append(x_test)
@@ -122,7 +126,7 @@ def run_vcl_ibp(hidden_size, no_epochs, data_gen, name,
         # lambda_2 --> temp of the relaxed prior, for task != 0 this should be lambda_1!!!
         if task_id == 0:
             ml_model = Vanilla_NN(in_dim, hidden_size, out_dim, x_train.shape[0])
-            ml_model.train(x_train, y_train, task_id, n, bsize)
+            ml_model.train(x_train, y_train, task_id, 100, bsize)
             mf_weights = ml_model.get_weights()
             mf_variances = None
             mf_betas = None
@@ -138,7 +142,7 @@ def run_vcl_ibp(hidden_size, no_epochs, data_gen, name,
                                no_pred_samples=no_pred_samples,
                                tensorboard_dir=log_dir,
                                name='{0}_task{1}'.format(name, task_id + 1),
-                               use_local_reparam=True)
+                               use_local_reparam=use_local_reparam)
 
         if os.path.isdir(mf_model.log_folder):
             print("Restoring model: {}".format(mf_model.log_folder))
@@ -150,7 +154,10 @@ def run_vcl_ibp(hidden_size, no_epochs, data_gen, name,
         mf_weights, mf_variances, mf_betas = mf_model.get_weights()
 
         # get accuracies for all test sets seen so far
-        acc = get_scores(mf_model, x_testsets, y_testsets, single_head)
+        if run_val_set:
+            acc = get_scores(mf_model, x_valsets, y_valsets, single_head)
+        else:
+            acc = get_scores(mf_model, x_testsets, y_testsets, single_head)
         all_acc = concatenate_results(acc, all_acc)
 
         # get Z matrices

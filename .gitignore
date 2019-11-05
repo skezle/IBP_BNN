@@ -108,6 +108,8 @@ venv.bak/
 dgm
 improved_ddm
 logs/
+logs_rs/
+logs_new/
 *.pickle
 results/
 *.png
