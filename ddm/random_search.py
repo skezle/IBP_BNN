@@ -241,6 +241,11 @@ if __name__ == "__main__":
                         default=1,
                         type=int,
                         help='Number of layers in the NNs.')
+    parser.add_argument('--runs', action='store',
+                        dest='runs',
+                        default=20,
+                        type=int,
+                        help='Number iterations of random search.')
     parser.add_argument('--log_dir', action='store',
                         dest='log_dir',
                         default='logs',
@@ -251,16 +256,23 @@ if __name__ == "__main__":
     parser.add_argument('--tag', action='store',
                         dest='tag',
                         help='Tag to use in naming file outputs')
+    parser.add_argument('--use_local_reparam', action='store_true',
+                        default=False,
+                        dest='use_local_reparam',
+                        help='Whether to use local reparam.')
     args = parser.parse_args()
 
-    print('single_head  = {!r}'.format(args.single_head))
-    print('num_layers   = {!r}'.format(args.num_layers))
-    print('log_dir      = {!r}'.format(args.log_dir))
-    print('dataset      = {!r}'.format(args.dataset))
-    print('tag          = {!r}'.format(args.tag))
+    print('single_head            = {!r}'.format(args.single_head))
+    print('num_layers             = {!r}'.format(args.num_layers))
+    print('runs                   = {!r}'.format(args.runs))
+    print('log_dir                = {!r}'.format(args.log_dir))
+    print('dataset                = {!r}'.format(args.dataset))
+    print('use_local_reparam      = {!r}'.format(args.use_local_reparam))
+    print('noise                  = {!r}'.format(args.noise))
+    print('tag                    = {!r}'.format(args.tag))
 
     # define data generator
-    val = False
+    val = True
     def get_datagen():
         if args.dataset == 'normal':
             data_gen = SplitMnistGenerator(val=val, difficult=False)
@@ -281,13 +293,14 @@ if __name__ == "__main__":
     hyper_param_choices_ranges = {'learning_rate': [0.00001, 0.0001],
                                   'alpha0': [1., 5.],
                                   'beta0': [0.5, 1.],
-                                  'lambda_1': [0.5, 1.],
-                                  'lambda_2': [0.5, 1.]}
+                                  'lambda_1': [0.1, 1.],
+                                  'lambda_2': [0.1, 1.],
+                                  'prior_var': [0.001, 1.]}
 
     fixed_param_choices = {'ibp_samples': 10,
-                           'no_pred_samples': 100}
+                           'no_pred_samples': 100,
+                           'prior_mean': 0.0}
 
-    runs = 2
     RndSearch = HyperparamOptManager(param_grid=hyper_param_choices_grid,
                                      param_ranges=hyper_param_choices_ranges,
                                      fixed_params=fixed_param_choices,
@@ -299,21 +312,21 @@ if __name__ == "__main__":
     hidden_size = [100] * args.num_layers
     no_epochs = 1000
     coreset_size = 0
-    for i in range(runs):
+    for i in range(args.runs):
         data_gen = get_datagen()
         thetas = RndSearch.get_next_parameters()
         name = "ibp_rs_split_{0}_run{1}_{2}".format(args.dataset, i + 1, args.tag)
 
-        ibp_acc, _, _ = run_vcl_ibp(hidden_size=hidden_size, no_epochs=[no_epochs] * 5, data_gen=data_gen,
+        ibp_acc, _, _ = run_vcl_ibp(hidden_size=hidden_size, no_epochs=[no_epochs]*5, data_gen=data_gen,
                                     name=name, val=val, batch_size=thetas['batch_size'],
-                                    single_head=args.single_head,
-                                    alpha0=thetas['alpha0'],
+                                    single_head=args.single_head, prior_mean=thetas['prior_mean'],
+                                    prior_var=thetas['prior_var'], alpha0=thetas['alpha0'],
                                     beta0=thetas['beta0'], lambda_1=thetas['lambda_1'],
                                     lambda_2=thetas['lambda_2'], learning_rate=thetas['learning_rate'],
                                     no_pred_samples=thetas['no_pred_samples'],
                                     ibp_samples=thetas['ibp_samples'],
-                                    log_dir=args.log_dir,
-                                    run_val_set=True)
+                                    log_dir=args.log_dir, run_val_set=val,
+                                    use_local_reparam=args.use_local_reparam)
 
         # best score is a loss which is defined to be minimised over, hence want to minimise the negative acc
         _ = RndSearch.update_score(thetas, -np.nanmean(ibp_acc), model=None, sess=None)  # rewards act like the inverse of a loss
@@ -322,14 +335,17 @@ if __name__ == "__main__":
     thetas_opt = RndSearch.get_best_params()
     data_gen = get_datagen()
     name = "ibp_rs_opt_split_{0}_{1}".format(args.dataset, args.tag)
-    ibp_acc, Zs, uncerts = run_vcl_ibp(hidden_size=hidden_size, no_epochs=[no_epochs] * 5, data_gen=data_gen,
+    ibp_acc, Zs, uncerts = run_vcl_ibp(hidden_size=hidden_size, no_epochs=[no_epochs]*5,
+                                       data_gen=data_gen,
                                        name=name, val=val, batch_size=thetas_opt['batch_size'],
-                                       single_head=args.single_head, alpha0=thetas_opt['alpha0'],
+                                       single_head=args.single_head, prior_mean=thetas_opt['prior_mean'],
+                                       prior_var=thetas_opt['prior_var'], alpha0=thetas_opt['alpha0'],
                                        beta0=thetas_opt['beta0'], lambda_1=thetas_opt['lambda_1'],
                                        lambda_2=thetas_opt['lambda_2'], learning_rate=thetas_opt['0.0001'],
                                        no_pred_samples=thetas_opt['no_pred_samples'],
                                        ibp_samples=thetas_opt['ibp_samples'],
-                                       log_dir=args.log_dir)
+                                       log_dir=args.log_dir, run_val_set=False,
+                                       use_local_reparam=args.use_local_reparam)
 
     # cache results with opt. parameters
     _ibp_acc = np.nanmean(ibp_acc, (0, 1))
@@ -341,7 +357,7 @@ if __name__ == "__main__":
     ax.set_xlabel('\# tasks')
     ax.set_title('Split Mnist')
     ax.legend()
-    fig.savefig('plots/split_mnist_accs_{}.png'.format(args.tag), bbox_inches='tight')
+    fig.savefig('plots/split_mnist_accs_{}.png'.format(name), bbox_inches='tight')
     plt.close()
 
     # we are only plotting the results from the final optimisation
@@ -351,7 +367,7 @@ if __name__ == "__main__":
     print("Prop of neurons which are active for each task (and layer):",
           [np.mean(Zs[i]) for i in range(num_tasks * args.num_layers)])
 
-    with open('results/split_mnist_res5_{}.pkl'.format(args.tag), 'wb') as input_file:
+    with open('results/split_mnist_res5_{}.pkl'.format(name), 'wb') as input_file:
         pickle.dump({'vcl_ibp': ibp_acc,
                      'uncerts_ibp': uncerts,
                      'Z': Zs,
