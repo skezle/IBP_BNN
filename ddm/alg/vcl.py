@@ -77,7 +77,8 @@ def run_vcl(hidden_size, no_epochs, data_gen, coreset_method, coreset_size=0, ba
     return all_acc, all_uncerts
 
 def run_vcl_ibp(hidden_size, no_epochs, data_gen, name,
-                val, batch_size=None, single_head=True, alpha0=5.0,
+                val, batch_size=None, single_head=True,
+                prior_mean=0.0, prior_var=1.0, alpha0=5.0,
                 beta0 = 1.0, lambda_1 = 1.0, lambda_2 = 1.0, learning_rate=0.0001,
                 no_pred_samples=100, ibp_samples = 10, log_dir='logs',
                 run_val_set=False, use_local_reparam=False):
@@ -137,7 +138,7 @@ def run_vcl_ibp(hidden_size, no_epochs, data_gen, name,
                                prev_means=mf_weights,
                                prev_log_variances=mf_variances, prev_betas=mf_betas,
                                alpha0=alpha0, beta0=beta0, learning_rate=learning_rate,
-                               lambda_1=lambda_1,
+                               prior_mean=prior_mean, prior_var=prior_var, lambda_1=lambda_1,
                                lambda_2=lambda_2 if task_id == 0 else lambda_1,
                                no_pred_samples=no_pred_samples,
                                tensorboard_dir=log_dir,
