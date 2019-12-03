@@ -807,8 +807,8 @@ class MFVI_IBP_NN(Cla_NN):
             tf.compat.v1.summary.scalar("acc", self.acc)
             Z_all = tf.reduce_sum([tf.cast(tf.reduce_sum(x), tf.float32) for x in self.Z]) / tf.reduce_sum([tf.cast(tf.size(x), tf.float32) for x in self.Z])
             tf.compat.v1.summary.scalar("Z_av", Z_all)
-            tf.compat.v1.summary.histogram("W_mu", tf.concat([tf.reshape(i, -1) for i in self.means], 0))
-            tf.compat.v1.summary.histogram("W_sigma", tf.concat([tf.reshape(i, -1) for i in self.vars], 0))
+            tf.compat.v1.summary.histogram("W_mu", tf.concat([tf.reshape(i, [-1]) for i in self.means], 0))
+            tf.compat.v1.summary.histogram("W_sigma", tf.concat([tf.reshape(i, [-1]) for i in self.vars], 0))
             for i in range(len(self.hidden_size)):
                 tf.compat.v1.summary.histogram("v_beta_a_l{}".format(i), tf.cast(tf.math.softplus(tf.exp(tf.log(self.beta_a[i] + 1e-8))) + 0.01, tf.float32))
                 tf.compat.v1.summary.histogram("v_beta_b_l{}".format(i), tf.cast(tf.math.softplus(tf.exp(tf.log(self.beta_b[i] + 1e-8))) + 0.01, tf.float32))
