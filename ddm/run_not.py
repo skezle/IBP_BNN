@@ -120,6 +120,11 @@ if __name__ == "__main__":
                         default=1,
                         type=int,
                         help='Number of layers in the NNs.')
+    parser.add_argument('--runs', action='store',
+                        dest='runs',
+                        default=1,
+                        type=int,
+                        help='Number optmisations to perform.')
     parser.add_argument('--log_dir', action='store',
                         dest='log_dir',
                         default='logs',
@@ -137,7 +142,7 @@ if __name__ == "__main__":
     print('use_local_reparam    = {!r}'.format(args.use_local_reparam))
     print('log_dir              = {!r}'.format(args.log_dir))
 
-    seeds = [11]
+    seeds = list(range(10, 10 + args.runs))
     num_tasks = 5
 
     vcl_ibp_accs = np.zeros((len(seeds), num_tasks, num_tasks))
@@ -151,7 +156,7 @@ if __name__ == "__main__":
     all_Zs = []
 
     # bayes_opt params
-    alpha0 = 1.0
+    alpha0 = 5.0
     beta0 = 1.0
     lambda_1 = 1.0
     lambda_2 = 1.0

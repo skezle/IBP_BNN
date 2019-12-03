@@ -685,6 +685,8 @@ class MFVI_IBP_NN(Cla_NN):
         act = tf.tile(tf.expand_dims(inputs, 0), [K, 1, 1]) # [1, batch, d] --> [K, batch, d]
         act_local = tf.tile(tf.expand_dims(inputs, 0), [K, 1, 1])
         self.Z = []
+        self.vars = []
+        self.means = []
         log_z_sample = []
         log_pis = []
         prior_log_pis = []
@@ -715,8 +717,9 @@ class MFVI_IBP_NN(Cla_NN):
             z_discrete = tf.expand_dims(tf.reduce_mean(tf.sigmoid(z_log_sample), axis=0), 0)# (K_ibp, batch_size, dout) --> (1, batch_size, dout)
 
             self.Z.append(z_discrete)
+            self.vars += [tf.exp(0.5 * self.W_v[i]), tf.exp(0.5 * self.b_v[i])]
+            self.means += [self.W_m[i], self.b_m[i]]
             log_z_sample.append(z_log_sample)
-            print(z_discrete.get_shape())
             # multiplication by IBP mask
             pre = tf.add(tf.einsum('mni,mio->mno', act, _weights), _biases) # m = samples, n = din, i=input d, o=output d
             act = tf.multiply(tf.nn.relu(pre), z_discrete) # [K, din, dout]
@@ -741,6 +744,9 @@ class MFVI_IBP_NN(Cla_NN):
 
         _weights = tf.add(tf.multiply(eps_w, tf.exp(0.5 * Wtask_v)), Wtask_m)
         _biases = tf.add(tf.multiply(eps_b, tf.exp(0.5 * btask_v)), btask_m)
+        self.vars += [tf.exp(0.5 * Wtask_v), tf.exp(0.5 * btask_v)]
+        self.means += [Wtask_m, btask_m]
+
         act = tf.expand_dims(act, 3) # [K, din, dout, 1]
         _weights = tf.expand_dims(_weights, 1) # [K, 1, dout, 2]
         pre = tf.add(tf.reduce_sum(act * _weights, 2), _biases)
@@ -801,6 +807,8 @@ class MFVI_IBP_NN(Cla_NN):
             tf.compat.v1.summary.scalar("acc", self.acc)
             Z_all = tf.reduce_sum([tf.cast(tf.reduce_sum(x), tf.float32) for x in self.Z]) / tf.reduce_sum([tf.cast(tf.size(x), tf.float32) for x in self.Z])
             tf.compat.v1.summary.scalar("Z_av", Z_all)
+            tf.compat.v1.summary.histogram("W_mu", tf.concat([tf.reshape(i, -1) for i in self.means], 0))
+            tf.compat.v1.summary.histogram("W_sigma", tf.concat([tf.reshape(i, -1) for i in self.vars], 0))
             for i in range(len(self.hidden_size)):
                 tf.compat.v1.summary.histogram("v_beta_a_l{}".format(i), tf.cast(tf.math.softplus(tf.exp(tf.log(self.beta_a[i] + 1e-8))) + 0.01, tf.float32))
                 tf.compat.v1.summary.histogram("v_beta_b_l{}".format(i), tf.cast(tf.math.softplus(tf.exp(tf.log(self.beta_b[i] + 1e-8))) + 0.01, tf.float32))
