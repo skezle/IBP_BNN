@@ -66,7 +66,7 @@ def log_density_concrete(logpis, logsample, _temp):
     """ log-density of the ExpConcrete distribution, from
     Maddison et. al. (2017) (right after equation 26) in appendix
 
-    :param logalphas: Bernoulli/Concrete params
+    :param logpis: Bernoulli/Concrete params
     :param logsample: samples from Concrete distribution, before sigmoid is applied
     :param _temp: float
     Input logalpha is a logit (alpha is a probability ratio)

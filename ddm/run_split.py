@@ -279,12 +279,18 @@ if __name__ == "__main__":
                         default=False,
                         dest='use_local_reparam',
                         help='Whether to use local reparam.')
+    parser.add_argument('--alpha0', action='store',
+                        default=5.0,
+                        type=float,
+                        dest='alpha0',
+                        help='The prior and initialisation for the beta concentration param.')
     args = parser.parse_args()
 
     print('difficult            = {!r}'.format(args.difficult))
     print('single_head          = {!r}'.format(args.single_head))
     print('num_layers           = {!r}'.format(args.num_layers))
     print('runs                 = {!r}'.format(args.runs))
+    print('alpha0               = {!r}'.format(args.alpha0))
     print('log_dir              = {!r}'.format(args.log_dir))
     print('dataset              = {!r}'.format(args.dataset))
     print('use_local_reparam    = {!r}'.format(args.use_local_reparam))
@@ -318,7 +324,7 @@ if __name__ == "__main__":
         return data_gen
 
     # params
-    alpha0 = 5.0
+    alpha0 = args.alpha0
     beta0 = 1.0
     lambda_1 = 1.0
     lambda_2 = 1.0
