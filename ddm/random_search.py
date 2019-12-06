@@ -10,11 +10,12 @@ import pandas as pd
 import numpy as np
 import argparse
 import pickle
+import tensorflow as tf
 
 from run_split import SplitMnistBackgroundGenerator, SplitMnistRandomGenerator, SplitMnistGenerator
 from run_not import NotMnistGenerator
-from vcl import run_vcl_ibp
-from visualise import plot_Zs
+from vcl import run_vcl_ibp, run_vcl
+from visualise import plot_uncertainties, plot_Zs
 
 import matplotlib
 matplotlib.use('agg')
@@ -271,6 +272,19 @@ if __name__ == "__main__":
     print('noise                  = {!r}'.format(args.noise))
     print('tag                    = {!r}'.format(args.tag))
 
+    seeds = list(range(10, 10 + args.runs))
+    num_tasks = 5
+
+    vcl_ibp_accs = np.zeros((len(seeds), num_tasks, num_tasks))
+    vcl_h5_accs = np.zeros((len(seeds), num_tasks, num_tasks))
+    vcl_h10_accs = np.zeros((len(seeds), num_tasks, num_tasks))
+    vcl_h50_accs = np.zeros((len(seeds), num_tasks, num_tasks))
+    all_ibp_uncerts = np.zeros((len(seeds), num_tasks, num_tasks))
+    all_vcl_h5_uncerts = np.zeros((len(seeds), num_tasks, num_tasks))
+    all_vcl_h10_uncerts = np.zeros((len(seeds), num_tasks, num_tasks))
+    all_vcl_h50_uncerts = np.zeros((len(seeds), num_tasks, num_tasks))
+    all_Zs = []
+
     # define data generator
     val = True
     def get_datagen():
@@ -333,45 +347,73 @@ if __name__ == "__main__":
 
     # run final VCL + IBP with opt parameters
     thetas_opt = RndSearch.get_best_params()
-    data_gen = get_datagen()
-    name = "ibp_rs_opt_split_{0}_{1}".format(args.dataset, args.tag)
-    ibp_acc, Zs, uncerts = run_vcl_ibp(hidden_size=hidden_size, no_epochs=[no_epochs]*5,
-                                       data_gen=data_gen,
-                                       name=name, val=val, batch_size=thetas_opt['batch_size'],
-                                       single_head=args.single_head, prior_mean=thetas_opt['prior_mean'],
-                                       prior_var=thetas_opt['prior_var'], alpha0=thetas_opt['alpha0'],
-                                       beta0=thetas_opt['beta0'], lambda_1=thetas_opt['lambda_1'],
-                                       lambda_2=thetas_opt['lambda_2'], learning_rate=thetas_opt['0.0001'],
-                                       no_pred_samples=thetas_opt['no_pred_samples'],
-                                       ibp_samples=thetas_opt['ibp_samples'],
-                                       log_dir=args.log_dir, run_val_set=False,
-                                       use_local_reparam=args.use_local_reparam)
+    for i in range(len(seeds)):
+        s = seeds[i]
+        tf.set_random_seed(s)
+        data_gen = get_datagen()
+        name = "ibp_rs_opt_split_{0}_{1}_run{2}".format(args.dataset, args.tag, i+1)
+        ibp_acc, Zs, uncerts = run_vcl_ibp(hidden_size=hidden_size, no_epochs=[no_epochs]*5,
+                                           data_gen=data_gen,
+                                           name=name, val=val, batch_size=thetas_opt['batch_size'],
+                                           single_head=args.single_head, prior_mean=thetas_opt['prior_mean'],
+                                           prior_var=thetas_opt['prior_var'], alpha0=thetas_opt['alpha0'],
+                                           beta0=thetas_opt['beta0'], lambda_1=thetas_opt['lambda_1'],
+                                           lambda_2=thetas_opt['lambda_2'], learning_rate=thetas_opt['learning_rate'],
+                                           no_pred_samples=thetas_opt['no_pred_samples'],
+                                           ibp_samples=thetas_opt['ibp_samples'],
+                                           log_dir=args.log_dir, run_val_set=False,
+                                           use_local_reparam=args.use_local_reparam)
 
-    # cache results with opt. parameters
-    _ibp_acc = np.nanmean(ibp_acc, (0, 1))
-    fig = plt.figure(figsize=(5, 3))
-    ax = plt.gca()
-    plt.plot(np.arange(len(_ibp_acc)) + 1, _ibp_acc, label='VCL + IBP', marker='o')
-    ax.set_xticks(range(1, len(_ibp_acc) + 1))
-    ax.set_ylabel('Average accuracy')
-    ax.set_xlabel('\# tasks')
-    ax.set_title('Split Mnist')
-    ax.legend()
-    fig.savefig('plots/split_mnist_accs_{}.png'.format(name), bbox_inches='tight')
-    plt.close()
+        all_Zs.append(Zs)
+        vcl_ibp_accs[i, :, :] = ibp_acc
+        all_ibp_uncerts[i, :, :] = uncerts
 
-    # we are only plotting the results from the final optimisation
-    print("length of Zs: {}".format(len(Zs)))
-    num_tasks = 5
-    plot_Zs(num_tasks, args.num_layers, Zs, args.dataset, args.tag)
-    print("Prop of neurons which are active for each task (and layer):",
-          [np.mean(Zs[i]) for i in range(num_tasks * args.num_layers)])
+        # Run Vanilla VCL
+        tf.reset_default_graph()
+        hidden_size = [10] * args.num_layers
+        data_gen = NotMnistGenerator(args.noise)
+        vcl_result_h10, uncerts = run_vcl(hidden_size, no_epochs, data_gen,
+                                          lambda a: a, coreset_size, thetas_opt['batch_size'], args.single_head, val=val,
+                                          name='vcl_h10_{0}_run{1}'.format(args.tag, i + 1),
+                                          log_dir=args.log_dir, use_local_reparam=args.use_local_reparam)
+        vcl_h10_accs[i, :, :] = vcl_result_h10
+        all_vcl_h10_uncerts[i, :, :] = uncerts
 
-    with open('results/split_mnist_res5_{}.pkl'.format(name), 'wb') as input_file:
-        pickle.dump({'vcl_ibp': ibp_acc,
-                     'uncerts_ibp': uncerts,
-                     'Z': Zs,
+        tf.reset_default_graph()
+        hidden_size = [5] * args.num_layers
+        data_gen = NotMnistGenerator(args.noise)
+        vcl_result_h5, uncerts = run_vcl(hidden_size, no_epochs, data_gen,
+                                         lambda a: a, coreset_size, thetas_opt['batch_size'], args.single_head, val=val,
+                                         name='vcl_h5_{0}_run{1}'.format(args.tag, i + 1),
+                                         log_dir=args.log_dir, use_local_reparam=args.use_local_reparam)
+        vcl_h5_accs[i, :, :] = vcl_result_h5
+        all_vcl_h5_uncerts[i, :, :] = uncerts
+
+        # Run Vanilla VCL
+        tf.reset_default_graph()
+        hidden_size = [50] * args.num_layers
+        data_gen = NotMnistGenerator(args.noise)
+        vcl_result_h50, uncerts = run_vcl(hidden_size, no_epochs, data_gen,
+                                          lambda a: a, coreset_size, thetas_opt['batch_size'], args.single_head, val=val,
+                                          name='vcl_h50_{0}_run{1}'.format(args.tag, i + 1),
+                                          log_dir=args.log_dir, use_local_reparam=args.use_local_reparam)
+        vcl_h50_accs[i, :, :] = vcl_result_h50
+        all_vcl_h50_uncerts[i, :, :] = uncerts
+
+    tag="ibp_rs_split_{0}_{1}".format(args.dataset, args.tag)
+    with open('results/split_mnist_res5_{}.pkl'.format(tag), 'wb') as input_file:
+        pickle.dump({'vcl_ibp': vcl_ibp_accs,
+                     'vcl_h10': vcl_h10_accs,
+                     'vcl_h5': vcl_h5_accs,
+                     'vcl_h50': vcl_h50_accs,
+                     'uncerts_ibp': all_ibp_uncerts,
+                     'uncerts_vcl_h5': all_vcl_h5_uncerts,
+                     'uncerts_vcl_h10': all_vcl_h10_uncerts,
+                     'uncerts_vcl_h50': all_vcl_h50_uncerts,
+                     'Z': all_Zs,
                      'opt_params': thetas_opt}, input_file)
+
+    print("Finished running.")
 
 
 
