@@ -361,13 +361,13 @@ if __name__ == "__main__":
         name = "ibp_rs_opt_split_{0}_{1}_run{2}".format(args.dataset, args.tag, i+1)
         ibp_acc, Zs, uncerts = run_vcl_ibp(hidden_size=hidden_size, no_epochs=[no_epochs]*5,
                                            data_gen=data_gen,
-                                           name=name, val=val, batch_size=thetas_opt['batch_size'],
+                                           name=name, val=val, batch_size=int(thetas_opt['batch_size']),
                                            single_head=args.single_head, prior_mean=thetas_opt['prior_mean'],
                                            prior_var=thetas_opt['prior_var'], alpha0=thetas_opt['alpha0'],
                                            beta0=thetas_opt['beta0'], lambda_1=thetas_opt['lambda_1'],
                                            lambda_2=thetas_opt['lambda_2'], learning_rate=thetas_opt['learning_rate'],
-                                           no_pred_samples=thetas_opt['no_pred_samples'],
-                                           ibp_samples=thetas_opt['ibp_samples'],
+                                           no_pred_samples=int(thetas_opt['no_pred_samples']),
+                                           ibp_samples=int(thetas_opt['ibp_samples']),
                                            log_dir=args.log_dir, run_val_set=False,
                                            use_local_reparam=args.use_local_reparam,
                                            implicit_beta=args.implicit_beta)
@@ -381,7 +381,7 @@ if __name__ == "__main__":
         hidden_size = [10] * args.num_layers
         data_gen = NotMnistGenerator(args.noise)
         vcl_result_h10, uncerts = run_vcl(hidden_size, no_epochs, data_gen,
-                                          lambda a: a, coreset_size, thetas_opt['batch_size'], args.single_head, val=val,
+                                          lambda a: a, coreset_size, int(thetas_opt['batch_size']), args.single_head, val=val,
                                           name='vcl_h10_{0}_run{1}'.format(args.tag, i + 1),
                                           log_dir=args.log_dir, use_local_reparam=args.use_local_reparam)
         vcl_h10_accs[i, :, :] = vcl_result_h10
@@ -391,7 +391,7 @@ if __name__ == "__main__":
         hidden_size = [5] * args.num_layers
         data_gen = NotMnistGenerator(args.noise)
         vcl_result_h5, uncerts = run_vcl(hidden_size, no_epochs, data_gen,
-                                         lambda a: a, coreset_size, thetas_opt['batch_size'], args.single_head, val=val,
+                                         lambda a: a, coreset_size, int(thetas_opt['batch_size']), args.single_head, val=val,
                                          name='vcl_h5_{0}_run{1}'.format(args.tag, i + 1),
                                          log_dir=args.log_dir, use_local_reparam=args.use_local_reparam)
         vcl_h5_accs[i, :, :] = vcl_result_h5
@@ -402,7 +402,7 @@ if __name__ == "__main__":
         hidden_size = [50] * args.num_layers
         data_gen = NotMnistGenerator(args.noise)
         vcl_result_h50, uncerts = run_vcl(hidden_size, no_epochs, data_gen,
-                                          lambda a: a, coreset_size, thetas_opt['batch_size'], args.single_head, val=val,
+                                          lambda a: a, coreset_size, int(thetas_opt['batch_size']), args.single_head, val=val,
                                           name='vcl_h50_{0}_run{1}'.format(args.tag, i + 1),
                                           log_dir=args.log_dir, use_local_reparam=args.use_local_reparam)
         vcl_h50_accs[i, :, :] = vcl_result_h50
