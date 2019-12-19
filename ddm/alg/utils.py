@@ -1,5 +1,7 @@
 import numpy as np
 import tensorflow as tf
+import tensorflow_probability as tfp
+tfd = tfp.distributions
 import matplotlib
 matplotlib.use('agg')
 import matplotlib.pyplot as plt
@@ -16,7 +18,16 @@ def kumaraswamy_sample(a, b, size):
     u = tf.random_uniform(shape=size, minval=1e-4, maxval=1.-1e-4, dtype=tf.float32)
     return tf.exp((1. / (a + eps)) * tf.log(1. - tf.exp((1. / (b + eps)) * tf.log(u)) + eps))
 
-def reparameterize_beta(a, b, size, ibp=False, log=False):
+def implicit_beta(a, b, size):
+    """
+    Returns samples from beta distribution and allows gradients to propagate
+    """
+    dist = tfd.Beta(a, b)
+    samples = dist.sample([size[0], size[1]])
+    print("Beta samples shape: {}".format(samples.get_shape()))
+    return samples
+
+def reparameterize_beta(a, b, size, ibp=False, log=False, implicit=False):
     """ Returns pi parameters from IBP, cumsum of log v ~ Beta
 
     :param a: beta a params [dout]
@@ -24,10 +35,10 @@ def reparameterize_beta(a, b, size, ibp=False, log=False):
     :param size: tuple - size of the beta samples
     :param ibp: bool
     :param log: bool
+    :param implicit: bool
     :return: returns truncated variational \pi params \in [K, batch_size, dout]
     """
-    v = kumaraswamy_sample(a, b, size)
-
+    v = implicit_beta(a, b, size) if implicit else kumaraswamy_sample(a, b, size)
     if ibp:
         v_term = tf.log(v + eps)
         logpis = tf.cumsum(v_term, axis=2)

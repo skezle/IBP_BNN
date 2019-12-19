@@ -59,6 +59,10 @@ if __name__ == "__main__":
                         default=False,
                         dest='single_head',
                         help='Whether to use a single head.')
+    parser.add_argument('--implicit_beta', action='store_true',
+                        default=False,
+                        dest='implicit_beta',
+                        help='Whether to use reparam for Beta dist.')
     parser.add_argument('--num_layers', action='store',
                         dest='num_layers',
                         default=1,
@@ -73,10 +77,11 @@ if __name__ == "__main__":
                         help='Tag to use in naming file outputs')
     args = parser.parse_args()
 
-    print('single_head  = {!r}'.format(args.single_head))
-    print('num_layers   = {!r}'.format(args.num_layers))
-    print('log_dir      = {!r}'.format(args.log_dir))
-    print('tag          = {!r}'.format(args.tag))
+    print('single_head    = {!r}'.format(args.single_head))
+    print('implicit_beta  = {!r}'.format(args.implicit_beta))
+    print('num_layers     = {!r}'.format(args.num_layers))
+    print('log_dir        = {!r}'.format(args.log_dir))
+    print('tag            = {!r}'.format(args.tag))
 
     seeds = [12, 13, 14, 15, 16]
     num_tasks = 5
@@ -117,7 +122,8 @@ if __name__ == "__main__":
                                            single_head=args.single_head, alpha0=alpha0, beta0=beta0,
                                            lambda_1=lambda_1, lambda_2=lambda_2,
                                            learning_rate=0.0001, no_pred_samples=100, ibp_samples=ibp_samples,
-                                           log_dir=args.log_dir)
+                                           log_dir=args.log_dir,
+                                           implicit_beta=args.implicit_beta)
         all_Zs.append(Zs)
         vcl_ibp_accs[i, :, :] = ibp_acc
         all_ibp_uncerts[i, :, :] = uncerts

@@ -81,7 +81,7 @@ def run_vcl_ibp(hidden_size, no_epochs, data_gen, name,
                 prior_mean=0.0, prior_var=1.0, alpha0=5.0,
                 beta0 = 1.0, lambda_1 = 1.0, lambda_2 = 1.0, learning_rate=0.0001,
                 no_pred_samples=100, ibp_samples = 10, log_dir='logs',
-                run_val_set=False, use_local_reparam=False):
+                run_val_set=False, use_local_reparam=False, implicit_beta=False):
 
     in_dim, out_dim = data_gen.get_dims()
     all_acc = np.array([])
@@ -91,7 +91,7 @@ def run_vcl_ibp(hidden_size, no_epochs, data_gen, name,
     all_x_testsets, all_y_testsets = [], []
     Zs = []
 
-    # get all testsets for uncertainy calculation
+    # get all testsets for uncertainty calculation
     for task_id in range(data_gen.max_iter):
         if val:
             _, _, x_test, y_test, _, _ = data_gen.next_task()
@@ -143,15 +143,15 @@ def run_vcl_ibp(hidden_size, no_epochs, data_gen, name,
                                no_pred_samples=no_pred_samples,
                                tensorboard_dir=log_dir,
                                name='{0}_task{1}'.format(name, task_id + 1),
-                               use_local_reparam=use_local_reparam)
+                               use_local_reparam=use_local_reparam,
+                               implicit_beta=implicit_beta)
 
         if os.path.isdir(mf_model.log_folder):
             print("Restoring model: {}".format(mf_model.log_folder))
             mf_model.restore(mf_model.log_folder)
         else:
             print("New model, training")
-            mf_model.train(x_train, y_train, head, n, bsize,
-                           anneal_rate=0.0, min_temp=1.0)
+            mf_model.train(x_train, y_train, head, n, bsize)
         mf_weights, mf_variances, mf_betas = mf_model.get_weights()
 
         # get accuracies for all test sets seen so far
@@ -164,7 +164,7 @@ def run_vcl_ibp(hidden_size, no_epochs, data_gen, name,
         # get Z matrices
         Zs.append(mf_model.sess.run(mf_model.Z, feed_dict={mf_model.x: x_test,
                                                            mf_model.task_idx: task_id,
-                                                           mf_model.training: False, mf_model.temp: 1.0}))
+                                                           mf_model.training: False}))
 
         # get uncertainties
         uncert = get_uncertainties(mf_model, all_x_testsets, all_y_testsets,

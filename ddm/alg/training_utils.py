@@ -1,5 +1,8 @@
 import numpy as np
 import tensorflow as tf
+import tensorflow_probability as tfp
+tfd = tfp.distributions
+
 import matplotlib
 matplotlib.use('agg')
 import matplotlib.pyplot as plt
@@ -45,6 +48,18 @@ def kl_beta_reparam(_a, _b, _prior_a, _prior_b):
     # final term
     kl = kl - (b - 1) / b
     return tf.reduce_sum(kl)
+
+def kl_beta_implicit(_a, _b, _prior_a, _prior_b):
+    """
+    Implicit reparameterisation KL divergence
+    """
+    a = tf.cast(_a, tf.float32)
+    b = tf.cast(_b, tf.float32)
+    prior_a = tf.cast(_prior_a, tf.float32)
+    prior_b = tf.cast(_prior_b, tf.float32)
+    variational_posterior = tfd.Beta(a, b, validate_args=True, name='v_post')
+    prior = tfd.Beta(prior_a, prior_b, validate_args=True, name='prior')
+    return tf.reduce_sum(variational_posterior.kl_divergence(prior))
 
 def kl_discrete(log_post, log_prior, log_samples):
     """KL divergence between variational posterior and prior for Bernoulli in test phase

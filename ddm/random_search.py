@@ -261,9 +261,14 @@ if __name__ == "__main__":
                         default=False,
                         dest='use_local_reparam',
                         help='Whether to use local reparam.')
+    parser.add_argument('--implicit_beta', action='store_true',
+                        default=False,
+                        dest='implicit_beta',
+                        help='Whether to use reparam for Beta dist.')
     args = parser.parse_args()
 
     print('single_head            = {!r}'.format(args.single_head))
+    print('implicit_beta          = {!r}'.format(args.implicit_beta))
     print('num_layers             = {!r}'.format(args.num_layers))
     print('runs                   = {!r}'.format(args.runs))
     print('log_dir                = {!r}'.format(args.log_dir))
@@ -340,13 +345,15 @@ if __name__ == "__main__":
                                     no_pred_samples=thetas['no_pred_samples'],
                                     ibp_samples=thetas['ibp_samples'],
                                     log_dir=args.log_dir, run_val_set=val,
-                                    use_local_reparam=args.use_local_reparam)
+                                    use_local_reparam=args.use_local_reparam,
+                                    implicit_beta=args.implicit_beta)
 
         # best score is a loss which is defined to be minimised over, hence want to minimise the negative acc
         _ = RndSearch.update_score(thetas, -np.nanmean(ibp_acc), model=None, sess=None)  # rewards act like the inverse of a loss
 
     # run final VCL + IBP with opt parameters
     thetas_opt = RndSearch.get_best_params()
+    val = False
     for i in range(len(seeds)):
         s = seeds[i]
         tf.set_random_seed(s)
@@ -362,7 +369,8 @@ if __name__ == "__main__":
                                            no_pred_samples=thetas_opt['no_pred_samples'],
                                            ibp_samples=thetas_opt['ibp_samples'],
                                            log_dir=args.log_dir, run_val_set=False,
-                                           use_local_reparam=args.use_local_reparam)
+                                           use_local_reparam=args.use_local_reparam,
+                                           implicit_beta=args.implicit_beta)
 
         all_Zs.append(Zs)
         vcl_ibp_accs[i, :, :] = ibp_acc

@@ -138,11 +138,16 @@ if __name__ == "__main__":
                         type=float,
                         dest='alpha0',
                         help='The prior and initialisation for the beta concentration param.')
+    parser.add_argument('--implicit_beta', action='store_true',
+                        default=False,
+                        dest='implicit_beta',
+                        help='Whether to use reparam for Beta dist.')
     args = parser.parse_args()
 
     print('tag                  = {!r}'.format(args.tag))
     print('noise                = {!r}'.format(args.noise))
     print('single_head          = {!r}'.format(args.single_head))
+    print('implicit_beta        = {!r}'.format(args.implicit_beta))
     print('num_layers           = {!r}'.format(args.num_layers))
     print('use_local_reparam    = {!r}'.format(args.use_local_reparam))
     print('alpha0               = {!r}'.format(args.alpha0))
@@ -192,7 +197,8 @@ if __name__ == "__main__":
                                            single_head=args.single_head, prior_mean=prior_mean, prior_var=prior_var,
                                            alpha0=alpha0, beta0=beta0, lambda_1=lambda_1, lambda_2=lambda_2,
                                            learning_rate=0.0001, no_pred_samples=no_pred_samples, ibp_samples=ibp_samples,
-                                           log_dir=args.log_dir, use_local_reparam=args.use_local_reparam)
+                                           log_dir=args.log_dir, use_local_reparam=args.use_local_reparam,
+                                           implicit_beta=args.implicit_beta)
         all_Zs.append(Zs)
         vcl_ibp_accs[i, :, :] = ibp_acc
         all_ibp_uncerts[i, :, :] = uncerts
