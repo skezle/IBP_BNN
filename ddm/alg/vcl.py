@@ -1,3 +1,4 @@
+import pdb
 import os.path
 import numpy as np
 import tensorflow as tf
@@ -125,6 +126,7 @@ def run_vcl_ibp(hidden_size, no_epochs, data_gen, name,
         # Train network with maximum likelihood to initialize first model
         # lambda_1 --> temp of the variational Concrete posterior
         # lambda_2 --> temp of the relaxed prior, for task != 0 this should be lambda_1!!!
+        pdb.set_trace()
         if task_id == 0:
             ml_model = Vanilla_NN(in_dim, hidden_size, out_dim, x_train.shape[0])
             ml_model.train(x_train, y_train, task_id, 100, bsize)
