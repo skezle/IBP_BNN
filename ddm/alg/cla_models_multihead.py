@@ -6,7 +6,7 @@ from copy import deepcopy
 from training_utils import kl_beta_reparam, kl_beta_implicit, kl_discrete, kl_concrete
 from utils import reparameterize_beta, reparameterize_discrete, implicit_beta
 
-config = tf.ConfigProto()
+config = tf.compat.v1.ConfigProto()
 config.gpu_options.allow_growth = True
 
 eps = 1e-16
