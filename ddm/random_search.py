@@ -277,7 +277,7 @@ if __name__ == "__main__":
     print('noise                  = {!r}'.format(args.noise))
     print('tag                    = {!r}'.format(args.tag))
 
-    seeds = list(range(10, 10 + args.runs))
+    seeds = list(range(10, 10 + 5))
     num_tasks = 5
 
     vcl_ibp_accs = np.zeros((len(seeds), num_tasks, num_tasks))
