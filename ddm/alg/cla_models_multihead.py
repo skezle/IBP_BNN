@@ -582,7 +582,7 @@ class MFVI_NN(Cla_NN):
     
     Truncation level defined by hidden_size
 """
-class MFVI_IBP_NN(Cla_NN):
+class IBP_NN(Cla_NN):
     def __init__(self, input_size, hidden_size, output_size, training_size,
                  no_train_samples=10, no_pred_samples=100, num_ibp_samples=10, prev_means=None, prev_log_variances=None,
                  prev_betas=None, learning_rate=0.001,
@@ -590,7 +590,7 @@ class MFVI_IBP_NN(Cla_NN):
                  tensorboard_dir='logs', name='ibp', tb_logging=True, output_tb_gradients=False,
                  beta_1=1.0, beta_2=1.0, beta_3=1.0, epsilon=1e-8, use_local_reparam=True, implicit_beta=False):
 
-        super(MFVI_IBP_NN, self).__init__(input_size, hidden_size, output_size, training_size)
+        super(IBP_NN, self).__init__(input_size, hidden_size, output_size, training_size)
 
         self.alpha0 = alpha0
         self.beta0 = beta0

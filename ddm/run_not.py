@@ -6,7 +6,7 @@ import os.path
 import sys
 import argparse
 sys.path.extend(['alg/'])
-from cla_models_multihead import Vanilla_NN, MFVI_IBP_NN
+from cla_models_multihead import Vanilla_NN, IBP_NN
 from vcl import run_vcl, run_vcl_ibp
 from utils import get_scores, concatenate_results
 from visualise import plot_uncertainties, plot_Zs
