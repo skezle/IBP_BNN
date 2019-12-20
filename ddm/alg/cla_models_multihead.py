@@ -4,7 +4,7 @@ import tensorflow as tf
 import numpy as np
 from copy import deepcopy
 from training_utils import kl_beta_reparam, kl_beta_implicit, kl_discrete, kl_concrete
-from utils import reparameterize_beta, reparameterize_discrete, implicit_beta
+from utils import reparameterize_beta, reparameterize_global_beta, reparameterize_discrete, implicit_beta
 
 config = tf.compat.v1.ConfigProto()
 config.gpu_options.allow_growth = True
@@ -578,93 +578,54 @@ class MFVI_NN(Cla_NN):
         self.saver.restore(self.sess, os.path.join(model_dir, "model.ckpt"))
 
 
-""" Bayesian Neural Network with Mean field VI approximation + IBP
-    
-    Truncation level defined by hidden_size
-"""
-class IBP_NN(Cla_NN):
+""" Bayesian Neural Network with VI approximation + IBP """
+class HIBP_NN(IBP_NN):
     def __init__(self, input_size, hidden_size, output_size, training_size,
                  no_train_samples=10, no_pred_samples=100, num_ibp_samples=10, prev_means=None, prev_log_variances=None,
                  prev_betas=None, learning_rate=0.001,
                  prior_mean=0, prior_var=1, alpha0=5., beta0=1., lambda_1=1., lambda_2=1.,
                  tensorboard_dir='logs', name='ibp', tb_logging=True, output_tb_gradients=False,
-                 beta_1=1.0, beta_2=1.0, beta_3=1.0, epsilon=1e-8, use_local_reparam=True, implicit_beta=False):
+                 beta_1=1.0, beta_2=1.0, beta_3=1.0, use_local_reparam=True, implicit_beta=False):
 
-        super(IBP_NN, self).__init__(input_size, hidden_size, output_size, training_size)
+        super(HIBP_NN, self).__init__(input_size, hidden_size, output_size, training_size,
+                                      no_train_samples, no_pred_samples, num_ibp_samples, prev_means,
+                                      prev_log_variances, prev_betas, learning_rate, prior_mean,
+                                      prior_var, alpha0, beta0, lambda_1, lambda_2,
+                                      tensorboard_dir, name, tb_logging, output_tb_gradients, beta_1, beta_2,
+                                      beta_3, use_local_reparam, implicit_beta)
+        self.create_model()
 
-        self.alpha0 = alpha0
-        self.beta0 = beta0
-        self.training = tf.placeholder(tf.bool, name='training')
-        self.lambda_1 = lambda_1 # temp of the variational Concrete posterior
-        self.lambda_2 = lambda_2 # temp of the relaxed prior
-        self.tensorboard_dir = tensorboard_dir
-        self.name = name
-        self.num_ibp_samples = num_ibp_samples
-        self.hidden_size = hidden_size
-        self.tb_logging = tb_logging
-        self.output_tb_gradients = output_tb_gradients
-        self.beta_1 = beta_1
-        self.beta_2 = beta_2
-        self.beta_3 = beta_3
-        self.log_folder = os.path.join(self.tensorboard_dir, "graph_{}".format(self.name))
-        self.use_local_reparam = use_local_reparam
-        self.implicit_beta = implicit_beta
-
+    def create_model(self):
         m, v, betas, self.size = self.create_weights(
-            input_size, hidden_size, output_size, prev_means, prev_log_variances, prev_betas)
+            self.input_size, self.hidden_size, self.output_size, self.prev_means, self.prev_log_variances, self.prev_betas)
         self.W_m, self.b_m, self.W_last_m, self.b_last_m = m[0], m[1], m[2], m[3]
         self.W_v, self.b_v, self.W_last_v, self.b_last_v = v[0], v[1], v[2], v[3]
-        self.beta_a, self.beta_b = betas[0], betas[1]
+        self.beta_a, self.beta_b, self.gbeta_a, self.gbeta_b = betas[0], betas[1], betas[2], betas[3]
 
         self.weights = [m, v, betas]
 
         # used for the calculation of the KL term
-        m, v, betas = self.create_prior(input_size, hidden_size, output_size, prev_means, prev_log_variances,
-                                        prev_betas, prior_mean, prior_var)
+        m, v, betas = self.create_prior(self.input_size, self.hidden_size, self.output_size, self.prev_means, self.prev_log_variances,
+                                        self.prev_betas, self.prior_mean, self.prior_var)
         self.prior_W_m, self.prior_b_m, self.prior_W_last_m, self.prior_b_last_m = m[0], m[1], m[2], m[3]
         self.prior_W_v, self.prior_b_v, self.prior_W_last_v, self.prior_b_last_v = v[0], v[1], v[2], v[3]
-        self.prior_beta_a, self.prior_beta_b = betas[0], betas[1]
+        self.prior_beta_a, self.prior_beta_b, self.prior_gbeta_a, self.prior_gbeta_b = betas[0], betas[1], betas[2], betas[3]
 
-        self.no_layers = len(self.size) - 1
-        self.no_train_samples = no_train_samples
-        self.no_pred_samples = no_pred_samples
-        self.pred, prior_log_pis_bern, log_pis_bern, z_log_sample = \
-            self._prediction(self.x, self.task_idx, self.no_pred_samples)
+        self.pred, prior_log_pis_bern, log_pis_bern, z_log_sample = self._prediction(self.x, self.task_idx, self.no_pred_samples)
+
         self.kl = tf.div(self._KL_term(self.no_pred_samples, prior_log_pis_bern, log_pis_bern, z_log_sample),
-                         training_size)
+                         self.training_size)
         self.ll = self._logpred(self.x, self.y, self.task_idx)
         self.cost = self.kl - self.ll
         self.acc = self._accuracy(self.x, self.y, self.task_idx)
 
-        self.assign_optimizer(learning_rate, epsilon)
+        self.assign_optimizer(self.learning_rate)
 
         self.saver = tf.train.Saver()
 
         self.create_summaries()
 
         self.assign_session()
-
-    def assign_optimizer(self, learning_rate=0.001, epsilon=1e-8):
-        self.optim = tf.train.AdamOptimizer(learning_rate, epsilon=epsilon)
-        grads = self.optim.compute_gradients(self.cost)
-        # Debug
-        if self.output_tb_gradients:
-            for grad_var_tuple in grads:
-                current_variable = grad_var_tuple[1]
-                current_gradient = grad_var_tuple[0]
-                if current_gradient is None:
-                    # the subclass variables are also being created in the graph :(
-                    # Hack, just skip these variables when getting the gradients
-                    continue
-                gradient_name_to_save = current_variable.name.replace(':', '_')  # tensorboard doesn't accept ':' symbol
-                tf.summary.histogram(gradient_name_to_save, current_gradient)
-
-        self.train_step = self.optim.apply_gradients(grads_and_vars=grads)
-
-    def _prediction(self, inputs, task_idx, no_samples):
-        y, y_local, prior_log_pis, log_pis, log_z_sample = self._prediction_layer(inputs, task_idx, no_samples)
-        y_hat = y_local if self.use_local_reparam else y
-        return y_hat, prior_log_pis, log_pis, log_z_sample
 
     # this samples a layer at a time
     def _prediction_layer(self, inputs, task_idx, no_samples):
@@ -690,6 +651,10 @@ class IBP_NN(Cla_NN):
         log_z_sample = []
         log_pis = []
         prior_log_pis = []
+        gbeta_a = tf.cast(tf.math.softplus(self.gbeta_a) + 0.01, tf.float32)
+        gbeta_b = tf.cast(tf.math.softplus(self.gbeta_b) + 0.01, tf.float32)
+        gprior_beta_a = tf.cast(tf.math.softplus(self.prior_gbeta_a) + 0.01, tf.float32)
+        gprior_beta_b = tf.cast(tf.math.softplus(self.prior_gbeta_b) + 0.01, tf.float32)
         for i in range(self.no_layers - 1):
             din = self.size[i]
             dout = self.size[i + 1]
@@ -700,17 +665,19 @@ class IBP_NN(Cla_NN):
             _weights = tf.add(tf.multiply(eps_w, tf.exp(0.5 * self.W_v[i])), self.W_m[i]) # in [K, in, out]
             _biases = tf.add(tf.multiply(eps_b, tf.exp(0.5 * self.b_v[i])), self.b_m[i])
 
-            # IBP
+            # H-IBP
             # beta reparam
             beta_a = tf.cast(tf.math.softplus(self.beta_a[i]) + 0.01, tf.float32) # log(1+e^x), beta_a \in [dout]
             beta_b = tf.cast(tf.math.softplus(self.beta_b[i]) + 0.01, tf.float32)
             prior_beta_a = tf.cast(tf.math.softplus(self.prior_beta_a[i]) + 0.01, tf.float32)
             prior_beta_b = tf.cast(tf.math.softplus(self.prior_beta_b[i]) + 0.01, tf.float32)
             # prior Bernoulli params
-            prior_log_pi = reparameterize_beta(prior_beta_a, prior_beta_b, size=(K_ibp, batch_size, dout), ibp=True, log=True, implicit=self.implicit_beta)
+            prior_log_pi = reparameterize_global_beta(prior_beta_a, prior_beta_b, gprior_beta_a, gprior_beta_b,
+                                                      size=(K_ibp, batch_size, dout), ibp=True, log=True, implicit=self.implicit_beta)
             prior_log_pis.append(prior_log_pi)
             # Variational Bernoulli params
-            self.log_pi = reparameterize_beta(beta_a, beta_b, size=(K_ibp, batch_size, dout), ibp=True, log=True, implicit=self.implicit_beta)
+            self.log_pi = reparameterize_global_beta(beta_a, beta_b, gbeta_a, gbeta_b,
+                                                     size=(K_ibp, batch_size, dout), ibp=True, log=True, implicit=self.implicit_beta)
             log_pis.append(self.log_pi)
             # Concrete reparam
             z_log_sample = reparameterize_discrete(self.log_pi, self.lambda_1, size=(K_ibp, batch_size, dout))
@@ -762,39 +729,6 @@ class IBP_NN(Cla_NN):
         pre_local = m_h + tf.sqrt(v_h + 1e-6) * tf.random_normal(tf.shape(v_h), dtype=tf.float32)  # (K, batch_size, out_dim)
         return pre, pre_local, prior_log_pis, log_pis, log_z_sample
 
-    def lof(self, nu):
-        """Left ordering of binary matrix
-        """
-        batch_size = tf.to_int32(tf.shape(nu)[0])
-        dim = tf.to_int32(tf.shape(nu)[1])
-
-        def true_fn(b, d):
-            x = tf.linspace(0.0, tf.cast(b, dtype=tf.float32) - 1.0, b)
-            xx, yy = tf.meshgrid(x, x)
-            exp = tf.cast(b, dtype=tf.float32) - 1.0 - yy[:, :d]
-            return exp
-
-        def false_fn(b, d):
-            x = tf.linspace(0.0, tf.cast(d, dtype=tf.float32) - 1.0, d)
-            xx, yy = tf.meshgrid(x, x)
-            exp = tf.cast(d, dtype=tf.float32) - 1.0 - yy[:b, :]
-            return exp
-
-        exponent = tf.cond(tf.math.greater_equal(batch_size, dim),
-                           lambda: true_fn(batch_size, dim),
-                           lambda: false_fn(batch_size, dim))
-
-        magnitude = tf.multiply(2 ** exponent, nu)
-        self.ordering = tf.argsort(tf.reduce_sum(magnitude, axis=0), direction='DESCENDING')
-        self.nu_sum = tf.reduce_sum(nu, axis=0)
-        self.mag_sum = tf.reduce_sum(magnitude, axis=0)
-        Z_lof = tf.gather(nu, tf.argsort(tf.reduce_sum(magnitude, axis=0), direction='DESCENDING'), axis=1) # reverse the sorting so that largest first!
-        #idy = tf.where(tf.not_equal(tf.reduce_sum(full_Z, axis=0), tf.constant(0, dtype=tf.float32)))
-        #non_zero_cols_Z = full_Z[:, idy]
-        #idx = tf.where(tf.not_equal(np.reduce_sum(non_zero_cols_Z, axis=1), tf.constant(0, dtype=tf.float32)))
-        #return non_zero_cols_Z[idx, :]
-        return Z_lof
-
     def create_summaries(self):
         """Creates summaries in TensorBoard"""
         with tf.name_scope("summaries"):
@@ -804,6 +738,7 @@ class IBP_NN(Cla_NN):
             tf.compat.v1.summary.scalar("kl_gauss", self.kl_gauss)
             tf.compat.v1.summary.scalar("kl_bern", self.kl_bern_contrib)
             tf.compat.v1.summary.scalar("kl_beta", self.kl_beta_contrib)
+            tf.compat.v1.summary.scalar("kl_gbeta", self.kl_global_beta_contrib)
             tf.compat.v1.summary.scalar("acc", self.acc)
             Z_all = tf.reduce_sum([tf.cast(tf.reduce_sum(x), tf.float32) for x in self.Z]) / tf.reduce_sum([tf.cast(tf.size(x), tf.float32) for x in self.Z])
             tf.compat.v1.summary.scalar("Z_av", Z_all)
@@ -830,35 +765,6 @@ class IBP_NN(Cla_NN):
                                     tf.reduce_sum(tf.squeeze(self.Z[i]), axis=1))
 
             self.summary_op = tf.summary.merge_all()
-
-    def _logpred(self, inputs, targets, task_idx):
-        """ Average loss over batch
-
-        :param inputs:
-        :param targets:
-        :param task_idx:
-        :return:
-        """
-        pred, _, _, _ = self._prediction(inputs, task_idx, self.no_train_samples)
-        targets = tf.tile(tf.expand_dims(targets, 0), [self.no_train_samples, 1, 1])
-        # x_ent = - log_lik
-        log_lik = - tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(logits=pred, labels=targets))
-        return log_lik
-
-    def _accuracy(self, inputs, targets, task_idx):
-        pred, _, _, _ = self._prediction(inputs, task_idx, self.no_pred_samples)
-        targets = tf.tile(tf.expand_dims(targets, 0), [self.no_pred_samples, 1, 1])
-        correct_prediction = tf.equal(tf.argmax(pred, 2), tf.argmax(targets, 2))
-        return tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
-
-    def beta_kl(self, v_a, v_b, p_a, p_b):
-        """Returns function to calculate KL for beta distribution
-        Inputs:
-            v_a: variational beta a param
-            v_b: variational beta b param
-            p_a: prior beta a param
-            p_b: prior beta b param"""
-        return kl_beta_implicit(v_a, v_b, p_a, p_b) if self.implicit_beta else kl_beta_reparam(v_a, v_b, p_a, p_b)
 
     def _KL_term(self, no_samples, prior_log_pis, log_pis, z_log_sample):
         K = no_samples
@@ -914,11 +820,14 @@ class IBP_NN(Cla_NN):
             mu_diff_term = 0.5 * tf.reduce_sum((tf.exp(v) + (m0 - m) ** 2) / v0)
             kl += const_term + log_std_diff + mu_diff_term
 
+        # global beta contrib for HIBP
+        self.kl_global_beta_contrib = self.beta_kl(self.gbeta_a, self.gbeta_b, self.prior_gbeta_a, self.prior_gbeta_b)
+
         self.kl_bern_contrib = self.beta_2*kl_bern
         self.kl_beta_contrib = self.beta_3*kl_beta
         self.kl_gauss = self.beta_1 * kl
 
-        return self.kl_gauss + self.kl_beta_contrib + self.kl_bern_contrib
+        return self.kl_gauss + self.kl_beta_contrib + self.kl_bern_contrib + self.kl_global_beta_contrib
 
     def create_weights(self, in_dim, hidden_size, out_dim, prev_weights, prev_variances, prev_betas):
         hidden_size = deepcopy(hidden_size)
@@ -946,7 +855,7 @@ class IBP_NN(Cla_NN):
                 Wi_v_val = tf.constant(-6.0, shape=[din, dout])
                 bi_v_val = tf.constant(-6.0, shape=[dout])
                 beta_a_val = tf.constant(np.log(np.exp(self.alpha0) - 1), shape=[dout])
-                beta_b_val = tf.constant(np.log(np.exp(1.) - 1.), shape=[dout])
+                beta_b_val = tf.constant(np.log(np.exp(self.beta0) - 1.), shape=[dout])
             else:
                 Wi_m_val = prev_weights[0][i]
                 bi_m_val = prev_weights[1][i]
@@ -958,7 +867,7 @@ class IBP_NN(Cla_NN):
                     bi_v_val = prev_variances[1][i]
                 if prev_betas is None:
                     beta_a_val = tf.constant(np.log(np.exp(self.alpha0) - 1.), shape=[dout])
-                    beta_b_val = tf.constant(np.log(np.exp(1.) - 1.), shape=[dout])
+                    beta_b_val = tf.constant(np.log(np.exp(self.beta0) - 1.), shape=[dout])
                 else:
                     beta_a_val = prev_betas[0][i]
                     beta_b_val = prev_betas[1][i]
@@ -976,6 +885,17 @@ class IBP_NN(Cla_NN):
             b_v.append(bi_v)
             b_a.append(beta_a)
             b_b.append(beta_b)
+
+        # global beta params for H-IBP
+        if prev_betas is None:
+            global_beta_a_val = tf.constant(np.log(np.exp(self.alpha0) - 1.), shape=[dout])
+            global_beta_b_val = tf.constant(np.log(np.exp(self.beta0) - 1.), shape=[dout])
+        else:
+            global_beta_a_val = prev_betas[2]
+            global_beta_b_val = prev_betas[3]
+
+        gb_a = tf.Variable(global_beta_a_val, name="global_beta_a")
+        gb_b = tf.Variable(global_beta_b_val, name="global_beta_b")
 
         # if there are previous tasks
         if prev_weights is not None and prev_variances is not None:
@@ -1024,7 +944,7 @@ class IBP_NN(Cla_NN):
         b_last_v.append(bi_v)
 
         return [W_m, b_m, W_last_m, b_last_m], [W_v, b_v, W_last_v, b_last_v], \
-               [b_a, b_b], hidden_size
+               [b_a, b_b, gb_a, gb_b], hidden_size
 
     def create_prior(self, in_dim, hidden_size, out_dim, prev_weights, prev_variances, prev_betas, prior_mean, prior_var):
         hidden_size = deepcopy(hidden_size)
@@ -1052,14 +972,14 @@ class IBP_NN(Cla_NN):
                 bi_v = np.exp(prev_variances[1][i])
                 beta_a_v = prev_betas[0][i]
                 beta_b_v = prev_betas[1][i]
+
             else:
                 Wi_m = prior_mean
                 bi_m = prior_mean
                 Wi_v = prior_var
                 bi_v = prior_var
                 beta_a_v = np.full((dout), self.alpha0)
-                beta_b_v = np.full((dout), 1.0)
-
+                beta_b_v = np.full((dout), self.beta0)
 
             W_m.append(Wi_m)
             b_m.append(bi_m)
@@ -1067,6 +987,14 @@ class IBP_NN(Cla_NN):
             b_v.append(bi_v)
             betas_a.append(beta_a_v)
             betas_b.append(beta_b_v)
+
+        # Global beta params fr H-IBP
+        if prev_betas is None:
+            global_beta_a_val = np.full((dout), self.alpha0)
+            global_beta_b_val = np.full((dout), self.beta0)
+        else:
+            global_beta_a_val = prev_betas[2]
+            global_beta_b_val = prev_betas[3]
 
         # if there are previous tasks
         if prev_weights is not None and prev_variances is not None:
@@ -1098,73 +1026,5 @@ class IBP_NN(Cla_NN):
         b_last_v.append(bi_v)
 
         return [W_m, b_m, W_last_m, b_last_m], [W_v, b_v, W_last_v, b_last_v], \
-               [betas_a, betas_b]
+               [betas_a, betas_b, global_beta_a_val, global_beta_b_val]
 
-    def train(self, x_train, y_train, task_idx, no_epochs=1000, batch_size=100, display_epoch=5, verbose=True):
-        N = x_train.shape[0]
-        if batch_size > N:
-            batch_size = N
-
-        sess = self.sess
-        costs = []
-        global_step = 0
-
-        writer = tf.compat.v1.summary.FileWriter(self.log_folder, sess.graph)
-        # Training cycle
-        for epoch in range(no_epochs):
-            perm_inds = list(range(x_train.shape[0]))
-            np.random.shuffle(perm_inds)
-            cur_x_train = x_train[perm_inds]
-            cur_y_train = y_train[perm_inds]
-
-            avg_cost = 0.
-            total_batch = int(np.ceil(N * 1.0 / batch_size))
-            # Loop over all batches
-            for i in range(total_batch):
-                start_ind = i*batch_size
-                end_ind = np.min([(i+1)*batch_size, N])
-                batch_x = cur_x_train[start_ind:end_ind, :]
-                batch_y = cur_y_train[start_ind:end_ind, :]
-
-                # Run optimization op (backprop) and cost op (to get loss value)
-                _, c = sess.run(
-                    [self.train_step, self.cost],
-                    feed_dict={self.x: batch_x, self.y: batch_y, self.task_idx: task_idx, self.training: True})
-
-                # Compute average loss
-                avg_cost += c / total_batch
-
-                # run summaries every 500 steps
-                if global_step % 500 == 0:
-                    summary = sess.run([self.summary_op],
-                                    feed_dict={self.x: batch_x, self.y: batch_y, self.task_idx: task_idx,
-                                               self.training: True})[0]
-                    writer.add_summary(summary, global_step)
-
-                global_step += 1
-
-            # Display logs per epoch step
-            if verbose and epoch % display_epoch == 0:
-                print("Epoch:", '%04d' % (epoch+1), "train cost=", \
-                    "{:.9f}".format(avg_cost))
-            costs.append(avg_cost)
-        self.save(self.log_folder)
-        writer.close()
-        return costs
-
-    def prediction(self, x_test, task_idx):
-        # Test model
-        prediction = self.sess.run([self.pred], feed_dict={self.x: x_test, self.task_idx: task_idx,
-                                                           self.training: False})[0]
-        return prediction
-
-    def prediction_prob(self, x_test, task_idx):
-        prob = self.sess.run([tf.nn.softmax(self.pred)], feed_dict={self.x: x_test, self.task_idx: task_idx,
-                                                                    self.training: False})[0]
-        return prob
-
-    def save(self, model_dir):
-        self.saver.save(self.sess, os.path.join(model_dir, "model.ckpt"))
-
-    def restore(self, model_dir):
-        self.saver.restore(self.sess, os.path.join(model_dir, "model.ckpt"))

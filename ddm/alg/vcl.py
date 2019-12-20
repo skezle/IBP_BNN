@@ -3,7 +3,8 @@ import os.path
 import numpy as np
 import tensorflow as tf
 from utils import get_scores, get_uncertainties, concatenate_results
-from cla_models_multihead import Vanilla_NN, MFVI_NN, IBP_NN
+from cla_models_multihead import Vanilla_NN, MFVI_NN
+from IBP_BNN_multihead import IBP_NN
 
 def run_vcl(hidden_size, no_epochs, data_gen, coreset_method, coreset_size=0, batch_size=None, single_head=True, val=False,
             verbose=True, name='vcl', log_dir='logs', use_local_reparam=False):

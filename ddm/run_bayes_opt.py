@@ -9,7 +9,8 @@ import argparse
 sys.path.extend(['alg/'])
 from run_split import SplitMnistGenerator
 from run_not import NotMnistGenerator
-from cla_models_multihead import IBP_NN, Vanilla_NN
+from cla_models_multihead import Vanilla_NN
+from IBP_BNN_multihead import IBP_NN
 from utils import get_scores, concatenate_results
 from vcl import run_vcl
 from copy import deepcopy
