@@ -291,8 +291,7 @@ if __name__ == "__main__":
     all_Zs = []
 
     # define data generator
-    val = True
-    def get_datagen():
+    def get_datagen(val):
         if args.dataset == 'normal':
             data_gen = SplitMnistGenerator(val=val, difficult=False)
         elif args.dataset == 'random':
@@ -300,7 +299,7 @@ if __name__ == "__main__":
         elif args.dataset == 'background':
             data_gen = SplitMnistBackgroundGenerator(val=val)
         elif args.dataset == 'not':
-            data_gen = NotMnistGenerator(noise=args.noise)
+            data_gen = NotMnistGenerator(val =val, noise=args.noise)
         else:
             raise ValueError('Pick dataset in {normal, random, background, not}')
         return data_gen
@@ -331,8 +330,9 @@ if __name__ == "__main__":
     hidden_size = [100] * args.num_layers
     no_epochs = 1000
     coreset_size = 0
+    val = True
     for i in range(args.runs):
-        data_gen = get_datagen()
+        data_gen = get_datagen(val=val)
         thetas = RndSearch.get_next_parameters()
         name = "ibp_rs_split_{0}_run{1}_{2}".format(args.dataset, i + 1, args.tag)
 
@@ -357,7 +357,7 @@ if __name__ == "__main__":
     for i in range(len(seeds)):
         s = seeds[i]
         tf.set_random_seed(s)
-        data_gen = get_datagen()
+        data_gen = get_datagen(val)
         name = "ibp_rs_opt_split_{0}_{1}_run{2}".format(args.dataset, args.tag, i+1)
         ibp_acc, Zs, uncerts = run_vcl_ibp(hidden_size=hidden_size, no_epochs=[no_epochs]*5,
                                            data_gen=data_gen,
@@ -379,7 +379,7 @@ if __name__ == "__main__":
         # Run Vanilla VCL
         tf.reset_default_graph()
         hidden_size = [10] * args.num_layers
-        data_gen = NotMnistGenerator(args.noise)
+        data_gen = get_datagen(val)
         vcl_result_h10, uncerts = run_vcl(hidden_size, no_epochs, data_gen,
                                           lambda a: a, coreset_size, int(thetas_opt['batch_size']), args.single_head, val=val,
                                           name='vcl_h10_{0}_run{1}'.format(args.tag, i + 1),
@@ -389,7 +389,7 @@ if __name__ == "__main__":
 
         tf.reset_default_graph()
         hidden_size = [5] * args.num_layers
-        data_gen = NotMnistGenerator(args.noise)
+        data_gen = get_datagen(val)
         vcl_result_h5, uncerts = run_vcl(hidden_size, no_epochs, data_gen,
                                          lambda a: a, coreset_size, int(thetas_opt['batch_size']), args.single_head, val=val,
                                          name='vcl_h5_{0}_run{1}'.format(args.tag, i + 1),
@@ -400,7 +400,7 @@ if __name__ == "__main__":
         # Run Vanilla VCL
         tf.reset_default_graph()
         hidden_size = [50] * args.num_layers
-        data_gen = NotMnistGenerator(args.noise)
+        data_gen = get_datagen(val)
         vcl_result_h50, uncerts = run_vcl(hidden_size, no_epochs, data_gen,
                                           lambda a: a, coreset_size, int(thetas_opt['batch_size']), args.single_head, val=val,
                                           name='vcl_h50_{0}_run{1}'.format(args.tag, i + 1),

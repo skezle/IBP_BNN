@@ -18,7 +18,8 @@ import matplotlib.pyplot as plt
 
 class NotMnistGenerator:
     # train_size = 200000, valid_size = 10000, test_size = 10000
-    def __init__(self, noise=False):
+    def __init__(self, val, noise=False):
+        self.val = val
         self.noise = noise
         with open('data/notMNIST.pickle', 'rb') as f:
             d = pickle.load(f, encoding='latin1')
@@ -98,7 +99,10 @@ class NotMnistGenerator:
             next_y_val = np.vstack((np.ones((val_0_id.shape[0], 1)), np.zeros((val_1_id.shape[0], 1))))
             next_y_val = np.hstack((next_y_val, 1 - next_y_val))
             self.cur_iter += 1
+        if self.val:
             return next_x_train, next_y_train, next_x_test, next_y_test, next_x_val, next_y_val
+        else:
+            return next_x_train, next_y_train, next_x_test, next_y_test
 
 if __name__ == "__main__":
 

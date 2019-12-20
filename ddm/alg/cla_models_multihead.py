@@ -63,6 +63,7 @@ class Cla_NN(object):
 
         # launch a session
         self.sess = tf.Session(config=config)
+
         self.sess.run(init)
 
     def train(self, x_train, y_train, task_idx, no_epochs=1000, batch_size=100, display_epoch=5,
