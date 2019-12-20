@@ -13,7 +13,7 @@ def kumaraswamy_sample(a, b, size):
 
     :param a: beta param a \in [dout]
     :param b: beta param b \in [dout]
-    :return: sample \in [K, batch_size, dout]
+    :return: sample \in [no_samples, batch_size, dout]
     """
     u = tf.random_uniform(shape=size, minval=1e-4, maxval=1.-1e-4, dtype=tf.float32)
     return tf.exp((1. / (a + eps)) * tf.log(1. - tf.exp((1. / (b + eps)) * tf.log(u)) + eps))
@@ -23,12 +23,15 @@ def implicit_beta(a, b, size):
     Returns samples from beta distribution and allows gradients to propagate
     """
     dist = tfd.Beta(a, b)
-    samples = dist.sample([size[0], size[1]])
+    if len(size) == 0:
+        samples = dist.sample() # size of a
+    else:
+        samples = dist.sample([size[0], size[1]]) # [size[0], size[1], size of a]
     print("Beta samples shape: {}".format(samples.get_shape()))
     return samples
 
-def reparameterize_beta(a, b, size, ibp=False, log=False, implicit=False):
-    """ Returns pi parameters from IBP, cumsum of log v ~ Beta
+def stick_breaking_probs(a, b, size, ibp=False, log=False, implicit=False):
+    """ Returns pi parameters from stick-breaking IBP
 
     :param a: beta a params [dout]
     :param b: beta b params [dout]
@@ -36,7 +39,7 @@ def reparameterize_beta(a, b, size, ibp=False, log=False, implicit=False):
     :param ibp: bool
     :param log: bool
     :param implicit: bool
-    :return: returns truncated variational \pi params \in [K, batch_size, dout]
+    :return: returns truncated variational \pi params \in [no_samples, batch_size, dout]
     """
     v = implicit_beta(a, b, size) if implicit else kumaraswamy_sample(a, b, size)
     if ibp:
@@ -48,6 +51,30 @@ def reparameterize_beta(a, b, size, ibp=False, log=False, implicit=False):
         return logpis
     else:
         return tf.exp(logpis)
+
+def global_stick_breaking_probs(a, b):
+    """Returns pi parameters from stick-breaking H-IBP
+
+    :param a: beta a params [dout]
+    :param b: beta b params [dout]
+    :param implicit: bool
+    :return: returns truncated variational \pi params
+    """
+    v = implicit_beta(a, b, size=())
+    v_term = tf.log(v + eps)
+    logpis = tf.cumsum(v_term, axis=0) # \in [dout]
+    return logpis
+
+def child_stick_breaking_probs(logpis, alpha, size):
+    """ Returns pi parameters for child stick-breaking IBPs
+    :param logpis: stick-breaking probabilities from global IBP
+    :param alpha: hyperparameter
+    :param size: tuple \in [no_samples, batch_size, dout]
+    """
+    v = implicit_beta(alpha * tf.exp(logpis), alpha*(1-tf.exp(logpis)), size)
+    v_term = tf.log(v + eps)
+    logpis = tf.cumsum(v_term, axis=2) # \in [no_samples, batch_size, dout]
+    return logpis
 
 def reparameterize_discrete(log_pis, temp, size):
     """ExpBinConcrete reparam for Bernoulli

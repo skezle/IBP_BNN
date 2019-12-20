@@ -4,7 +4,7 @@ import numpy as np
 from copy import deepcopy
 
 from training_utils import kl_beta_reparam, kl_beta_implicit, kl_discrete, kl_concrete
-from utils import reparameterize_beta, reparameterize_global_beta, reparameterize_discrete, implicit_beta
+from utils import stick_breaking_probs, reparameterize_discrete, implicit_beta
 from cla_models_multihead import Cla_NN
 
 """ Bayesian Neural Network with VI approximation + IBP """
@@ -144,10 +144,10 @@ class IBP_NN(Cla_NN):
             prior_beta_a = tf.cast(tf.math.softplus(self.prior_beta_a[i]) + 0.01, tf.float32)
             prior_beta_b = tf.cast(tf.math.softplus(self.prior_beta_b[i]) + 0.01, tf.float32)
             # prior Bernoulli params
-            prior_log_pi = reparameterize_beta(prior_beta_a, prior_beta_b, size=(K_ibp, batch_size, dout), ibp=True, log=True, implicit=self.implicit_beta)
+            prior_log_pi = stick_breaking_probs(prior_beta_a, prior_beta_b, size=(K_ibp, batch_size, dout), ibp=True, log=True, implicit=self.implicit_beta)
             prior_log_pis.append(prior_log_pi)
             # Variational Bernoulli params
-            self.log_pi = reparameterize_beta(beta_a, beta_b, size=(K_ibp, batch_size, dout), ibp=True, log=True, implicit=self.implicit_beta)
+            self.log_pi = stick_breaking_probs(beta_a, beta_b, size=(K_ibp, batch_size, dout), ibp=True, log=True, implicit=self.implicit_beta)
             log_pis.append(self.log_pi)
             # Concrete reparam
             z_log_sample = reparameterize_discrete(self.log_pi, self.lambda_1, size=(K_ibp, batch_size, dout))
