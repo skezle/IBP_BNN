@@ -7,8 +7,6 @@ import os.path
 import argparse
 sys.path.extend(['alg/'])
 from vcl import run_vcl, run_vcl_ibp
-from cla_models_multihead import Vanilla_NN
-from IBP_BNN_multihead import IBP_NN
 from utils import concatenate_results, get_scores
 from visualise import plot_uncertainties, plot_Zs
 from copy import deepcopy

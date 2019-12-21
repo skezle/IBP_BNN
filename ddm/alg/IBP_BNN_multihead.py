@@ -8,7 +8,7 @@ from utils import stick_breaking_probs, reparameterize_discrete, implicit_beta
 from cla_models_multihead import Cla_NN
 
 """ Bayesian Neural Network with VI approximation + IBP """
-class IBP_NN(Cla_NN):
+class IBP_BNN(Cla_NN):
     def __init__(self, input_size, hidden_size, output_size, training_size,
                  no_train_samples=10, no_pred_samples=100, num_ibp_samples=10, prev_means=None, prev_log_variances=None,
                  prev_betas=None, learning_rate=0.001,
@@ -16,7 +16,7 @@ class IBP_NN(Cla_NN):
                  tensorboard_dir='logs', name='ibp', tb_logging=True, output_tb_gradients=False,
                  beta_1=1.0, beta_2=1.0, beta_3=1.0, use_local_reparam=True, implicit_beta=False):
 
-        super(IBP_NN, self).__init__(input_size, hidden_size, output_size, training_size)
+        super(IBP_BNN, self).__init__(input_size, hidden_size, output_size, training_size)
 
         self.alpha0 = alpha0
         self.beta0 = beta0
@@ -26,7 +26,6 @@ class IBP_NN(Cla_NN):
         self.tensorboard_dir = tensorboard_dir
         self.name = name
         self.num_ibp_samples = num_ibp_samples
-        self.hidden_size = hidden_size
         self.tb_logging = tb_logging
         self.output_tb_gradients = output_tb_gradients
         self.beta_1 = beta_1
@@ -35,10 +34,10 @@ class IBP_NN(Cla_NN):
         self.log_folder = os.path.join(self.tensorboard_dir, "graph_{}".format(self.name))
         self.use_local_reparam = use_local_reparam
         self.implicit_beta = implicit_beta
-        self.no_layers = len(self.size) - 1
         self.no_train_samples = no_train_samples
         self.no_pred_samples = no_pred_samples
         self.input_size = input_size
+        self.training_size = training_size
         self.hidden_size = hidden_size
         self.output_size = output_size
         self.prev_means = prev_means
@@ -48,8 +47,6 @@ class IBP_NN(Cla_NN):
         self.prior_mean = prior_mean
         self.prior_var = prior_var
 
-        self.create_model()
-
     def create_model(self):
         m, v, betas, self.size = self.create_weights(
             self.input_size, self.hidden_size, self.output_size, self.prev_means, self.prev_log_variances, self.prev_betas)
@@ -58,6 +55,7 @@ class IBP_NN(Cla_NN):
         self.beta_a, self.beta_b = betas[0], betas[1]
 
         self.weights = [m, v, betas]
+        self.no_layers = len(self.size) - 1
 
         # used for the calculation of the KL term
         m, v, betas = self.create_prior(self.input_size, self.hidden_size, self.output_size, self.prev_means,

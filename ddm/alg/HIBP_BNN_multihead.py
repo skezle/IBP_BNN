@@ -5,38 +5,37 @@ from copy import deepcopy
 
 from training_utils import kl_beta_reparam, kl_beta_implicit, kl_discrete, kl_concrete
 from utils import child_stick_breaking_probs, global_stick_breaking_probs, reparameterize_discrete, implicit_beta
-from IBP_NN_multihead import IBP_NN
+from IBP_BNN_multihead import IBP_BNN
 
 # TODO: hidden state sizes and variational truncation params are a bit awkwardly defined
 
 """ Bayesian Neural Network with VI approximation + IBP """
-class HIBP_NN(IBP_NN):
-    def __init__(self, input_size, hidden_size, alphas, output_size, training_size,
+class HIBP_BNN(IBP_BNN):
+    def __init__(self, alphas, input_size, hidden_size, output_size, training_size,
                  no_train_samples=10, no_pred_samples=100, num_ibp_samples=10, prev_means=None, prev_log_variances=None,
                  prev_betas=None, learning_rate=0.001,
                  prior_mean=0, prior_var=1, alpha0=5., beta0=1., lambda_1=1., lambda_2=1.,
                  tensorboard_dir='logs', name='ibp', tb_logging=True, output_tb_gradients=False,
                  beta_1=1.0, beta_2=1.0, beta_3=1.0, use_local_reparam=True, implicit_beta=False):
 
-        super(HIBP_NN, self).__init__(input_size, hidden_size, output_size, training_size,
-                                      no_train_samples, no_pred_samples, num_ibp_samples, prev_means,
-                                      prev_log_variances, prev_betas, learning_rate, prior_mean,
-                                      prior_var, alpha0, beta0, lambda_1, lambda_2,
-                                      tensorboard_dir, name, tb_logging, output_tb_gradients, beta_1, beta_2,
-                                      beta_3, use_local_reparam, implicit_beta)
-
+        super(HIBP_BNN, self).__init__(input_size, hidden_size, output_size, training_size,
+                                       no_train_samples, no_pred_samples, num_ibp_samples, prev_means,
+                                       prev_log_variances, prev_betas, learning_rate, prior_mean,
+                                       prior_var, alpha0, beta0, lambda_1, lambda_2,
+                                       tensorboard_dir, name, tb_logging, output_tb_gradients, beta_1, beta_2,
+                                       beta_3, use_local_reparam, implicit_beta)
         self.alphas = alphas # hyper-param for each child IBP
-        self.create_model()
 
     def create_model(self):
         m, v, self.size = self.create_weights(self.input_size, self.hidden_size, self.output_size, self.prev_means, self.prev_log_variances)
         self.W_m, self.b_m, self.W_last_m, self.b_last_m = m[0], m[1], m[2], m[3]
         self.W_v, self.b_v, self.W_last_v, self.b_last_v = v[0], v[1], v[2], v[3]
 
-        betas = self.create_betas(self.prev_betas)
+        betas = self.create_betas(self.prev_betas, self.hidden_size)
         self.gbeta_a, self.gbeta_b = betas[0], betas[1]
 
         self.weights = [m, v, betas]
+        self.no_layers = len(self.size) - 1
 
         # used for the calculation of the KL term
         m, v = self.create_prior(self.input_size, self.hidden_size, self.output_size, self.prev_means, self.prev_log_variances,
@@ -90,10 +89,10 @@ class HIBP_NN(IBP_NN):
         gbeta_b = tf.cast(tf.math.softplus(self.gbeta_b) + 0.01, tf.float32)
         prior_gbeta_a = tf.cast(tf.math.softplus(self.prior_gbeta_a) + 0.01, tf.float32)
         prior_gbeta_b = tf.cast(tf.math.softplus(self.prior_gbeta_b) + 0.01, tf.float32)
-        global_log_pi = global_stick_breaking_probs(gbeta_a, gbeta_b, implicit=self.implicit_beta)
-        print("global_log_pi: {}".format(global_log_pi.get_shape()))
-        prior_global_log_pi = global_stick_breaking_probs(prior_gbeta_a, prior_gbeta_b, implicit=self.implicit_beta)
-        print("prior_global_log_pi: {}".format(prior_global_log_pi.get_shape()))
+        self.global_log_pi = global_stick_breaking_probs(gbeta_a, gbeta_b, implicit=self.implicit_beta)
+        print("global_log_pi: {}".format(self.global_log_pi.get_shape()))
+        self.prior_global_log_pi = global_stick_breaking_probs(prior_gbeta_a, prior_gbeta_b, implicit=self.implicit_beta)
+        print("prior_global_log_pi: {}".format(self.prior_global_log_pi.get_shape()))
         for i in range(self.no_layers - 1):
             alpha = self.alphas[i]
             din = self.size[i]
@@ -106,9 +105,9 @@ class HIBP_NN(IBP_NN):
             _biases = tf.add(tf.multiply(eps_b, tf.exp(0.5 * self.b_v[i])), self.b_m[i])
 
             # H-IBP
-            prior_log_pi = child_stick_breaking_probs(prior_global_log_pi, alpha, size=(no_samples_ibp, batch_size, dout))
+            prior_log_pi = child_stick_breaking_probs(self.prior_global_log_pi, alpha, size=(no_samples_ibp, batch_size, dout))
             prior_log_pis.append(prior_log_pi)
-            self.log_pi = child_stick_breaking_probs(global_log_pi, alpha, size=(no_samples_ibp, batch_size, dout))
+            self.log_pi = child_stick_breaking_probs(self.global_log_pi, alpha, size=(no_samples_ibp, batch_size, dout))
             print("log pi: {}".format(self.log_pi.get_shape()))
             log_pis.append(self.log_pi)
             # Concrete reparam
@@ -129,7 +128,6 @@ class HIBP_NN(IBP_NN):
                          tf.square(tf.exp(0.5 * self.b_v[i])))
             pre_local = m_h + tf.sqrt(v_h + 1e-6) * tf.random_normal(tf.shape(v_h), dtype=tf.float32)
             act_local = tf.multiply(tf.nn.relu(pre_local), z_discrete)  # shape (K, batch_size (None, ?), out)
-
 
         din = self.size[-2]
         dout = self.size[-1]
@@ -198,8 +196,6 @@ class HIBP_NN(IBP_NN):
             self.summary_op = tf.summary.merge_all()
 
     def _KL_term(self, no_samples, prior_log_pis, log_pis, z_log_sample):
-        K = no_samples
-        K_ibp = self.num_ibp_samples
         kl = 0
         kl_beta = 0
         kl_bern = 0
@@ -222,13 +218,14 @@ class HIBP_NN(IBP_NN):
             mu_diff_term = 0.5 * tf.reduce_sum((tf.exp(v) + (m0 - m) ** 2) / v0)
             kl += const_term + log_std_diff + mu_diff_term
 
-            kl_beta_contrib = self.beta_kl(self.beta_a[i], self.beta_b[i], self.prior_beta_a[i], self.prior_beta_b[i])
-
-            kl_bern_contrib = tf.cond(self.training,
-                                      true_fn=lambda: kl_concrete(log_pis[i], prior_log_pis[i], z_log_sample[i], self.lambda_1, self.lambda_2),
-                                      false_fn=lambda: kl_discrete(log_pis[i], prior_log_pis[i], z_log_sample[i]))
-            kl_beta += kl_beta_contrib
-            kl_bern += kl_bern_contrib
+            # Child IBP Beta terms
+            alpha = self.alphas[i]
+            kl_beta += kl_beta_implicit(alpha * tf.exp(self.global_log_pi), alpha*(1-tf.exp(self.global_log_pi)),
+                                        alpha * tf.exp(self.prior_global_log_pi), alpha*(1-tf.exp(self.prior_global_log_pi)))
+            # Child IBP Bernoulli terms
+            kl_bern += tf.cond(self.training,
+                               true_fn=lambda: kl_concrete(log_pis[i], prior_log_pis[i], z_log_sample[i], self.lambda_1, self.lambda_2),
+                               false_fn=lambda: kl_discrete(log_pis[i], prior_log_pis[i], z_log_sample[i]))
 
         # contribution from the head networks
         # no IBP layer applied to these weights
@@ -252,7 +249,11 @@ class HIBP_NN(IBP_NN):
             kl += const_term + log_std_diff + mu_diff_term
 
         # global beta contrib for HIBP
-        self.kl_global_beta_contrib = self.beta_kl(self.gbeta_a, self.gbeta_b, self.prior_gbeta_a, self.prior_gbeta_b)
+        gbeta_a = tf.cast(tf.math.softplus(self.gbeta_a) + 0.01, tf.float32)
+        gbeta_b = tf.cast(tf.math.softplus(self.gbeta_b) + 0.01, tf.float32)
+        prior_gbeta_a = tf.cast(tf.math.softplus(self.prior_gbeta_a) + 0.01, tf.float32)
+        prior_gbeta_b = tf.cast(tf.math.softplus(self.prior_gbeta_b) + 0.01, tf.float32)
+        self.kl_global_beta_contrib = kl_beta_implicit(gbeta_a, gbeta_b, prior_gbeta_a, prior_gbeta_b)
 
         self.kl_bern_contrib = self.beta_2*kl_bern
         self.kl_beta_contrib = self.beta_3*kl_beta
