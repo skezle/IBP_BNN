@@ -289,6 +289,10 @@ if __name__ == "__main__":
                         default=False,
                         dest='implicit_beta',
                         help='Whether to use reparam for Beta dist.')
+    parser.add_argument('--hibp', action='store_true',
+                        default=False,
+                        dest='hibp',
+                        help='Whether to use hibp.')
     args = parser.parse_args()
 
     print('difficult            = {!r}'.format(args.difficult))
@@ -300,6 +304,7 @@ if __name__ == "__main__":
     print('dataset              = {!r}'.format(args.dataset))
     print('use_local_reparam    = {!r}'.format(args.use_local_reparam))
     print('implicit_beta        = {!r}'.format(args.implicit_beta))
+    print('hibp                 = {!r}'.format(args.hibp))
     print('tag                  = {!r}'.format(args.tag))
 
     seeds = list(range(10, 10 + args.runs))
@@ -354,13 +359,14 @@ if __name__ == "__main__":
         name = "ibp_split_{0}_run{1}_{2}".format(args.dataset, i + 1, args.tag)
         # Z matrix for each task is outout
         # This is overwritten for each run
-        ibp_acc, Zs, uncerts = run_vcl_ibp(hidden_size=hidden_size, no_epochs=[no_epochs*2] + [no_epochs]*4, data_gen=data_gen,
+        ibp_acc, Zs, uncerts = run_vcl_ibp(hidden_size=hidden_size, alphas=[1.]*len(hidden_size),
+                                           no_epochs=[no_epochs*2] + [no_epochs]*4, data_gen=data_gen,
                                            name=name, val=val, batch_size=batch_size, single_head=args.single_head,
                                            prior_mean=prior_mean, prior_var=prior_var, alpha0=alpha0,
                                            beta0=beta0, lambda_1=lambda_1, lambda_2=lambda_2, learning_rate=0.0001,
                                            no_pred_samples=no_pred_samples, ibp_samples=ibp_samples, log_dir=args.log_dir,
                                            use_local_reparam=args.use_local_reparam,
-                                           implicit_beta=args.implicit_beta)
+                                           implicit_beta=args.implicit_beta, hibp=args.hibp)
 
         all_Zs.append(Zs)
         vcl_ibp_accs[i, :, :] = ibp_acc

@@ -7,6 +7,8 @@ from training_utils import kl_beta_reparam, kl_beta_implicit, kl_discrete, kl_co
 from utils import child_stick_breaking_probs, global_stick_breaking_probs, reparameterize_discrete, implicit_beta
 from IBP_NN_multihead import IBP_NN
 
+# TODO: hidden state sizes and variational truncation params are a bit awkwardly defined
+
 """ Bayesian Neural Network with VI approximation + IBP """
 class HIBP_NN(IBP_NN):
     def __init__(self, input_size, hidden_size, alphas, output_size, training_size,
@@ -22,23 +24,27 @@ class HIBP_NN(IBP_NN):
                                       prior_var, alpha0, beta0, lambda_1, lambda_2,
                                       tensorboard_dir, name, tb_logging, output_tb_gradients, beta_1, beta_2,
                                       beta_3, use_local_reparam, implicit_beta)
-        self.alphas = alphas
+
+        self.alphas = alphas # hyper-param for each child IBP
         self.create_model()
 
     def create_model(self):
-        m, v, betas, self.size = self.create_weights(
-            self.input_size, self.hidden_size, self.output_size, self.prev_means, self.prev_log_variances, self.prev_betas)
+        m, v, self.size = self.create_weights(self.input_size, self.hidden_size, self.output_size, self.prev_means, self.prev_log_variances)
         self.W_m, self.b_m, self.W_last_m, self.b_last_m = m[0], m[1], m[2], m[3]
         self.W_v, self.b_v, self.W_last_v, self.b_last_v = v[0], v[1], v[2], v[3]
+
+        betas = self.create_betas(self.prev_betas)
         self.gbeta_a, self.gbeta_b = betas[0], betas[1]
 
         self.weights = [m, v, betas]
 
         # used for the calculation of the KL term
-        m, v, betas = self.create_prior(self.input_size, self.hidden_size, self.output_size, self.prev_means, self.prev_log_variances,
-                                        self.prev_betas, self.prior_mean, self.prior_var)
+        m, v = self.create_prior(self.input_size, self.hidden_size, self.output_size, self.prev_means, self.prev_log_variances,
+                                 self.prev_betas, self.prior_mean, self.prior_var)
         self.prior_W_m, self.prior_b_m, self.prior_W_last_m, self.prior_b_last_m = m[0], m[1], m[2], m[3]
         self.prior_W_v, self.prior_b_v, self.prior_W_last_v, self.prior_b_last_v = v[0], v[1], v[2], v[3]
+
+        betas = self.create_prior_betas(self.prev_betas, self.hidden_size)
         self.prior_gbeta_a, self.prior_gbeta_b = betas[0], betas[1]
 
         self.pred, prior_log_pis_bern, log_pis_bern, z_log_sample = self._prediction(self.x, self.task_idx, self.no_pred_samples)
@@ -82,10 +88,12 @@ class HIBP_NN(IBP_NN):
         prior_log_pis = []
         gbeta_a = tf.cast(tf.math.softplus(self.gbeta_a) + 0.01, tf.float32)
         gbeta_b = tf.cast(tf.math.softplus(self.gbeta_b) + 0.01, tf.float32)
-        gprior_beta_a = tf.cast(tf.math.softplus(self.prior_gbeta_a) + 0.01, tf.float32)
-        gprior_beta_b = tf.cast(tf.math.softplus(self.prior_gbeta_b) + 0.01, tf.float32)
+        prior_gbeta_a = tf.cast(tf.math.softplus(self.prior_gbeta_a) + 0.01, tf.float32)
+        prior_gbeta_b = tf.cast(tf.math.softplus(self.prior_gbeta_b) + 0.01, tf.float32)
         global_log_pi = global_stick_breaking_probs(gbeta_a, gbeta_b, implicit=self.implicit_beta)
-        prior_global_log_pi = global_stick_breaking_probs(gprior_beta_a, gprior_beta_b,implicit=self.implicit_beta)
+        print("global_log_pi: {}".format(global_log_pi.get_shape()))
+        prior_global_log_pi = global_stick_breaking_probs(prior_gbeta_a, prior_gbeta_b, implicit=self.implicit_beta)
+        print("prior_global_log_pi: {}".format(prior_global_log_pi.get_shape()))
         for i in range(self.no_layers - 1):
             alpha = self.alphas[i]
             din = self.size[i]
@@ -101,6 +109,7 @@ class HIBP_NN(IBP_NN):
             prior_log_pi = child_stick_breaking_probs(prior_global_log_pi, alpha, size=(no_samples_ibp, batch_size, dout))
             prior_log_pis.append(prior_log_pi)
             self.log_pi = child_stick_breaking_probs(global_log_pi, alpha, size=(no_samples_ibp, batch_size, dout))
+            print("log pi: {}".format(self.log_pi.get_shape()))
             log_pis.append(self.log_pi)
             # Concrete reparam
             z_log_sample = reparameterize_discrete(self.log_pi, self.lambda_1, size=(no_samples_ibp, batch_size, dout))
@@ -251,7 +260,24 @@ class HIBP_NN(IBP_NN):
 
         return self.kl_gauss + self.kl_beta_contrib + self.kl_bern_contrib + self.kl_global_beta_contrib
 
-    def create_weights(self, in_dim, hidden_size, out_dim, prev_weights, prev_variances, prev_betas):
+    def create_betas(self, prev_betas, hidden_size):
+        # global beta params for H-IBP
+        # the variational truncation parameter is defined as dout
+        hidden_size = deepcopy(hidden_size)
+        dout = hidden_size[-1]
+        if prev_betas is None:
+            global_beta_a_val = tf.constant(np.log(np.exp(self.alpha0) - 1.), shape=[dout])
+            global_beta_b_val = tf.constant(np.log(np.exp(self.beta0) - 1.), shape=[dout])
+        else:
+            global_beta_a_val = prev_betas[0]
+            global_beta_b_val = prev_betas[1]
+
+        gb_a = tf.Variable(global_beta_a_val, name="global_beta_a")
+        gb_b = tf.Variable(global_beta_b_val, name="global_beta_b")
+
+        return [gb_a, gb_b]
+
+    def create_weights(self, in_dim, hidden_size, out_dim, prev_weights, prev_variances):
         hidden_size = deepcopy(hidden_size)
         hidden_size.append(out_dim)
         hidden_size.insert(0, in_dim)
@@ -266,8 +292,6 @@ class HIBP_NN(IBP_NN):
         W_last_v = []
         b_last_v = []
         # no last params for betas as head networks do not contain beta params
-        b_a = []
-        b_b = []
         for i in range(no_layers - 1):
             din = hidden_size[i]
             dout = hidden_size[i + 1]
@@ -295,18 +319,6 @@ class HIBP_NN(IBP_NN):
             b_m.append(bi_m)
             W_v.append(Wi_v)
             b_v.append(bi_v)
-
-        # global beta params for H-IBP
-        # the variational truncation parameter is defined as dout
-        if prev_betas is None:
-            global_beta_a_val = tf.constant(np.log(np.exp(self.alpha0) - 1.), shape=[dout])
-            global_beta_b_val = tf.constant(np.log(np.exp(self.beta0) - 1.), shape=[dout])
-        else:
-            global_beta_a_val = prev_betas[0]
-            global_beta_b_val = prev_betas[1]
-
-        gb_a = tf.Variable(global_beta_a_val, name="global_beta_a")
-        gb_b = tf.Variable(global_beta_b_val, name="global_beta_b")
 
         # if there are previous tasks
         if prev_weights is not None and prev_variances is not None:
@@ -354,8 +366,20 @@ class HIBP_NN(IBP_NN):
         W_last_v.append(Wi_v)
         b_last_v.append(bi_v)
 
-        return [W_m, b_m, W_last_m, b_last_m], [W_v, b_v, W_last_v, b_last_v], \
-               [gb_a, gb_b], hidden_size
+        return [W_m, b_m, W_last_m, b_last_m], [W_v, b_v, W_last_v, b_last_v], hidden_size
+
+    def create_prior_betas(self, prev_betas, hidden_size):
+        # Global beta params for H-IBP
+        hidden_size = deepcopy(hidden_size)
+        dout = hidden_size[-1]
+        if prev_betas is None:
+            global_beta_a_val = np.full((dout), self.alpha0)
+            global_beta_b_val = np.full((dout), self.beta0)
+        else:
+            global_beta_a_val = prev_betas[0]
+            global_beta_b_val = prev_betas[1]
+
+        return [global_beta_a_val, global_beta_b_val]
 
     def create_prior(self, in_dim, hidden_size, out_dim, prev_weights, prev_variances, prev_betas, prior_mean, prior_var):
         hidden_size = deepcopy(hidden_size)
@@ -391,14 +415,6 @@ class HIBP_NN(IBP_NN):
             W_v.append(Wi_v)
             b_v.append(bi_v)
 
-        # Global beta params fr H-IBP
-        if prev_betas is None:
-            global_beta_a_val = np.full((dout), self.alpha0)
-            global_beta_b_val = np.full((dout), self.beta0)
-        else:
-            global_beta_a_val = prev_betas[2]
-            global_beta_b_val = prev_betas[3]
-
         # if there are previous tasks
         if prev_weights is not None and prev_variances is not None:
             prev_Wlast_m = prev_weights[2]
@@ -428,6 +444,5 @@ class HIBP_NN(IBP_NN):
         W_last_v.append(Wi_v)
         b_last_v.append(bi_v)
 
-        return [W_m, b_m, W_last_m, b_last_m], [W_v, b_v, W_last_v, b_last_v], \
-               [global_beta_a_val, global_beta_b_val]
+        return [W_m, b_m, W_last_m, b_last_m], [W_v, b_v, W_last_v, b_last_v]
 

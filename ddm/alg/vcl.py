@@ -5,6 +5,7 @@ import tensorflow as tf
 from utils import get_scores, get_uncertainties, concatenate_results
 from cla_models_multihead import Vanilla_NN, MFVI_NN
 from IBP_BNN_multihead import IBP_NN
+from HIBP_BNN_multihead import HIBP_NN
 
 def run_vcl(hidden_size, no_epochs, data_gen, coreset_method, coreset_size=0, batch_size=None, single_head=True, val=False,
             verbose=True, name='vcl', log_dir='logs', use_local_reparam=False):
@@ -78,12 +79,13 @@ def run_vcl(hidden_size, no_epochs, data_gen, coreset_method, coreset_size=0, ba
 
     return all_acc, all_uncerts
 
-def run_vcl_ibp(hidden_size, no_epochs, data_gen, name,
+def run_vcl_ibp(hidden_size, alphas, no_epochs, data_gen, name,
                 val, batch_size=None, single_head=True,
                 prior_mean=0.0, prior_var=1.0, alpha0=5.0,
                 beta0 = 1.0, lambda_1 = 1.0, lambda_2 = 1.0, learning_rate=0.0001,
                 no_pred_samples=100, ibp_samples = 10, log_dir='logs',
-                run_val_set=False, use_local_reparam=False, implicit_beta=False):
+                run_val_set=False, use_local_reparam=False, implicit_beta=False,
+                hibp=False):
 
     in_dim, out_dim = data_gen.get_dims()
     all_acc = np.array([])
@@ -135,8 +137,9 @@ def run_vcl_ibp(hidden_size, no_epochs, data_gen, name,
             mf_betas = None
             ml_model.close_session()
 
-        # Train on non-coreset data
-        mf_model = IBP_NN(in_dim, hidden_size, out_dim, x_train.shape[0], num_ibp_samples=ibp_samples,
+        if hibp and len(hidden_size) > 1:
+            mf_model = HIBP_NN(in_dim, hidden_size, alphas, out_dim,
+                               x_train.shape[0], num_ibp_samples=ibp_samples,
                                prev_means=mf_weights,
                                prev_log_variances=mf_variances, prev_betas=mf_betas,
                                alpha0=alpha0, beta0=beta0, learning_rate=learning_rate,
@@ -147,6 +150,18 @@ def run_vcl_ibp(hidden_size, no_epochs, data_gen, name,
                                name='{0}_task{1}'.format(name, task_id + 1),
                                use_local_reparam=use_local_reparam,
                                implicit_beta=implicit_beta)
+        else:
+            mf_model = IBP_NN(in_dim, hidden_size, out_dim, x_train.shape[0], num_ibp_samples=ibp_samples,
+                              prev_means=mf_weights,
+                              prev_log_variances=mf_variances, prev_betas=mf_betas,
+                              alpha0=alpha0, beta0=beta0, learning_rate=learning_rate,
+                              prior_mean=prior_mean, prior_var=prior_var, lambda_1=lambda_1,
+                              lambda_2=lambda_2 if task_id == 0 else lambda_1,
+                              no_pred_samples=no_pred_samples,
+                              tensorboard_dir=log_dir,
+                              name='{0}_task{1}'.format(name, task_id + 1),
+                              use_local_reparam=use_local_reparam,
+                              implicit_beta=implicit_beta)
 
         if os.path.isdir(mf_model.log_folder):
             print("Restoring model: {}".format(mf_model.log_folder))
