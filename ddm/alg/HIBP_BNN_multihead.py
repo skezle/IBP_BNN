@@ -89,8 +89,10 @@ class HIBP_BNN(IBP_BNN):
         gbeta_b = tf.cast(tf.math.softplus(self.gbeta_b) + 0.01, tf.float32)
         prior_gbeta_a = tf.cast(tf.math.softplus(self.prior_gbeta_a) + 0.01, tf.float32)
         prior_gbeta_b = tf.cast(tf.math.softplus(self.prior_gbeta_b) + 0.01, tf.float32)
-        self.global_log_pi = global_stick_breaking_probs(gbeta_a, gbeta_b, implicit=self.implicit_beta)
-        self.prior_global_log_pi = global_stick_breaking_probs(prior_gbeta_a, prior_gbeta_b, implicit=self.implicit_beta)
+        self.global_log_pi = global_stick_breaking_probs(gbeta_a, gbeta_b,
+                                                         size=(no_samples_ibp,), implicit=self.implicit_beta) # no_samples, dout
+        self.prior_global_log_pi = global_stick_breaking_probs(prior_gbeta_a, prior_gbeta_b,
+                                                               size=(no_samples_ibp,), implicit=self.implicit_beta) # no_samples, dout
         for i in range(self.no_layers - 1):
             alpha = self.alphas[i]
             din = self.size[i]
@@ -103,10 +105,11 @@ class HIBP_BNN(IBP_BNN):
             _biases = tf.add(tf.multiply(eps_b, tf.exp(0.5 * self.b_v[i])), self.b_m[i])
 
             # H-IBP
-            prior_log_pi = child_stick_breaking_probs(self.prior_global_log_pi, alpha, size=(no_samples_ibp, batch_size, dout))
+            prior_log_pi = child_stick_breaking_probs(tf.reduce_mean(self.prior_global_log_pi, 0),
+                                                      alpha, size=(no_samples_ibp, batch_size, dout))
             prior_log_pis.append(prior_log_pi)
-            self.log_pi = child_stick_breaking_probs(self.global_log_pi, alpha, size=(no_samples_ibp, batch_size, dout)) # (no_samples, batch_size, dout)
-            print("log pi: {}".format(self.log_pi.get_shape()))
+            self.log_pi = child_stick_breaking_probs(tf.reduce_mean(self.global_log_pi, 0),
+                                                     alpha, size=(no_samples_ibp, batch_size, dout)) # (no_samples, batch_size, dout)
             log_pis.append(self.log_pi)
             # Concrete reparam
             z_log_sample = reparameterize_discrete(self.log_pi, self.lambda_1, size=(no_samples_ibp, batch_size, dout))
@@ -174,12 +177,6 @@ class HIBP_BNN(IBP_BNN):
             tf.compat.v1.summary.histogram("W_sigma", tf.concat([tf.reshape(i, [-1]) for i in self.vars], 0))
             tf.compat.v1.summary.histogram("v_beta_a_l", tf.cast(tf.math.softplus(tf.exp(tf.log(self.gbeta_a + 1e-8))) + 0.01, tf.float32))
             tf.compat.v1.summary.histogram("v_beta_b_l", tf.cast(tf.math.softplus(tf.exp(tf.log(self.gbeta_b + 1e-8))) + 0.01, tf.float32))
-            tf.compat.v1.summary.histogram("p_beta_a_l",
-                                           tf.cast(tf.math.softplus(tf.exp(tf.log(self.prior_gbeta_a + 1e-8))) + 0.01,
-                                                   tf.float32))
-            tf.compat.v1.summary.histogram("p_beta_b_l",
-                                           tf.cast(tf.math.softplus(tf.exp(tf.log(self.prior_gbeta_b + 1e-8))) + 0.01,
-                                                   tf.float32))
             for i in range(len(self.Z)):
                 # tf.summary.images expects 4-d tensor b x height x width x channels
                 print("Z: {}".format(self.Z[i].get_shape()))

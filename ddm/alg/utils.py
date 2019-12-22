@@ -25,8 +25,12 @@ def implicit_beta(a, b, size):
     dist = tfd.Beta(a, b)
     if len(size) == 0:
         samples = dist.sample() # size of a
+    elif len(size) == 1:
+        samples = dist.sample([size[0]])
+    elif len(size) >= 2:
+        samples = dist.sample([size[0], size[1]])  # [size[0], size[1], size of a]
     else:
-        samples = dist.sample([size[0], size[1]]) # [size[0], size[1], size of a]
+        raise ValueError
     return samples
 
 def stick_breaking_probs(a, b, size, ibp=False, log=False, implicit=False):
@@ -51,7 +55,7 @@ def stick_breaking_probs(a, b, size, ibp=False, log=False, implicit=False):
     else:
         return tf.exp(logpis)
 
-def global_stick_breaking_probs(a, b, implicit=True):
+def global_stick_breaking_probs(a, b, size, implicit=True):
     """Returns pi parameters from stick-breaking H-IBP
 
     :param a: beta a params [dout]
@@ -59,9 +63,9 @@ def global_stick_breaking_probs(a, b, implicit=True):
     :param implicit: bool
     :return: returns truncated variational \pi params
     """
-    v = implicit_beta(a, b, size=()) if implicit else kumaraswamy_sample(a, b, size=())
+    v = implicit_beta(a, b, size=size) if implicit else kumaraswamy_sample(a, b, size=size)
     v_term = tf.log(v + eps)
-    logpis = tf.cumsum(v_term, axis=0) # \in [dout]
+    logpis = tf.cumsum(v_term, axis=1) # \in [no_samples, dout]
     return logpis
 
 def child_stick_breaking_probs(logpis, alpha, size):
@@ -70,9 +74,8 @@ def child_stick_breaking_probs(logpis, alpha, size):
     :param alpha: hyperparameter
     :param size: tuple \in [no_samples, batch_size, dout]
     """
-    v = implicit_beta(alpha * tf.exp(logpis), alpha*(1-tf.exp(logpis)), size)
-    v_term = tf.log(v + eps)
-    logpis = tf.cumsum(v_term, axis=2) # \in [no_samples, batch_size, dout]
+    pis = implicit_beta(alpha * tf.exp(logpis), alpha*(1-tf.exp(logpis)), size)
+    logpis = tf.log(pis + eps)
     return logpis
 
 def reparameterize_discrete(log_pis, temp, size):
