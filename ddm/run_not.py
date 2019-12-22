@@ -6,7 +6,8 @@ import os.path
 import sys
 import argparse
 sys.path.extend(['alg/'])
-from cla_models_multihead import Vanilla_NN, MFVI_IBP_NN
+from cla_models_multihead import Vanilla_NN
+from IBP_BNN_multihead import IBP_NN
 from vcl import run_vcl, run_vcl_ibp
 from utils import get_scores, concatenate_results
 from visualise import plot_uncertainties, plot_Zs
@@ -146,6 +147,10 @@ if __name__ == "__main__":
                         default=False,
                         dest='implicit_beta',
                         help='Whether to use reparam for Beta dist.')
+    parser.add_argument('--hibp', action='store_true',
+                        default=False,
+                        dest='hibp',
+                        help='Whether to use hibp.')
     args = parser.parse_args()
 
     print('tag                  = {!r}'.format(args.tag))
@@ -155,6 +160,7 @@ if __name__ == "__main__":
     print('num_layers           = {!r}'.format(args.num_layers))
     print('use_local_reparam    = {!r}'.format(args.use_local_reparam))
     print('alpha0               = {!r}'.format(args.alpha0))
+    print('hibp                 = {!r}'.format(args.hibp))
     print('log_dir              = {!r}'.format(args.log_dir))
 
     seeds = list(range(10, 10 + args.runs))
@@ -170,7 +176,7 @@ if __name__ == "__main__":
     all_vcl_h50_uncerts = np.zeros((len(seeds), num_tasks, num_tasks))
     all_Zs = []
 
-    # Kumaraswamy and Concrete params
+    # Beta and Concrete params
     alpha0 = args.alpha0
     beta0 = 1.0
     lambda_1 = 1.0
@@ -196,13 +202,14 @@ if __name__ == "__main__":
         name = "ibp_{0}_run{1}_{2}".format("not", i + 1, args.tag)
         # Z matrix for each task is outout
         # This is overwritten for each run
-        ibp_acc, Zs, uncerts = run_vcl_ibp(hidden_size=hidden_size, no_epochs=[no_epochs*2] + [no_epochs]*4,
+        ibp_acc, Zs, uncerts = run_vcl_ibp(hidden_size=hidden_size, alphas=[1.]*len(hidden_size),
+                                           no_epochs=[no_epochs*2] + [no_epochs]*4,
                                            data_gen=data_gen, name=name, val=val, batch_size=batch_size,
                                            single_head=args.single_head, prior_mean=prior_mean, prior_var=prior_var,
                                            alpha0=alpha0, beta0=beta0, lambda_1=lambda_1, lambda_2=lambda_2,
                                            learning_rate=0.0001, no_pred_samples=no_pred_samples, ibp_samples=ibp_samples,
                                            log_dir=args.log_dir, use_local_reparam=args.use_local_reparam,
-                                           implicit_beta=args.implicit_beta)
+                                           implicit_beta=args.implicit_beta, hibp=args.hibp)
         all_Zs.append(Zs)
         vcl_ibp_accs[i, :, :] = ibp_acc
         all_ibp_uncerts[i, :, :] = uncerts

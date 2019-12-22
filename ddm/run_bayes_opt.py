@@ -9,7 +9,8 @@ import argparse
 sys.path.extend(['alg/'])
 from run_split import SplitMnistGenerator
 from run_not import NotMnistGenerator
-from cla_models_multihead import MFVI_IBP_NN, Vanilla_NN
+from cla_models_multihead import Vanilla_NN
+from IBP_BNN_multihead import IBP_NN
 from utils import get_scores, concatenate_results
 from vcl import run_vcl
 from copy import deepcopy
@@ -138,7 +139,7 @@ if __name__ == '__main__':
                 ml_model.close_session()
 
             # Train on non-coreset data
-            mf_model = MFVI_IBP_NN(in_dim,
+            mf_model = IBP_NN(in_dim,
                                    model_params_cv['hidden_size'],
                                    out_dim,
                                    x_train.shape[0],
@@ -249,7 +250,7 @@ if __name__ == '__main__':
             ml_model.close_session()
 
         # Train
-        mf_model = MFVI_IBP_NN(in_dim,
+        mf_model = IBP_NN(in_dim,
                                model_params['hidden_size'],
                                out_dim,
                                x_train.shape[0],

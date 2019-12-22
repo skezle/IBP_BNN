@@ -5,7 +5,8 @@ import sys
 import argparse
 sys.path.extend(['alg/'])
 from vcl import run_vcl, run_vcl_ibp
-from cla_models_multihead import Vanilla_NN, MFVI_IBP_NN
+from cla_models_multihead import Vanilla_NN
+from IBP_BNN_multihead import IBP_NN
 from utils import get_scores, concatenate_results
 from visualise import plot_uncertainties, plot_Zs
 import pickle
@@ -63,6 +64,10 @@ if __name__ == "__main__":
                         default=False,
                         dest='implicit_beta',
                         help='Whether to use reparam for Beta dist.')
+    parser.add_argument('--hibp', action='store_true',
+                        default=False,
+                        dest='hibp',
+                        help='Whether to use hibp.')
     parser.add_argument('--num_layers', action='store',
                         dest='num_layers',
                         default=1,
@@ -80,6 +85,7 @@ if __name__ == "__main__":
     print('single_head    = {!r}'.format(args.single_head))
     print('implicit_beta  = {!r}'.format(args.implicit_beta))
     print('num_layers     = {!r}'.format(args.num_layers))
+    print('hibp           = {!r}'.format(args.hibp))
     print('log_dir        = {!r}'.format(args.log_dir))
     print('tag            = {!r}'.format(args.tag))
 
@@ -117,13 +123,14 @@ if __name__ == "__main__":
         name = "ibp_{0}_run{1}_{2}".format("perm", i + 1, args.tag)
         # Z matrix for each task is output
         # This is overwritten for each run
-        ibp_acc, Zs, uncerts = run_vcl_ibp(hidden_size=hidden_size, no_epochs=[no_epochs]*num_tasks,
+        ibp_acc, Zs, uncerts = run_vcl_ibp(hidden_size=hidden_size, alphas=[1.]*len(hidden_size),
+                                           no_epochs=[no_epochs]*num_tasks,
                                            data_gen=data_gen, name=name, val=val, batch_size=batch_size,
                                            single_head=args.single_head, alpha0=alpha0, beta0=beta0,
                                            lambda_1=lambda_1, lambda_2=lambda_2,
                                            learning_rate=0.0001, no_pred_samples=100, ibp_samples=ibp_samples,
                                            log_dir=args.log_dir,
-                                           implicit_beta=args.implicit_beta)
+                                           implicit_beta=args.implicit_beta, hibp=args.hibp)
         all_Zs.append(Zs)
         vcl_ibp_accs[i, :, :] = ibp_acc
         all_ibp_uncerts[i, :, :] = uncerts

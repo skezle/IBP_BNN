@@ -336,7 +336,8 @@ if __name__ == "__main__":
         thetas = RndSearch.get_next_parameters()
         name = "ibp_rs_split_{0}_run{1}_{2}".format(args.dataset, i + 1, args.tag)
 
-        ibp_acc, _, _ = run_vcl_ibp(hidden_size=hidden_size, no_epochs=[no_epochs]*5, data_gen=data_gen,
+        ibp_acc, _, _ = run_vcl_ibp(hidden_size=hidden_size, alphas=[1.]*len(hidden_size),
+                                    no_epochs=[no_epochs]*num_tasks, data_gen=data_gen,
                                     name=name, val=val, batch_size=thetas['batch_size'],
                                     single_head=args.single_head, prior_mean=thetas['prior_mean'],
                                     prior_var=thetas['prior_var'], alpha0=thetas['alpha0'],
@@ -359,8 +360,8 @@ if __name__ == "__main__":
         tf.set_random_seed(s)
         data_gen = get_datagen(val)
         name = "ibp_rs_opt_split_{0}_{1}_run{2}".format(args.dataset, args.tag, i+1)
-        ibp_acc, Zs, uncerts = run_vcl_ibp(hidden_size=hidden_size, no_epochs=[no_epochs]*5,
-                                           data_gen=data_gen,
+        ibp_acc, Zs, uncerts = run_vcl_ibp(hidden_size=hidden_size, alphas=[1.]*len(hidden_size),
+                                           no_epochs=[no_epochs]*num_tasks, data_gen=data_gen,
                                            name=name, val=val, batch_size=int(thetas_opt['batch_size']),
                                            single_head=args.single_head, prior_mean=thetas_opt['prior_mean'],
                                            prior_var=thetas_opt['prior_var'], alpha0=thetas_opt['alpha0'],
