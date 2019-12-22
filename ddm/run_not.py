@@ -137,7 +137,7 @@ if __name__ == "__main__":
                         dest='use_local_reparam',
                         help='Whether to use local reparam.')
     parser.add_argument('--alpha0', action='store',
-                        default=2.0,
+                        default=5.0,
                         type=float,
                         dest='alpha0',
                         help='The prior and initialisation for the beta concentration param.')
@@ -176,7 +176,7 @@ if __name__ == "__main__":
 
     # Beta and Concrete params
     alpha0 = args.alpha0
-    beta0 = 0.8
+    beta0 = 1.0
     lambda_1 = 0.5
     lambda_2 = 1.0
     # Gaussian params
