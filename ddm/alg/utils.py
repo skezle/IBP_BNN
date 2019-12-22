@@ -27,7 +27,6 @@ def implicit_beta(a, b, size):
         samples = dist.sample() # size of a
     else:
         samples = dist.sample([size[0], size[1]]) # [size[0], size[1], size of a]
-    print("Beta samples shape: {}".format(samples.get_shape()))
     return samples
 
 def stick_breaking_probs(a, b, size, ibp=False, log=False, implicit=False):
@@ -52,7 +51,7 @@ def stick_breaking_probs(a, b, size, ibp=False, log=False, implicit=False):
     else:
         return tf.exp(logpis)
 
-def global_stick_breaking_probs(a, b):
+def global_stick_breaking_probs(a, b, implicit=True):
     """Returns pi parameters from stick-breaking H-IBP
 
     :param a: beta a params [dout]
@@ -60,7 +59,7 @@ def global_stick_breaking_probs(a, b):
     :param implicit: bool
     :return: returns truncated variational \pi params
     """
-    v = implicit_beta(a, b, size=())
+    v = implicit_beta(a, b, size=()) if implicit else kumaraswamy_sample(a, b, size=())
     v_term = tf.log(v + eps)
     logpis = tf.cumsum(v_term, axis=0) # \in [dout]
     return logpis

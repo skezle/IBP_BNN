@@ -4,8 +4,8 @@ import numpy as np
 import tensorflow as tf
 from utils import get_scores, get_uncertainties, concatenate_results
 from cla_models_multihead import Vanilla_NN, MFVI_NN
-from IBP_BNN_multihead import IBP_NN
-from HIBP_BNN_multihead import HIBP_NN
+from IBP_BNN_multihead import IBP_BNN
+from HIBP_BNN_multihead import HIBP_BNN
 
 def run_vcl(hidden_size, no_epochs, data_gen, coreset_method, coreset_size=0, batch_size=None, single_head=True, val=False,
             verbose=True, name='vcl', log_dir='logs', use_local_reparam=False):
@@ -138,57 +138,59 @@ def run_vcl_ibp(hidden_size, alphas, no_epochs, data_gen, name,
             ml_model.close_session()
 
         if hibp and len(hidden_size) > 1:
-            mf_model = HIBP_NN(in_dim, hidden_size, alphas, out_dim,
-                               x_train.shape[0], num_ibp_samples=ibp_samples,
-                               prev_means=mf_weights,
-                               prev_log_variances=mf_variances, prev_betas=mf_betas,
-                               alpha0=alpha0, beta0=beta0, learning_rate=learning_rate,
-                               prior_mean=prior_mean, prior_var=prior_var, lambda_1=lambda_1,
-                               lambda_2=lambda_2 if task_id == 0 else lambda_1,
-                               no_pred_samples=no_pred_samples,
-                               tensorboard_dir=log_dir,
-                               name='{0}_task{1}'.format(name, task_id + 1),
-                               use_local_reparam=use_local_reparam,
-                               implicit_beta=implicit_beta)
+            model = HIBP_BNN(alphas, input_size=in_dim, hidden_size=hidden_size,
+                             output_size=out_dim,
+                             training_size=x_train.shape[0], num_ibp_samples=ibp_samples,
+                             prev_means=mf_weights,
+                             prev_log_variances=mf_variances, prev_betas=mf_betas,
+                             alpha0=alpha0, beta0=beta0, learning_rate=learning_rate,
+                             prior_mean=prior_mean, prior_var=prior_var, lambda_1=lambda_1,
+                             lambda_2=lambda_2 if task_id == 0 else lambda_1,
+                             no_pred_samples=no_pred_samples,
+                             tensorboard_dir=log_dir,
+                             name='{0}_task{1}'.format(name, task_id + 1),
+                             use_local_reparam=use_local_reparam,
+                             implicit_beta=implicit_beta)
         else:
-            mf_model = IBP_NN(in_dim, hidden_size, out_dim, x_train.shape[0], num_ibp_samples=ibp_samples,
-                              prev_means=mf_weights,
-                              prev_log_variances=mf_variances, prev_betas=mf_betas,
-                              alpha0=alpha0, beta0=beta0, learning_rate=learning_rate,
-                              prior_mean=prior_mean, prior_var=prior_var, lambda_1=lambda_1,
-                              lambda_2=lambda_2 if task_id == 0 else lambda_1,
-                              no_pred_samples=no_pred_samples,
-                              tensorboard_dir=log_dir,
-                              name='{0}_task{1}'.format(name, task_id + 1),
-                              use_local_reparam=use_local_reparam,
-                              implicit_beta=implicit_beta)
+            model = IBP_BNN(in_dim, hidden_size, out_dim, x_train.shape[0], num_ibp_samples=ibp_samples,
+                            prev_means=mf_weights,
+                            prev_log_variances=mf_variances, prev_betas=mf_betas,
+                            alpha0=alpha0, beta0=beta0, learning_rate=learning_rate,
+                            prior_mean=prior_mean, prior_var=prior_var, lambda_1=lambda_1,
+                            lambda_2=lambda_2 if task_id == 0 else lambda_1,
+                            no_pred_samples=no_pred_samples,
+                            tensorboard_dir=log_dir,
+                            name='{0}_task{1}'.format(name, task_id + 1),
+                            use_local_reparam=use_local_reparam,
+                            implicit_beta=implicit_beta)
 
-        if os.path.isdir(mf_model.log_folder):
-            print("Restoring model: {}".format(mf_model.log_folder))
-            mf_model.restore(mf_model.log_folder)
+        model.create_model()
+        if os.path.isdir(model.log_folder):
+            print("Restoring model: {}".format(model.log_folder))
+            model.restore(model.log_folder)
         else:
             print("New model, training")
-            mf_model.train(x_train, y_train, head, n, bsize)
-        mf_weights, mf_variances, mf_betas = mf_model.get_weights()
+            model.train(x_train, y_train, head, n, bsize)
+        mf_weights, mf_variances, mf_betas = model.get_weights()
 
         # get accuracies for all test sets seen so far
         if run_val_set:
-            acc = get_scores(mf_model, x_valsets, y_valsets, single_head)
+            acc = get_scores(model, x_valsets, y_valsets, single_head)
         else:
-            acc = get_scores(mf_model, x_testsets, y_testsets, single_head)
+            acc = get_scores(model, x_testsets, y_testsets, single_head)
         all_acc = concatenate_results(acc, all_acc)
 
         # get Z matrices
-        Zs.append(mf_model.sess.run(mf_model.Z, feed_dict={mf_model.x: x_test,
-                                                           mf_model.task_idx: task_id,
-                                                           mf_model.training: False}))
+        Zs.append(model.sess.run(model.Z, feed_dict={model.x: x_test,
+                                                           model.task_idx: task_id,
+                                                           model.training: False}))
 
         # get uncertainties
-        uncert = get_uncertainties(mf_model, all_x_testsets, all_y_testsets,
+        uncert = get_uncertainties(model, all_x_testsets, all_y_testsets,
                                    single_head, task_id)
         all_uncerts[task_id, :] = uncert
 
-        mf_model.close_session()
+        model.close_session()
 
     _Zs = [item for sublist in Zs for item in sublist]
 
