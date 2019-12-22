@@ -90,9 +90,7 @@ class HIBP_BNN(IBP_BNN):
         prior_gbeta_a = tf.cast(tf.math.softplus(self.prior_gbeta_a) + 0.01, tf.float32)
         prior_gbeta_b = tf.cast(tf.math.softplus(self.prior_gbeta_b) + 0.01, tf.float32)
         self.global_log_pi = global_stick_breaking_probs(gbeta_a, gbeta_b, implicit=self.implicit_beta)
-        print("global_log_pi: {}".format(self.global_log_pi.get_shape()))
         self.prior_global_log_pi = global_stick_breaking_probs(prior_gbeta_a, prior_gbeta_b, implicit=self.implicit_beta)
-        print("prior_global_log_pi: {}".format(self.prior_global_log_pi.get_shape()))
         for i in range(self.no_layers - 1):
             alpha = self.alphas[i]
             din = self.size[i]
@@ -107,12 +105,12 @@ class HIBP_BNN(IBP_BNN):
             # H-IBP
             prior_log_pi = child_stick_breaking_probs(self.prior_global_log_pi, alpha, size=(no_samples_ibp, batch_size, dout))
             prior_log_pis.append(prior_log_pi)
-            self.log_pi = child_stick_breaking_probs(self.global_log_pi, alpha, size=(no_samples_ibp, batch_size, dout))
+            self.log_pi = child_stick_breaking_probs(self.global_log_pi, alpha, size=(no_samples_ibp, batch_size, dout)) # (no_samples, batch_size, dout)
             print("log pi: {}".format(self.log_pi.get_shape()))
             log_pis.append(self.log_pi)
             # Concrete reparam
             z_log_sample = reparameterize_discrete(self.log_pi, self.lambda_1, size=(no_samples_ibp, batch_size, dout))
-            z_discrete = tf.expand_dims(tf.reduce_mean(tf.sigmoid(z_log_sample), axis=0), 0)# (K_ibp, batch_size, dout) --> (1, batch_size, dout)
+            z_discrete = tf.expand_dims(tf.reduce_mean(tf.sigmoid(z_log_sample), axis=0), 0)# (no_samples_ibp, batch_size, dout) --> (1, batch_size, dout)
 
             self.Z.append(z_discrete)
             self.vars += [tf.exp(0.5 * self.W_v[i]), tf.exp(0.5 * self.b_v[i])]
@@ -144,8 +142,8 @@ class HIBP_BNN(IBP_BNN):
         self.vars += [tf.exp(0.5 * Wtask_v), tf.exp(0.5 * btask_v)]
         self.means += [Wtask_m, btask_m]
 
-        act = tf.expand_dims(act, 3) # [K, din, dout, 1]
-        _weights = tf.expand_dims(_weights, 1) # [K, 1, dout, 2]
+        act = tf.expand_dims(act, 3) # [no_samples, din, dout, 1]
+        _weights = tf.expand_dims(_weights, 1) # [no_samples, 1, dout, 2]
         pre = tf.add(tf.reduce_sum(act * _weights, 2), _biases)
 
         # apply local reparam trick to final output layer

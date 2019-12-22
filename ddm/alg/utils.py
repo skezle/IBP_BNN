@@ -27,7 +27,6 @@ def implicit_beta(a, b, size):
         samples = dist.sample() # size of a
     else:
         samples = dist.sample([size[0], size[1]]) # [size[0], size[1], size of a]
-    print("Beta samples shape: {}".format(samples.get_shape()))
     return samples
 
 def stick_breaking_probs(a, b, size, ibp=False, log=False, implicit=False):

@@ -84,9 +84,6 @@ def log_density_concrete(logpis, logsample, _temp):
     :param logpis: Bernoulli/Concrete params
     :param logsample: samples from Concrete distribution, before sigmoid is applied
     :param _temp: float
-    Input logalpha is a logit (alpha is a probability ratio)
-
-
     """
     temp = tf.cast(_temp, tf.float32)
     exp_term = logpis - temp * logsample
@@ -97,11 +94,14 @@ def kl_concrete(log_post, log_prior, log_sample, temp, temp_prior):
     """KL divergence between the prior and posterior
         inputs are in logit-space
 
-    :param log_post \in [K, din, dout]
-    :param log_prior \in [K, din, dout]
-    :param log_sample \in [K, din, dout]
+    Samples are drawn for the creation of Z and subsequent averaging. Likewise for the KL
+    KL is O(number of Concrete params) = O(dout).
+
+    :param log_post \in [no_samples, batch_size, dout]
+    :param log_prior \in [no_samples, batch_size, dout]
+    :param log_sample \in [no_samples, batch_size, dout]
     :return kl divergence, scalar
     """
     log_prior = log_density_concrete(log_prior, log_sample, temp_prior)
     log_posterior = log_density_concrete(log_post, log_sample, temp)
-    return tf.reduce_sum(tf.reduce_mean(log_posterior - log_prior, 0))
+    return tf.reduce_sum(tf.reduce_mean(log_posterior - log_prior, [0, 1]))

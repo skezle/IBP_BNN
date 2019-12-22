@@ -139,30 +139,30 @@ def run_vcl_ibp(hidden_size, alphas, no_epochs, data_gen, name,
 
         if hibp and len(hidden_size) > 1:
             model = HIBP_BNN(alphas, input_size=in_dim, hidden_size=hidden_size,
-                                output_size=out_dim,
-                                training_size=x_train.shape[0], num_ibp_samples=ibp_samples,
-                                prev_means=mf_weights,
-                                prev_log_variances=mf_variances, prev_betas=mf_betas,
-                                alpha0=alpha0, beta0=beta0, learning_rate=learning_rate,
-                                prior_mean=prior_mean, prior_var=prior_var, lambda_1=lambda_1,
-                                lambda_2=lambda_2 if task_id == 0 else lambda_1,
-                                no_pred_samples=no_pred_samples,
-                                tensorboard_dir=log_dir,
-                                name='{0}_task{1}'.format(name, task_id + 1),
-                                use_local_reparam=use_local_reparam,
-                                implicit_beta=implicit_beta)
+                             output_size=out_dim,
+                             training_size=x_train.shape[0], num_ibp_samples=ibp_samples,
+                             prev_means=mf_weights,
+                             prev_log_variances=mf_variances, prev_betas=mf_betas,
+                             alpha0=alpha0, beta0=beta0, learning_rate=learning_rate,
+                             prior_mean=prior_mean, prior_var=prior_var, lambda_1=lambda_1,
+                             lambda_2=lambda_2 if task_id == 0 else lambda_1,
+                             no_pred_samples=no_pred_samples,
+                             tensorboard_dir=log_dir,
+                             name='{0}_task{1}'.format(name, task_id + 1),
+                             use_local_reparam=use_local_reparam,
+                             implicit_beta=implicit_beta)
         else:
             model = IBP_BNN(in_dim, hidden_size, out_dim, x_train.shape[0], num_ibp_samples=ibp_samples,
-                              prev_means=mf_weights,
-                              prev_log_variances=mf_variances, prev_betas=mf_betas,
-                              alpha0=alpha0, beta0=beta0, learning_rate=learning_rate,
-                              prior_mean=prior_mean, prior_var=prior_var, lambda_1=lambda_1,
-                              lambda_2=lambda_2 if task_id == 0 else lambda_1,
-                              no_pred_samples=no_pred_samples,
-                              tensorboard_dir=log_dir,
-                              name='{0}_task{1}'.format(name, task_id + 1),
-                              use_local_reparam=use_local_reparam,
-                              implicit_beta=implicit_beta)
+                            prev_means=mf_weights,
+                            prev_log_variances=mf_variances, prev_betas=mf_betas,
+                            alpha0=alpha0, beta0=beta0, learning_rate=learning_rate,
+                            prior_mean=prior_mean, prior_var=prior_var, lambda_1=lambda_1,
+                            lambda_2=lambda_2 if task_id == 0 else lambda_1,
+                            no_pred_samples=no_pred_samples,
+                            tensorboard_dir=log_dir,
+                            name='{0}_task{1}'.format(name, task_id + 1),
+                            use_local_reparam=use_local_reparam,
+                            implicit_beta=implicit_beta)
 
         model.create_model()
         if os.path.isdir(model.log_folder):
