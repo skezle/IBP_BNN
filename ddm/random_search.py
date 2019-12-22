@@ -265,6 +265,10 @@ if __name__ == "__main__":
                         default=False,
                         dest='implicit_beta',
                         help='Whether to use reparam for Beta dist.')
+    parser.add_argument('--hibp', action='store_true',
+                        default=False,
+                        dest='hibp',
+                        help='Whether to use HIBP.')
     args = parser.parse_args()
 
     print('single_head            = {!r}'.format(args.single_head))
@@ -275,6 +279,7 @@ if __name__ == "__main__":
     print('dataset                = {!r}'.format(args.dataset))
     print('use_local_reparam      = {!r}'.format(args.use_local_reparam))
     print('noise                  = {!r}'.format(args.noise))
+    print('hibp                   = {!r}'.format(args.hibp))
     print('tag                    = {!r}'.format(args.tag))
 
     seeds = list(range(10, 10 + 5))
@@ -313,7 +318,8 @@ if __name__ == "__main__":
                                   'beta0': [0.5, 1.],
                                   'lambda_1': [0.1, 1.],
                                   'lambda_2': [0.1, 1.],
-                                  'prior_var': [0.001, 1.]}
+                                  'prior_var': [0.001, 1.],
+                                  'alpha':[1., 5.]}
 
     fixed_param_choices = {'ibp_samples': 10,
                            'no_pred_samples': 100,
@@ -336,7 +342,7 @@ if __name__ == "__main__":
         thetas = RndSearch.get_next_parameters()
         name = "ibp_rs_split_{0}_run{1}_{2}".format(args.dataset, i + 1, args.tag)
 
-        ibp_acc, _, _ = run_vcl_ibp(hidden_size=hidden_size, alphas=[1.]*len(hidden_size),
+        ibp_acc, _, _ = run_vcl_ibp(hidden_size=hidden_size, alphas=[thetas['alpha']]*len(hidden_size),
                                     no_epochs=[no_epochs]*num_tasks, data_gen=data_gen,
                                     name=name, val=val, batch_size=thetas['batch_size'],
                                     single_head=args.single_head, prior_mean=thetas['prior_mean'],
@@ -347,7 +353,8 @@ if __name__ == "__main__":
                                     ibp_samples=thetas['ibp_samples'],
                                     log_dir=args.log_dir, run_val_set=val,
                                     use_local_reparam=args.use_local_reparam,
-                                    implicit_beta=args.implicit_beta)
+                                    implicit_beta=args.implicit_beta,
+                                    hibp=args.hibp)
 
         # best score is a loss which is defined to be minimised over, hence want to minimise the negative acc
         _ = RndSearch.update_score(thetas, -np.nanmean(ibp_acc), model=None, sess=None)  # rewards act like the inverse of a loss
@@ -360,7 +367,7 @@ if __name__ == "__main__":
         tf.set_random_seed(s)
         data_gen = get_datagen(val)
         name = "ibp_rs_opt_split_{0}_{1}_run{2}".format(args.dataset, args.tag, i+1)
-        ibp_acc, Zs, uncerts = run_vcl_ibp(hidden_size=hidden_size, alphas=[1.]*len(hidden_size),
+        ibp_acc, Zs, uncerts = run_vcl_ibp(hidden_size=hidden_size, alphas=[thetas_opt['alpha']]*len(hidden_size),
                                            no_epochs=[no_epochs]*num_tasks, data_gen=data_gen,
                                            name=name, val=val, batch_size=int(thetas_opt['batch_size']),
                                            single_head=args.single_head, prior_mean=thetas_opt['prior_mean'],
@@ -371,7 +378,8 @@ if __name__ == "__main__":
                                            ibp_samples=int(thetas_opt['ibp_samples']),
                                            log_dir=args.log_dir, run_val_set=False,
                                            use_local_reparam=args.use_local_reparam,
-                                           implicit_beta=args.implicit_beta)
+                                           implicit_beta=args.implicit_beta,
+                                           hibp=args.hibp)
 
         all_Zs.append(Zs)
         vcl_ibp_accs[i, :, :] = ibp_acc

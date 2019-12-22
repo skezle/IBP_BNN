@@ -355,7 +355,7 @@ if __name__ == "__main__":
         coreset_size = 0
         data_gen = get_datagen()
         name = "ibp_split_{0}_run{1}_{2}".format(args.dataset, i + 1, args.tag)
-        # Z matrix for each task is outout
+        # Z matrix for each task is output
         # This is overwritten for each run
         ibp_acc, Zs, uncerts = run_vcl_ibp(hidden_size=hidden_size, alphas=[1.]*len(hidden_size),
                                            no_epochs=[int(no_epochs* 1.4)] + [no_epochs]*4, data_gen=data_gen,
