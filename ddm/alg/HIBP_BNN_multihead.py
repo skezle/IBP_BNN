@@ -62,6 +62,15 @@ class HIBP_BNN(IBP_BNN):
 
         self.assign_session()
 
+    def assign_optimizer(self, learning_rate=0.001):
+        #self.train_step = tf.train.AdamOptimizer(learning_rate).minimize(self.cost)
+        optim = tf.train.AdamOptimizer(learning_rate)
+        tvars = tf.trainable_variables()
+        # for var in tvars:
+        #     print(var.name)
+        grads, _ = tf.clip_by_global_norm(tf.gradients(self.cost, tvars), 10.0)
+        self.train_step = optim.apply_gradients(grads_and_vars=zip(grads, tvars))
+
     # this samples a layer at a time
     def _prediction_layer(self, inputs, task_idx, no_samples):
         """ Outputs a prediction from the IBP BNN
@@ -262,14 +271,14 @@ class HIBP_BNN(IBP_BNN):
         hidden_size = deepcopy(hidden_size)
         dout = hidden_size[-1]
         if prev_betas is None:
-            global_beta_a_val = tf.constant(np.log(np.exp(self.alpha0) - 1.), shape=[dout])
-            global_beta_b_val = tf.constant(np.log(np.exp(self.beta0) - 1.), shape=[dout])
+            global_beta_a_val = tf.constant(np.log(np.exp(self.alpha0) - 1.), shape=[dout], dtype=tf.float32)
+            global_beta_b_val = tf.constant(np.log(np.exp(self.beta0) - 1.), shape=[dout], dtype=tf.float32)
         else:
             global_beta_a_val = prev_betas[0]
             global_beta_b_val = prev_betas[1]
 
-        gb_a = tf.Variable(global_beta_a_val, name="global_beta_a")
-        gb_b = tf.Variable(global_beta_b_val, name="global_beta_b")
+        gb_a = tf.Variable(global_beta_a_val, name="global_beta_a", dtype=tf.float32)
+        gb_b = tf.Variable(global_beta_b_val, name="global_beta_b", dtype=tf.float32)
 
         return [gb_a, gb_b]
 
