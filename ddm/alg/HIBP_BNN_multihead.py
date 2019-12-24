@@ -64,12 +64,17 @@ class HIBP_BNN(IBP_BNN):
 
     def assign_optimizer(self, learning_rate=0.001):
         #self.train_step = tf.train.AdamOptimizer(learning_rate).minimize(self.cost)
-        optim = tf.train.AdamOptimizer(learning_rate)
+        global_step = tf.Variable(0, trainable=False)
+        self.learning_rate = tf.compat.v1.train.exponential_decay(learning_rate,
+                                                                  global_step,
+                                                                  1000, 0.90, staircase=False)
+
+        optim = tf.train.AdamOptimizer(self.learning_rate)
         tvars = tf.trainable_variables()
         # for var in tvars:
         #     print(var.name)
         grads, _ = tf.clip_by_global_norm(tf.gradients(self.cost, tvars), 10.0)
-        self.train_step = optim.apply_gradients(grads_and_vars=zip(grads, tvars))
+        self.train_step = optim.apply_gradients(grads_and_vars=zip(grads, tvars), global_step=global_step)
 
     # this samples a layer at a time
     def _prediction_layer(self, inputs, task_idx, no_samples):
@@ -172,6 +177,7 @@ class HIBP_BNN(IBP_BNN):
     def create_summaries(self):
         """Creates summaries in TensorBoard"""
         with tf.name_scope("summaries"):
+            tf.compat.v1.summary.scalar("learning_rate", self.learning_rate)
             tf.compat.v1.summary.scalar("elbo", self.cost)
             tf.compat.v1.summary.scalar("loglik", self.ll)
             tf.compat.v1.summary.scalar("kl", self.kl)

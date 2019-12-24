@@ -335,7 +335,7 @@ if __name__ == "__main__":
     # params
     alpha0 = args.alpha0
     beta0 = 1.0
-    lambda_1 = 0.5
+    lambda_1 = 1.0
     lambda_2 = 1.0
     # Gaussian params
     prior_mean = 0.0
@@ -344,8 +344,8 @@ if __name__ == "__main__":
     for i in range(len(seeds)):
         s = seeds[i]
         hidden_size = [100] * args.num_layers
-        batch_size = 256
-        no_epochs = 1000
+        batch_size = 512
+        no_epochs = 500
         ibp_samples = 10
         no_pred_samples = 100
 
