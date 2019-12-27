@@ -345,7 +345,7 @@ if __name__ == "__main__":
         s = seeds[i]
         hidden_size = [100] * args.num_layers
         batch_size = 512
-        no_epochs = 500
+        no_epochs = 400
         ibp_samples = 10
         no_pred_samples = 100
 
@@ -361,7 +361,8 @@ if __name__ == "__main__":
                                            no_epochs=[no_epochs]*5, data_gen=data_gen,
                                            name=name, val=val, batch_size=batch_size, single_head=args.single_head,
                                            prior_mean=prior_mean, prior_var=prior_var, alpha0=alpha0,
-                                           beta0=beta0, lambda_1=lambda_1, lambda_2=lambda_2, learning_rate=0.001,
+                                           beta0=beta0, lambda_1=lambda_1, lambda_2=lambda_2,
+                                           learning_rate=[0.001] + [0.0001]*(num_tasks-1),
                                            no_pred_samples=no_pred_samples, ibp_samples=ibp_samples, log_dir=args.log_dir,
                                            use_local_reparam=args.use_local_reparam,
                                            implicit_beta=args.implicit_beta, hibp=args.hibp)
