@@ -335,7 +335,7 @@ if __name__ == "__main__":
     # params
     alpha0 = args.alpha0
     beta0 = 1.0
-    lambda_1 = 0.5
+    lambda_1 = 1.0
     lambda_2 = 1.0
     # Gaussian params
     prior_mean = 0.0
@@ -344,8 +344,8 @@ if __name__ == "__main__":
     for i in range(len(seeds)):
         s = seeds[i]
         hidden_size = [100] * args.num_layers
-        batch_size = 256
-        no_epochs = 1000
+        batch_size = 512
+        no_epochs = 400
         ibp_samples = 10
         no_pred_samples = 100
 
@@ -361,7 +361,8 @@ if __name__ == "__main__":
                                            no_epochs=[no_epochs]*5, data_gen=data_gen,
                                            name=name, val=val, batch_size=batch_size, single_head=args.single_head,
                                            prior_mean=prior_mean, prior_var=prior_var, alpha0=alpha0,
-                                           beta0=beta0, lambda_1=lambda_1, lambda_2=lambda_2, learning_rate=0.001,
+                                           beta0=beta0, lambda_1=lambda_1, lambda_2=lambda_2,
+                                           learning_rate=[0.001] + [0.0001]*(num_tasks-1),
                                            no_pred_samples=no_pred_samples, ibp_samples=ibp_samples, log_dir=args.log_dir,
                                            use_local_reparam=args.use_local_reparam,
                                            implicit_beta=args.implicit_beta, hibp=args.hibp)

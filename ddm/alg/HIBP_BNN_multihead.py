@@ -13,7 +13,7 @@ from IBP_BNN_multihead import IBP_BNN
 class HIBP_BNN(IBP_BNN):
     def __init__(self, alphas, input_size, hidden_size, output_size, training_size,
                  no_train_samples=10, no_pred_samples=100, num_ibp_samples=10, prev_means=None, prev_log_variances=None,
-                 prev_betas=None, learning_rate=0.001,
+                 prev_betas=None, learning_rate=0.001, learning_rate_decay=0.87,
                  prior_mean=0, prior_var=1, alpha0=5., beta0=1., lambda_1=1., lambda_2=1.,
                  tensorboard_dir='logs', name='ibp', tb_logging=True, output_tb_gradients=False,
                  beta_1=1.0, beta_2=1.0, beta_3=1.0, use_local_reparam=True, implicit_beta=False):
@@ -25,6 +25,7 @@ class HIBP_BNN(IBP_BNN):
                                        tensorboard_dir, name, tb_logging, output_tb_gradients, beta_1, beta_2,
                                        beta_3, use_local_reparam, implicit_beta)
         self.alphas = alphas # hyper-param for each child IBP
+        self.learning_rate_decay = learning_rate_decay
 
     def create_model(self):
         m, v, self.size = self.create_weights(self.input_size, self.hidden_size, self.output_size, self.prev_means, self.prev_log_variances)
@@ -64,12 +65,26 @@ class HIBP_BNN(IBP_BNN):
 
     def assign_optimizer(self, learning_rate=0.001):
         #self.train_step = tf.train.AdamOptimizer(learning_rate).minimize(self.cost)
-        optim = tf.train.AdamOptimizer(learning_rate)
+        global_step = tf.Variable(0, trainable=False)
+        self.learning_rate = tf.compat.v1.train.exponential_decay(learning_rate,
+                                                                  global_step,
+                                                                  1000, self.learning_rate_decay, staircase=False)
+
+        optim = tf.train.AdamOptimizer(self.learning_rate)
         tvars = tf.trainable_variables()
-        # for var in tvars:
-        #     print(var.name)
-        grads, _ = tf.clip_by_global_norm(tf.gradients(self.cost, tvars), 10.0)
-        self.train_step = optim.apply_gradients(grads_and_vars=zip(grads, tvars))
+        grads = optim.compute_gradients(self.cost, tvars)
+
+        for grad_var_tuple in grads:
+            current_variable = grad_var_tuple[1]
+            current_gradient = grad_var_tuple[0]
+            if current_gradient is None:
+                # the subclass variables are also being created in the graph :(
+                # Hack, just skip these variables when getting the gradients
+                continue
+            gradient_name_to_save = current_variable.name.replace(':', '_')  # tensorboard doesn't accept ':' symbol
+            tf.compat.v1.summary.histogram(gradient_name_to_save, current_gradient)
+        _grads, _ = tf.clip_by_global_norm(tf.gradients(self.cost, tvars), 10.0)
+        self.train_step = optim.apply_gradients(grads_and_vars=zip(_grads, tvars), global_step=global_step)
 
     # this samples a layer at a time
     def _prediction_layer(self, inputs, task_idx, no_samples):
@@ -172,6 +187,7 @@ class HIBP_BNN(IBP_BNN):
     def create_summaries(self):
         """Creates summaries in TensorBoard"""
         with tf.name_scope("summaries"):
+            tf.compat.v1.summary.scalar("learning_rate", self.learning_rate)
             tf.compat.v1.summary.scalar("elbo", self.cost)
             tf.compat.v1.summary.scalar("loglik", self.ll)
             tf.compat.v1.summary.scalar("kl", self.kl)
@@ -184,8 +200,8 @@ class HIBP_BNN(IBP_BNN):
             tf.compat.v1.summary.scalar("Z_av", Z_all)
             tf.compat.v1.summary.histogram("W_mu", tf.concat([tf.reshape(i, [-1]) for i in self.means], 0))
             tf.compat.v1.summary.histogram("W_sigma", tf.concat([tf.reshape(i, [-1]) for i in self.vars], 0))
-            tf.compat.v1.summary.histogram("v_beta_a_l", tf.cast(tf.math.softplus(tf.exp(tf.log(self.gbeta_a + 1e-8))) + 0.01, tf.float32))
-            tf.compat.v1.summary.histogram("v_beta_b_l", tf.cast(tf.math.softplus(tf.exp(tf.log(self.gbeta_b + 1e-8))) + 0.01, tf.float32))
+            tf.compat.v1.summary.histogram("v_beta_a_l", tf.cast(tf.math.softplus(self.gbeta_a) + 0.01, tf.float32))
+            tf.compat.v1.summary.histogram("v_beta_b_l", tf.cast(tf.math.softplus(self.gbeta_b) + 0.01, tf.float32))
             for i in range(len(self.Z)):
                 # tf.summary.images expects 4-d tensor b x height x width x channels
                 print("Z: {}".format(self.Z[i].get_shape()))
@@ -224,6 +240,7 @@ class HIBP_BNN(IBP_BNN):
 
             # Child IBP Beta terms
             alpha = self.alphas[i]
+            # pis \in [np_ibp_samples, dout]
             kl_beta += kl_beta_implicit(alpha * tf.exp(self.global_log_pi), alpha*(1-tf.exp(self.global_log_pi)),
                                         alpha * tf.exp(self.prior_global_log_pi), alpha*(1-tf.exp(self.prior_global_log_pi)))
             # Child IBP Bernoulli terms
@@ -268,14 +285,21 @@ class HIBP_BNN(IBP_BNN):
     def create_betas(self, prev_betas, hidden_size):
         # global beta params for H-IBP
         # the variational truncation parameter is defined as dout
+        # the initialisation of the Beta params should not be the same as the prior, as there is a risk that the KL
+        # terms becomes zero, this seems to cause instabilities... Needs checking... TODO
+        #
+        # initial values are passed through log(exp(x)-1), this is the inverse of the softplus operation which these
+        # are then passed to before sampling from the Beta distribution.
         hidden_size = deepcopy(hidden_size)
         dout = hidden_size[-1]
-        if prev_betas is None:
-            global_beta_a_val = tf.constant(np.log(np.exp(self.alpha0) - 1.), shape=[dout], dtype=tf.float32)
-            global_beta_b_val = tf.constant(np.log(np.exp(self.beta0) - 1.), shape=[dout], dtype=tf.float32)
-        else:
-            global_beta_a_val = prev_betas[0]
-            global_beta_b_val = prev_betas[1]
+        # if prev_betas is None:
+        #     global_beta_a_val = tf.constant(np.log(np.exp(self.alpha0) - 1.), shape=[dout], dtype=tf.float32)
+        #     global_beta_b_val = tf.constant(np.log(np.exp(self.beta0) - 1.), shape=[dout], dtype=tf.float32)
+        # else:
+        #     global_beta_a_val = prev_betas[0]
+        #     global_beta_b_val = prev_betas[1]
+        global_beta_a_val = tf.constant(np.log(np.exp(self.alpha0) - 1.), shape=[dout], dtype=tf.float32)
+        global_beta_b_val = tf.constant(np.log(np.exp(self.beta0) - 1.), shape=[dout], dtype=tf.float32)
 
         gb_a = tf.Variable(global_beta_a_val, name="global_beta_a", dtype=tf.float32)
         gb_b = tf.Variable(global_beta_b_val, name="global_beta_b", dtype=tf.float32)
@@ -374,12 +398,13 @@ class HIBP_BNN(IBP_BNN):
         return [W_m, b_m, W_last_m, b_last_m], [W_v, b_v, W_last_v, b_last_v], hidden_size
 
     def create_prior_betas(self, prev_betas, hidden_size):
-        # Global beta params for H-IBP
+        # Global beta param prior for H-IBP
+        # For T_1, no prev_betas, the prior needs to be passed through the inverse of the softplus operation first
         hidden_size = deepcopy(hidden_size)
         dout = hidden_size[-1]
         if prev_betas is None:
-            global_beta_a_val = np.full((dout), self.alpha0)
-            global_beta_b_val = np.full((dout), self.beta0)
+            global_beta_a_val = np.full((dout), np.log(np.exp(self.alpha0) - 1.0))
+            global_beta_b_val = np.full((dout), np.log(np.exp(self.beta0) - 1.0))
         else:
             global_beta_a_val = prev_betas[0]
             global_beta_b_val = prev_betas[1]

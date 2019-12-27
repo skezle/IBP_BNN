@@ -83,6 +83,7 @@ def run_vcl_ibp(hidden_size, alphas, no_epochs, data_gen, name,
                 val, batch_size=None, single_head=True,
                 prior_mean=0.0, prior_var=1.0, alpha0=5.0,
                 beta0 = 1.0, lambda_1 = 1.0, lambda_2 = 1.0, learning_rate=0.0001,
+                learning_rate_decay=0.87,
                 no_pred_samples=100, ibp_samples = 10, log_dir='logs',
                 run_val_set=False, use_local_reparam=False, implicit_beta=False,
                 hibp=False):
@@ -126,6 +127,11 @@ def run_vcl_ibp(hidden_size, alphas, no_epochs, data_gen, name,
         else:
             n = no_epochs
 
+        if isinstance(learning_rate, list):
+            lr = learning_rate[task_id]
+        else:
+            lr = learning_rate
+
         # Train network with maximum likelihood to initialize first model
         # lambda_1 --> temp of the variational Concrete posterior
         # lambda_2 --> temp of the relaxed prior, for task != 0 this should be lambda_1!!!
@@ -143,7 +149,8 @@ def run_vcl_ibp(hidden_size, alphas, no_epochs, data_gen, name,
                              training_size=x_train.shape[0], num_ibp_samples=ibp_samples,
                              prev_means=mf_weights,
                              prev_log_variances=mf_variances, prev_betas=mf_betas,
-                             alpha0=alpha0, beta0=beta0, learning_rate=learning_rate,
+                             alpha0=alpha0, beta0=beta0, learning_rate=lr,
+                             learning_rate_decay=learning_rate_decay,
                              prior_mean=prior_mean, prior_var=prior_var, lambda_1=lambda_1,
                              lambda_2=lambda_2 if task_id == 0 else lambda_1,
                              no_pred_samples=no_pred_samples,
@@ -155,7 +162,7 @@ def run_vcl_ibp(hidden_size, alphas, no_epochs, data_gen, name,
             model = IBP_BNN(in_dim, hidden_size, out_dim, x_train.shape[0], num_ibp_samples=ibp_samples,
                             prev_means=mf_weights,
                             prev_log_variances=mf_variances, prev_betas=mf_betas,
-                            alpha0=alpha0, beta0=beta0, learning_rate=learning_rate,
+                            alpha0=alpha0, beta0=beta0, learning_rate=lr,
                             prior_mean=prior_mean, prior_var=prior_var, lambda_1=lambda_1,
                             lambda_2=lambda_2 if task_id == 0 else lambda_1,
                             no_pred_samples=no_pred_samples,
