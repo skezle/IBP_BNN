@@ -59,7 +59,9 @@ def kl_beta_implicit(_a, _b, _prior_a, _prior_b):
     prior_b = tf.cast(_prior_b, tf.float32)
     variational_posterior = tfd.Beta(a, b, validate_args=True, name='v_post')
     prior = tfd.Beta(prior_a, prior_b, validate_args=True, name='prior')
-    return tf.reduce_sum(variational_posterior.kl_divergence(prior))
+    kl = variational_posterior.kl_divergence(prior)
+    print("kl beta: {}".format(kl.get_shape()))
+    return tf.reduce_sum(tf.reduce_mean(kl, 0))
 
 def kl_discrete(log_post, log_prior, log_samples):
     """KL divergence between variational posterior and prior for Bernoulli in test phase
