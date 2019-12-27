@@ -528,20 +528,20 @@ class IBP_BNN(Cla_NN):
                 batch_x = cur_x_train[start_ind:end_ind, :]
                 batch_y = cur_y_train[start_ind:end_ind, :]
 
-                # Run optimization op (backprop) and cost op (to get loss value)
-                _, c = sess.run(
-                    [self.train_step, self.cost],
-                    feed_dict={self.x: batch_x, self.y: batch_y, self.task_idx: task_idx, self.training: True})
-
-                # Compute average loss
-                avg_cost += c / total_batch
-
-                # run summaries every 500 steps
-                if global_step % 500 == 0:
+                # run summaries every 250 steps
+                if global_step % 250 == 0:
                     summary = sess.run([self.summary_op],
                                     feed_dict={self.x: batch_x, self.y: batch_y, self.task_idx: task_idx,
                                                self.training: True})[0]
                     writer.add_summary(summary, global_step)
+                else:
+                    # Run optimization op (backprop) and cost op (to get loss value)
+                    _, c = sess.run(
+                        [self.train_step, self.cost],
+                        feed_dict={self.x: batch_x, self.y: batch_y, self.task_idx: task_idx, self.training: True})
+
+                    # Compute average loss
+                    avg_cost += c / total_batch
 
                 global_step += 1
 
