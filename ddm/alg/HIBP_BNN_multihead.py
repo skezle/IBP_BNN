@@ -49,7 +49,7 @@ class HIBP_BNN(IBP_BNN):
 
         self.pred, prior_log_pis_bern, log_pis_bern, z_log_sample = self._prediction(self.x, self.task_idx, self.no_pred_samples)
 
-        self.kl = tf.div(self._KL_term(self.no_pred_samples, prior_log_pis_bern, log_pis_bern, z_log_sample),
+        self.kl = tf.div(self._KL_term(self.num_ibp_samples, prior_log_pis_bern, log_pis_bern, z_log_sample),
                          self.training_size)
         self.ll = self._logpred(self.x, self.y, self.task_idx)
         self.cost = self.kl - self.ll
@@ -241,8 +241,10 @@ class HIBP_BNN(IBP_BNN):
             # Child IBP Beta terms
             alpha = self.alphas[i]
             # pis \in [np_ibp_samples, dout]
-            kl_beta += kl_beta_implicit(alpha * tf.exp(self.global_log_pi), alpha*(1-tf.exp(self.global_log_pi)),
-                                        alpha * tf.exp(self.prior_global_log_pi), alpha*(1-tf.exp(self.prior_global_log_pi)))
+            kl_beta += kl_beta_implicit(alpha * tf.exp(tf.reduce_mean(self.global_log_pi, 0)),
+                                        alpha*(1-tf.exp(tf.reduce_mean(self.global_log_pi, 0))),
+                                        alpha * tf.exp(tf.reduce_mean(self.prior_global_log_pi, 0)),
+                                        alpha*(1-tf.exp(tf.reduce_mean(self.prior_global_log_pi, 0))))
             # Child IBP Bernoulli terms
             kl_bern += tf.cond(self.training,
                                true_fn=lambda: kl_concrete(log_pis[i], prior_log_pis[i], z_log_sample[i], self.lambda_1, self.lambda_2),
@@ -286,7 +288,7 @@ class HIBP_BNN(IBP_BNN):
         # global beta params for H-IBP
         # the variational truncation parameter is defined as dout
         # the initialisation of the Beta params should not be the same as the prior, as there is a risk that the KL
-        # terms becomes zero, this seems to cause instabilities... Needs checking... TODO
+        # terms becomes close to zero, this seems to cause instabilities... Needs checking... TODO
         #
         # initial values are passed through log(exp(x)-1), this is the inverse of the softplus operation which these
         # are then passed to before sampling from the Beta distribution.
@@ -403,6 +405,8 @@ class HIBP_BNN(IBP_BNN):
         hidden_size = deepcopy(hidden_size)
         dout = hidden_size[-1]
         if prev_betas is None:
+            #global_beta_a_val = np.full((dout), self.alpha0)
+            #global_beta_b_val = np.full((dout), self.beta0)
             global_beta_a_val = np.full((dout), np.log(np.exp(self.alpha0) - 1.0))
             global_beta_b_val = np.full((dout), np.log(np.exp(self.beta0) - 1.0))
         else:
