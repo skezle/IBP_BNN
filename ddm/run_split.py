@@ -345,7 +345,7 @@ if __name__ == "__main__":
         s = seeds[i]
         hidden_size = [100] * args.num_layers
         batch_size = 512
-        no_epochs = 400
+        no_epochs = 500
         ibp_samples = 10
         no_pred_samples = 100
 
@@ -354,7 +354,7 @@ if __name__ == "__main__":
 
         coreset_size = 0
         data_gen = get_datagen()
-        name = "ibp_split_{0}_run{1}_{2}".format(args.dataset, i + 1, args.tag)
+        name = "split_{0}_run{1}_{2}".format(args.dataset, i + 1, args.tag)
         # Z matrix for each task is output
         # This is overwritten for each run
         ibp_acc, Zs, uncerts = run_vcl_ibp(hidden_size=hidden_size, alphas=[1.]*len(hidden_size),
