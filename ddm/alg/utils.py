@@ -22,7 +22,7 @@ def implicit_beta(a, b, size):
     """
     Returns samples from beta distribution and allows gradients to propagate
     """
-    dist = tfd.Beta(a, b)
+    dist = tfd.Beta(a, b, validate_args=True)
     if len(size) == 0:
         samples = dist.sample() # size of a
     elif len(size) == 1:
@@ -68,13 +68,13 @@ def global_stick_breaking_probs(a, b, size, implicit=True):
     logpis = tf.cumsum(v_term, axis=1) # \in [no_samples, dout]
     return logpis
 
-def child_stick_breaking_probs(logpis, alpha, size):
+def child_stick_breaking_probs(pis, alpha, size):
     """ Returns pi parameters for child stick-breaking IBPs
-    :param logpis: stick-breaking probabilities from global IBP
+    :param pis: stick-breaking probabilities from global IBP
     :param alpha: hyperparameter
     :param size: tuple \in [no_samples, batch_size, dout]
     """
-    pis = implicit_beta(alpha * tf.exp(logpis), alpha*(1-tf.exp(logpis)), size)
+    pis = implicit_beta(alpha * pis, alpha*(1-pis), size)
     logpis = tf.log(pis + eps)
     return logpis
 
