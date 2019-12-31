@@ -248,6 +248,8 @@ class HIBP_BNN(IBP_BNN):
             # Child IBP Beta terms
             alpha = self.alphas[i]
             # pis \in [np_ibp_samples, dout]
+            #self.tmp_a = tf.cast(alpha * tf.reduce_mean(tf.exp(self.prior_global_log_pi), 0), tf.float32)
+            #self.tmp_b = tf.cast(alpha*(1-tf.reduce_mean(tf.exp(self.prior_global_log_pi), 0)), tf.float32)
             kl_beta += kl_beta_implicit(alpha * tf.reduce_mean(tf.exp(self.global_log_pi), 0),
                                         alpha*(1-tf.reduce_mean(tf.exp(self.global_log_pi), 0)),
                                         alpha * tf.reduce_mean(tf.exp(self.prior_global_log_pi), 0),
@@ -508,26 +510,31 @@ class HIBP_BNN(IBP_BNN):
             total_batch = int(np.ceil(N * 1.0 / batch_size))
             # Loop over all batches
             for i in range(total_batch):
+                print("global step: {}".format(global_step))
                 start_ind = i*batch_size
                 end_ind = np.min([(i+1)*batch_size, N])
                 batch_x = cur_x_train[start_ind:end_ind, :]
                 batch_y = cur_y_train[start_ind:end_ind, :]
 
-                # run summaries every 250 steps
-                if global_step % 10 == 0:
-                    summary, v_alpha, v_beta = sess.run([self.summary_op, self.gbeta_a, self.gbeta_b],
-                                    feed_dict={self.x: batch_x, self.y: batch_y, self.task_idx: task_idx,
-                                               self.training: True})[0]
-                    writer.add_summary(summary, global_step)
-                    pdb.set_trace()
-                else:
-                    # Run optimization op (backprop) and cost op (to get loss value)
-                    _, c = sess.run(
-                        [self.train_step, self.cost],
-                        feed_dict={self.x: batch_x, self.y: batch_y, self.task_idx: task_idx, self.training: True})
+                # summary, v_alpha, v_beta, log_pis = sess.run([self.summary_op, self.gbeta_a, self.gbeta_b,
+                #                                      self.global_log_pi],
+                #                 feed_dict={self.x: batch_x, self.y: batch_y, self.task_idx: task_idx,
+                #                            self.training: True})
+                # writer.add_summary(summary, global_step)
+                v_alpha, v_beta, log_pis, prior_log_pis, tmp_a, tmp_b = sess.run([self.gbeta_a, self.gbeta_b,
+                                                                    self.global_log_pi, self.prior_global_log_pi,
+                                                                    self.tmp_a, self.tmp_b],
+                                feed_dict={self.x: batch_x, self.y: batch_y, self.task_idx: task_idx,
+                                           self.training: True})
+                print(log_pis)
+                pdb.set_trace()
+                # Run optimization op (backprop) and cost op (to get loss value)
+                _, c = sess.run(
+                    [self.train_step, self.cost],
+                    feed_dict={self.x: batch_x, self.y: batch_y, self.task_idx: task_idx, self.training: True})
 
-                    # Compute average loss
-                    avg_cost += c / total_batch
+                # Compute average loss
+                avg_cost += c / total_batch
 
                 global_step += 1
 

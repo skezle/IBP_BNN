@@ -74,7 +74,7 @@ def child_stick_breaking_probs(pis, alpha, size):
     :param alpha: hyperparameter
     :param size: tuple \in [no_samples, batch_size, dout]
     """
-    pis = implicit_beta(alpha * pis, alpha*(1-pis), size)
+    pis = implicit_beta(alpha * pis + eps, alpha*(1-pis) + eps, size)
     logpis = tf.log(pis + eps)
     return logpis
 
