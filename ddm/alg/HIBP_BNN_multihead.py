@@ -208,7 +208,7 @@ class HIBP_BNN(IBP_BNN):
             tf.compat.v1.summary.histogram("W_mu", tf.concat([tf.reshape(i, [-1]) for i in self.means], 0))
             tf.compat.v1.summary.histogram("W_sigma", tf.concat([tf.reshape(i, [-1]) for i in self.vars], 0))
             tf.compat.v1.summary.histogram("v_beta_a_l", tf.cast(tf.math.softplus(self.gbeta_a) + 0.01, tf.float32))
-            #tf.compat.v1.summary.histogram("v_beta_b_l", tf.cast(tf.math.softplus(self.gbeta_b) + 0.01, tf.float32))
+            tf.compat.v1.summary.histogram("v_beta_b_l", tf.cast(tf.math.softplus(self.gbeta_b) + 0.01, tf.float32))
             for i in range(len(self.Z)):
                 # tf.summary.images expects 4-d tensor b x height x width x channels
                 print("Z: {}".format(self.Z[i].get_shape()))
