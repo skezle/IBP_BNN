@@ -315,15 +315,16 @@ if __name__ == "__main__":
 
     hyper_param_choices_ranges = {'learning_rate': [0.00001, 0.0001],
                                   'alpha0': [1., 5.],
-                                  'beta0': [0.5, 1.],
-                                  'lambda_1': [0.1, 1.],
-                                  'lambda_2': [0.1, 1.],
+                                  'lambda_1': [0.5, 1.],
+                                  'lambda_2': [0.5, 1.],
                                   'prior_var': [0.001, 1.],
                                   'alpha':[1., 5.]}
 
     fixed_param_choices = {'ibp_samples': 10,
                            'no_pred_samples': 100,
-                           'prior_mean': 0.0}
+                           'prior_mean': 0.0,
+                           'batch_size': 512,
+                           'beta0': 1.0}
 
     RndSearch = HyperparamOptManager(param_grid=hyper_param_choices_grid,
                                      param_ranges=hyper_param_choices_ranges,
@@ -334,7 +335,7 @@ if __name__ == "__main__":
 
     RndSearch.load_results()
     hidden_size = [100] * args.num_layers
-    no_epochs = 1000
+    no_epochs = 500
     coreset_size = 0
     val = True
     for i in range(args.runs):
