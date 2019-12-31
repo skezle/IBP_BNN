@@ -110,6 +110,7 @@ improved_ddm
 logs/
 logs_rs/
 logs_new/
+logs_wp/
 *.pickle
 results/
 *.png

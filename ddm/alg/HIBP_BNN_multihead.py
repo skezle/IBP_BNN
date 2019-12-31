@@ -1,4 +1,5 @@
 import os.path
+import pdb
 import tensorflow as tf
 import numpy as np
 from copy import deepcopy
@@ -18,12 +19,18 @@ class HIBP_BNN(IBP_BNN):
                  tensorboard_dir='logs', name='ibp', tb_logging=True, output_tb_gradients=False,
                  beta_1=1.0, beta_2=1.0, beta_3=1.0, use_local_reparam=True, implicit_beta=False):
 
-        super(HIBP_BNN, self).__init__(input_size, hidden_size, output_size, training_size,
-                                       no_train_samples, no_pred_samples, num_ibp_samples, prev_means,
-                                       prev_log_variances, prev_betas, learning_rate, prior_mean,
-                                       prior_var, alpha0, beta0, lambda_1, lambda_2,
-                                       tensorboard_dir, name, tb_logging, output_tb_gradients, beta_1, beta_2,
-                                       beta_3, use_local_reparam, implicit_beta)
+        super(HIBP_BNN, self).__init__(input_size=input_size, hidden_size=hidden_size,
+                                       output_size=output_size, training_size=training_size,
+                                       no_train_samples=no_train_samples, no_pred_samples=no_pred_samples,
+                                       num_ibp_samples=num_ibp_samples, prev_means=prev_means,
+                                       prev_log_variances=prev_log_variances, prev_betas=prev_betas,
+                                       learning_rate=learning_rate, prior_mean=prior_mean,
+                                       prior_var=prior_var, alpha0=alpha0, beta0=beta0, lambda_1=lambda_1,
+                                       lambda_2=lambda_2, tensorboard_dir=tensorboard_dir,
+                                       name=name, tb_logging=tb_logging,
+                                       output_tb_gradients=output_tb_gradients, beta_1=beta_1,
+                                       beta_2=beta_2, beta_3=beta_3, use_local_reparam=use_local_reparam,
+                                       implicit_beta=implicit_beta)
         self.alphas = alphas # hyper-param for each child IBP
         self.learning_rate_decay = learning_rate_decay
 
@@ -129,10 +136,10 @@ class HIBP_BNN(IBP_BNN):
             _biases = tf.add(tf.multiply(eps_b, tf.exp(0.5 * self.b_v[i])), self.b_m[i])
 
             # H-IBP
-            prior_log_pi = child_stick_breaking_probs(tf.reduce_mean(self.prior_global_log_pi, 0),
+            prior_log_pi = child_stick_breaking_probs(tf.reduce_mean(tf.exp(self.prior_global_log_pi), 0),
                                                       alpha, size=(no_samples_ibp, batch_size, dout))
             prior_log_pis.append(prior_log_pi)
-            self.log_pi = child_stick_breaking_probs(tf.reduce_mean(self.global_log_pi, 0),
+            self.log_pi = child_stick_breaking_probs(tf.reduce_mean(tf.exp(self.global_log_pi), 0),
                                                      alpha, size=(no_samples_ibp, batch_size, dout)) # (no_samples, batch_size, dout)
             log_pis.append(self.log_pi)
             # Concrete reparam
@@ -201,7 +208,7 @@ class HIBP_BNN(IBP_BNN):
             tf.compat.v1.summary.histogram("W_mu", tf.concat([tf.reshape(i, [-1]) for i in self.means], 0))
             tf.compat.v1.summary.histogram("W_sigma", tf.concat([tf.reshape(i, [-1]) for i in self.vars], 0))
             tf.compat.v1.summary.histogram("v_beta_a_l", tf.cast(tf.math.softplus(self.gbeta_a) + 0.01, tf.float32))
-            tf.compat.v1.summary.histogram("v_beta_b_l", tf.cast(tf.math.softplus(self.gbeta_b) + 0.01, tf.float32))
+            #tf.compat.v1.summary.histogram("v_beta_b_l", tf.cast(tf.math.softplus(self.gbeta_b) + 0.01, tf.float32))
             for i in range(len(self.Z)):
                 # tf.summary.images expects 4-d tensor b x height x width x channels
                 print("Z: {}".format(self.Z[i].get_shape()))
@@ -241,10 +248,12 @@ class HIBP_BNN(IBP_BNN):
             # Child IBP Beta terms
             alpha = self.alphas[i]
             # pis \in [np_ibp_samples, dout]
-            kl_beta += kl_beta_implicit(alpha * tf.exp(tf.reduce_mean(self.global_log_pi, 0)),
-                                        alpha*(1-tf.exp(tf.reduce_mean(self.global_log_pi, 0))),
-                                        alpha * tf.exp(tf.reduce_mean(self.prior_global_log_pi, 0)),
-                                        alpha*(1-tf.exp(tf.reduce_mean(self.prior_global_log_pi, 0))))
+            #self.tmp_a = tf.cast(alpha * tf.reduce_mean(tf.exp(self.prior_global_log_pi), 0), tf.float32)
+            #self.tmp_b = tf.cast(alpha*(1-tf.reduce_mean(tf.exp(self.prior_global_log_pi), 0)), tf.float32)
+            kl_beta += kl_beta_implicit(alpha * tf.reduce_mean(tf.exp(self.global_log_pi), 0),
+                                        alpha*(1-tf.reduce_mean(tf.exp(self.global_log_pi), 0)),
+                                        alpha * tf.reduce_mean(tf.exp(self.prior_global_log_pi), 0),
+                                        alpha*(1-tf.reduce_mean(tf.exp(self.prior_global_log_pi), 0)))
             # Child IBP Bernoulli terms
             kl_bern += tf.cond(self.training,
                                true_fn=lambda: kl_concrete(log_pis[i], prior_log_pis[i], z_log_sample[i], self.lambda_1, self.lambda_2),
@@ -479,4 +488,63 @@ class HIBP_BNN(IBP_BNN):
         b_last_v.append(bi_v)
 
         return [W_m, b_m, W_last_m, b_last_m], [W_v, b_v, W_last_v, b_last_v]
+
+    def train_debug(self, x_train, y_train, task_idx, no_epochs=1000, batch_size=100, display_epoch=5, verbose=True):
+        N = x_train.shape[0]
+        if batch_size > N:
+            batch_size = N
+
+        sess = self.sess
+        costs = []
+        global_step = 1
+
+        writer = tf.compat.v1.summary.FileWriter(self.log_folder, sess.graph)
+        # Training cycle
+        for epoch in range(no_epochs):
+            perm_inds = list(range(x_train.shape[0]))
+            np.random.shuffle(perm_inds)
+            cur_x_train = x_train[perm_inds]
+            cur_y_train = y_train[perm_inds]
+
+            avg_cost = 0.
+            total_batch = int(np.ceil(N * 1.0 / batch_size))
+            # Loop over all batches
+            for i in range(total_batch):
+                print("global step: {}".format(global_step))
+                start_ind = i*batch_size
+                end_ind = np.min([(i+1)*batch_size, N])
+                batch_x = cur_x_train[start_ind:end_ind, :]
+                batch_y = cur_y_train[start_ind:end_ind, :]
+
+                # summary, v_alpha, v_beta, log_pis = sess.run([self.summary_op, self.gbeta_a, self.gbeta_b,
+                #                                      self.global_log_pi],
+                #                 feed_dict={self.x: batch_x, self.y: batch_y, self.task_idx: task_idx,
+                #                            self.training: True})
+                # writer.add_summary(summary, global_step)
+                v_alpha, v_beta, log_pis, prior_log_pis, tmp_a, tmp_b = sess.run([self.gbeta_a, self.gbeta_b,
+                                                                    self.global_log_pi, self.prior_global_log_pi,
+                                                                    self.tmp_a, self.tmp_b],
+                                feed_dict={self.x: batch_x, self.y: batch_y, self.task_idx: task_idx,
+                                           self.training: True})
+                print(log_pis)
+                pdb.set_trace()
+                # Run optimization op (backprop) and cost op (to get loss value)
+                _, c = sess.run(
+                    [self.train_step, self.cost],
+                    feed_dict={self.x: batch_x, self.y: batch_y, self.task_idx: task_idx, self.training: True})
+
+                # Compute average loss
+                avg_cost += c / total_batch
+
+                global_step += 1
+
+            # Display logs per epoch step
+            if verbose and epoch % display_epoch == 0:
+                print("Epoch:", '%04d' % (epoch+1), "train cost=", \
+                    "{:.9f}".format(avg_cost))
+            costs.append(avg_cost)
+        self.save(self.log_folder)
+        writer.close()
+        return costs
+
 
