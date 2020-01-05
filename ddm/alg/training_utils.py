@@ -59,8 +59,8 @@ def kl_beta_implicit(_a, _b, _prior_a, _prior_b):
     b = tf.cast(_b, tf.float32)
     prior_a = tf.cast(_prior_a, tf.float32)
     prior_b = tf.cast(_prior_b, tf.float32)
-    variational_posterior = tfd.Beta(a, b, validate_args=True, name='v_post')
-    prior = tfd.Beta(prior_a, prior_b, validate_args=True, name='prior')
+    variational_posterior = tfd.Beta(a + eps, b + eps, validate_args=True, name='v_post')
+    prior = tfd.Beta(prior_a + eps, prior_b + eps, validate_args=True, name='prior')
     kl = variational_posterior.kl_divergence(prior)
     return tf.reduce_sum(kl)
 

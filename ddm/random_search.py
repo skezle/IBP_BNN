@@ -341,6 +341,7 @@ if __name__ == "__main__":
     for i in range(args.runs):
         data_gen = get_datagen(val=val)
         thetas = RndSearch.get_next_parameters()
+        print("thetas: ".format(thetas))
         name = "ibp_rs_split_{0}_run{1}_{2}".format(args.dataset, i + 1, args.tag)
 
         ibp_acc, _, _ = run_vcl_ibp(hidden_size=hidden_size, alphas=[thetas['alpha']]*len(hidden_size),
