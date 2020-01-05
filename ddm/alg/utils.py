@@ -96,25 +96,6 @@ def merge_coresets(x_coresets, y_coresets):
         merged_y = np.vstack((merged_y, y_coresets[i]))
     return merged_x, merged_y
 
-def get_scores(model, x_testsets, y_testsets, single_head):
-    acc = []
-
-    for i in range(len(x_testsets)):
-
-        head = 0 if single_head else i
-        x_test, y_test = x_testsets[i], y_testsets[i]
-
-        pred = model.prediction_prob(x_test, head)
-        pred_mean = np.mean(pred, axis=0)
-        pred_y = np.argmax(pred_mean, axis=1)
-        y = np.argmax(y_test, axis=1)
-        cur_acc = len(np.where((pred_y - y) == 0)[0]) * 1.0 / y.shape[0]
-        acc.append(cur_acc)
-
-    #model.close_session()
-
-    return acc
-
 def get_uncertainties(model, x_testsets, y_testsets, single_head, task_id):
     # uncertainties of test set like in Uncertainty in Deep Learning
     # Gal p. 53.
@@ -146,6 +127,13 @@ def mutual_information(model, x_test, task_idx):
     return mi
 
 def concatenate_results(score, all_score):
+    """New row is added to scores. Matrix: rows are the task
+    cols are the evaluations.
+
+    :param score: list
+    :param all_score: np array
+    :return:
+    """
     if all_score.size == 0:
         all_score = np.reshape(score, (1,-1))
     else:
@@ -155,19 +143,21 @@ def concatenate_results(score, all_score):
         all_score = np.vstack((new_arr, score))
     return all_score
 
-def plot(filename, vcl, rand_vcl, kcen_vcl):
-    plt.rc('text', usetex=True)
-    plt.rc('font', family='serif')
+def get_scores(model, x_testsets, y_testsets, single_head):
+    acc = []
 
-    fig = plt.figure(figsize=(7,3))
-    ax = plt.gca()
-    plt.plot(np.arange(len(vcl))+1, vcl, label='VCL', marker='o')
-    plt.plot(np.arange(len(rand_vcl))+1, rand_vcl, label='VCL + Random Coreset', marker='o')
-    plt.plot(np.arange(len(kcen_vcl))+1, kcen_vcl, label='VCL + K-center Coreset', marker='o')
-    ax.set_xticks(range(1, len(vcl)+1))
-    ax.set_ylabel('Average accuracy')
-    ax.set_xlabel('\# tasks')
-    ax.legend()
+    for i in range(len(x_testsets)):
 
-    fig.savefig(filename, bbox_inches='tight')
-    plt.close()
+        head = 0 if single_head else i
+        x_test, y_test = x_testsets[i], y_testsets[i]
+
+        pred = model.prediction_prob(x_test, head)
+        pred_mean = np.mean(pred, axis=0)
+        pred_y = np.argmax(pred_mean, axis=1)
+        y = np.argmax(y_test, axis=1)
+        cur_acc = len(np.where((pred_y - y) == 0)[0]) * 1.0 / y.shape[0]
+        acc.append(cur_acc)
+
+    #model.close_session()
+
+    return acc
