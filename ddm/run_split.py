@@ -291,6 +291,10 @@ if __name__ == "__main__":
                         default=False,
                         dest='hibp',
                         help='Whether to use hibp.')
+    parser.add_argument('--run_baselines', action='store_true',
+                        default=False,
+                        dest='run_baselines',
+                        help='Whether to run the baselines.')
     args = parser.parse_args()
 
     print('difficult            = {!r}'.format(args.difficult))
@@ -303,6 +307,7 @@ if __name__ == "__main__":
     print('use_local_reparam    = {!r}'.format(args.use_local_reparam))
     print('implicit_beta        = {!r}'.format(args.implicit_beta))
     print('hibp                 = {!r}'.format(args.hibp))
+    print('run_baselines        = {!r}'.format(args.run_baselines))
     print('tag                  = {!r}'.format(args.tag))
 
     seeds = list(range(1, 1 + args.runs))
@@ -371,37 +376,38 @@ if __name__ == "__main__":
         vcl_ibp_accs[i, :, :] = ibp_acc
         all_ibp_uncerts[i, :, :] = uncerts
 
-        # Run Vanilla VCL
-        # Comparison with other single layer neural networks
-        tf.reset_default_graph()
-        hidden_size = [10] * args.num_layers
-        data_gen = get_datagen()
-        vcl_result_h10, uncerts = run_vcl(hidden_size, no_epochs, data_gen,
-                                          lambda a: a, coreset_size, batch_size, args.single_head, val=val,
-                                          name='vcl_h10_{2}_run{0}_{1}'.format(i+1, args.tag, args.dataset),
-                                          log_dir=args.log_dir, use_local_reparam=args.use_local_reparam)
-        vcl_h10_accs[i, :, :] = vcl_result_h10
-        all_vcl_h10_uncerts[i, :, :] = uncerts
+        if args.run_baselines:
+            # Run Vanilla VCL
+            # Comparison with other single layer neural networks
+            tf.reset_default_graph()
+            hidden_size = [10] * args.num_layers
+            data_gen = get_datagen()
+            vcl_result_h10, uncerts = run_vcl(hidden_size, no_epochs, data_gen,
+                                              lambda a: a, coreset_size, batch_size, args.single_head, val=val,
+                                              name='vcl_h10_{2}_run{0}_{1}'.format(i+1, args.tag, args.dataset),
+                                              log_dir=args.log_dir, use_local_reparam=args.use_local_reparam)
+            vcl_h10_accs[i, :, :] = vcl_result_h10
+            all_vcl_h10_uncerts[i, :, :] = uncerts
 
-        tf.reset_default_graph()
-        hidden_size = [5] * args.num_layers
-        data_gen = get_datagen()
-        vcl_result_h5, uncerts = run_vcl(hidden_size, no_epochs, data_gen,
-                                         lambda a: a, coreset_size, batch_size, args.single_head, val=val,
-                                         name='vcl_h5_{2}_run{0}_{1}'.format(i+1, args.tag, args.dataset),
-                                         log_dir=args.log_dir, use_local_reparam=args.use_local_reparam)
-        vcl_h5_accs[i, :, :] = vcl_result_h5
-        all_vcl_h5_uncerts[i, :, :] = uncerts
+            tf.reset_default_graph()
+            hidden_size = [5] * args.num_layers
+            data_gen = get_datagen()
+            vcl_result_h5, uncerts = run_vcl(hidden_size, no_epochs, data_gen,
+                                             lambda a: a, coreset_size, batch_size, args.single_head, val=val,
+                                             name='vcl_h5_{2}_run{0}_{1}'.format(i+1, args.tag, args.dataset),
+                                             log_dir=args.log_dir, use_local_reparam=args.use_local_reparam)
+            vcl_h5_accs[i, :, :] = vcl_result_h5
+            all_vcl_h5_uncerts[i, :, :] = uncerts
 
-        tf.reset_default_graph()
-        hidden_size = [50] * args.num_layers
-        data_gen = get_datagen()
-        vcl_result_h50, uncerts = run_vcl(hidden_size, no_epochs, data_gen,
-                                          lambda a: a, coreset_size, batch_size, args.single_head, val=val,
-                                          name='vcl_h50_{2}_run{0}_{1}'.format(i + 1, args.tag, args.dataset),
-                                          log_dir=args.log_dir, use_local_reparam=args.use_local_reparam)
-        vcl_h50_accs[i, :, :] = vcl_result_h50
-        all_vcl_h50_uncerts[i, :, :] = uncerts
+            tf.reset_default_graph()
+            hidden_size = [50] * args.num_layers
+            data_gen = get_datagen()
+            vcl_result_h50, uncerts = run_vcl(hidden_size, no_epochs, data_gen,
+                                              lambda a: a, coreset_size, batch_size, args.single_head, val=val,
+                                              name='vcl_h50_{2}_run{0}_{1}'.format(i + 1, args.tag, args.dataset),
+                                              log_dir=args.log_dir, use_local_reparam=args.use_local_reparam)
+            vcl_h50_accs[i, :, :] = vcl_result_h50
+            all_vcl_h50_uncerts[i, :, :] = uncerts
 
     _ibp_acc = np.nanmean(vcl_ibp_accs, (0, 1))
     _vcl_result_h10 = np.nanmean(vcl_h10_accs, (0, 1))
@@ -427,8 +433,7 @@ if __name__ == "__main__":
     print("Prop of neurons which are active for each task (and layer):", [np.mean(Zs[i]) for i in range(num_tasks*args.num_layers)])
 
     # Uncertainties
-    plot_uncertainties(num_tasks, all_ibp_uncerts, all_vcl_h5_uncerts, all_vcl_h10_uncerts,
-                       all_vcl_h50_uncerts, args.tag)
+    plot_uncertainties(num_tasks, all_ibp_uncerts, all_vcl_h5_uncerts, all_vcl_h10_uncerts, all_vcl_h50_uncerts, args.tag)
 
     with open('results/split_mnist_res5_{}.pkl'.format(args.tag), 'wb') as input_file:
         pickle.dump({'vcl_ibp': vcl_ibp_accs,
