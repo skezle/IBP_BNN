@@ -75,6 +75,10 @@ if __name__ == "__main__":
                         dest='log_dir',
                         default='logs',
                         help='TB Log directory.')
+    parser.add_argument('--run_baselines', action='store_true',
+                        default=False,
+                        dest='run_baselines',
+                        help='Whether to run VCL baselines.')
     parser.add_argument('--tag', action='store',
                         dest='tag',
                         help='Tag to use in naming file outputs')
