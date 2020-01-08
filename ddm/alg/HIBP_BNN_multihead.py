@@ -17,7 +17,8 @@ class HIBP_BNN(IBP_BNN):
                  prev_betas=None, learning_rate=0.001, learning_rate_decay=0.87,
                  prior_mean=0, prior_var=1, alpha0=5., beta0=1., lambda_1=1., lambda_2=1.,
                  tensorboard_dir='logs', name='ibp', tb_logging=True, output_tb_gradients=False,
-                 beta_1=1.0, beta_2=1.0, beta_3=1.0, use_local_reparam=True, implicit_beta=False):
+                 beta_1=1.0, beta_2=1.0, beta_3=1.0, use_local_reparam=True, implicit_beta=False,
+                 clip_grads=False):
 
         super(HIBP_BNN, self).__init__(input_size=input_size, hidden_size=hidden_size,
                                        output_size=output_size, training_size=training_size,
@@ -31,7 +32,7 @@ class HIBP_BNN(IBP_BNN):
                                        name=name, tb_logging=tb_logging,
                                        output_tb_gradients=output_tb_gradients, beta_1=beta_1,
                                        beta_2=beta_2, beta_3=beta_3, use_local_reparam=use_local_reparam,
-                                       implicit_beta=implicit_beta)
+                                       implicit_beta=implicit_beta, clip_grads=clip_grads)
         self.alphas = alphas # hyper-param for each child IBP
 
     def create_model(self):
@@ -78,10 +79,9 @@ class HIBP_BNN(IBP_BNN):
                                                                   1000, self.learning_rate_decay, staircase=False)
 
         optim = tf.train.AdamOptimizer(self.learning_rate)
-        tvars = tf.trainable_variables()
-        grads = optim.compute_gradients(self.cost, tvars)
+        gradients = optim.compute_gradients(self.cost)
         if self.output_tb_gradients:
-            for grad_var_tuple in grads:
+            for grad_var_tuple in gradients:
                 current_variable = grad_var_tuple[1]
                 current_gradient = grad_var_tuple[0]
                 if current_gradient is None:
@@ -90,8 +90,11 @@ class HIBP_BNN(IBP_BNN):
                     continue
                 gradient_name_to_save = current_variable.name.replace(':', '_')  # tensorboard doesn't accept ':' symbol
                 tf.compat.v1.summary.histogram(gradient_name_to_save, current_gradient)
-        _grads, _ = tf.clip_by_global_norm(tf.gradients(self.cost, tvars), 10.0)
-        self.train_step = optim.apply_gradients(grads_and_vars=zip(_grads, tvars), global_step=global_step)
+        if self.clip_grads:
+            grads, variables = zip(*gradients)
+            _grads, _ = tf.clip_by_global_norm(grads, 10.0)
+            gradients = zip(_grads, variables)
+        self.train_step = optim.apply_gradients(grads_and_vars=gradients, global_step=global_step)
 
     # this samples a layer at a time
     def _prediction_layer(self, inputs, task_idx, no_samples):
