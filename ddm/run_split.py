@@ -317,10 +317,12 @@ if __name__ == "__main__":
     vcl_h5_accs = np.zeros((len(seeds), num_tasks, num_tasks))
     vcl_h10_accs = np.zeros((len(seeds), num_tasks, num_tasks))
     vcl_h50_accs = np.zeros((len(seeds), num_tasks, num_tasks))
+    vcl_h100_accs = np.zeros((len(seeds), num_tasks, num_tasks))
     all_ibp_uncerts = np.zeros((len(seeds), num_tasks, num_tasks))
     all_vcl_h5_uncerts = np.zeros((len(seeds), num_tasks, num_tasks))
     all_vcl_h10_uncerts = np.zeros((len(seeds), num_tasks, num_tasks))
     all_vcl_h50_uncerts = np.zeros((len(seeds), num_tasks, num_tasks))
+    all_vcl_h100_uncerts = np.zeros((len(seeds), num_tasks, num_tasks))
     all_Zs = []
 
     # We don't need a validation set
@@ -410,6 +412,16 @@ if __name__ == "__main__":
             vcl_h50_accs[i, :, :] = vcl_result_h50
             all_vcl_h50_uncerts[i, :, :] = uncerts
 
+            tf.reset_default_graph()
+            hidden_size = [100] * args.num_layers
+            data_gen = get_datagen()
+            vcl_result_h100, uncerts = run_vcl(hidden_size, no_epochs, data_gen,
+                                              lambda a: a, coreset_size, batch_size, args.single_head, val=val,
+                                              name='vcl_h100_{2}_run{0}_{1}'.format(i + 1, args.tag, args.dataset),
+                                              log_dir=args.log_dir, use_local_reparam=args.use_local_reparam)
+            vcl_h100_accs[i, :, :] = vcl_result_h100
+            all_vcl_h100_uncerts[i, :, :] = uncerts
+
     _ibp_acc = np.nanmean(vcl_ibp_accs, (0, 1))
     _vcl_result_h10 = np.nanmean(vcl_h10_accs, (0, 1))
     _vcl_result_h5 = np.nanmean(vcl_h5_accs, (0, 1))
@@ -441,10 +453,12 @@ if __name__ == "__main__":
                      'vcl_h10': vcl_h10_accs,
                      'vcl_h5': vcl_h5_accs,
                      'vcl_h50': vcl_h50_accs,
+                     'vcl_h100': vcl_h100_accs,
                      'uncerts_ibp': all_ibp_uncerts,
                      'uncerts_vcl_h5': all_vcl_h5_uncerts,
                      'uncerts_vcl_h10': all_vcl_h10_uncerts,
                      'uncerts_vcl_h50': all_vcl_h50_uncerts,
+                     'uncerts_vcl_h100': all_vcl_h100_uncerts,
                      'Z': all_Zs}, input_file)
 
     print("Finished running.")
