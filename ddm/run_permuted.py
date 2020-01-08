@@ -82,15 +82,19 @@ if __name__ == "__main__":
     parser.add_argument('--tag', action='store',
                         dest='tag',
                         help='Tag to use in naming file outputs')
+    parser.add_argument('--run_baselines', action='store_true',
+                        default=False,
+                        dest='run_baselines',
+                        help='Whether to run the baselines.')
     args = parser.parse_args()
 
-    print('single_head    = {!r}'.format(args.single_head))
-    print('implicit_beta  = {!r}'.format(args.implicit_beta))
-    print('num_layers     = {!r}'.format(args.num_layers))
-    print('hibp           = {!r}'.format(args.hibp))
-    print('log_dir        = {!r}'.format(args.log_dir))
-    print('tag            = {!r}'.format(args.tag))
-    print('run_baselines  = {!r}'.format(args.run_baselines))
+    print('single_head          = {!r}'.format(args.single_head))
+    print('implicit_beta        = {!r}'.format(args.implicit_beta))
+    print('num_layers           = {!r}'.format(args.num_layers))
+    print('hibp                 = {!r}'.format(args.hibp))
+    print('log_dir              = {!r}'.format(args.log_dir))
+    print('tag                  = {!r}'.format(args.tag))
+    print('run_baselines        = {!r}'.format(args.run_baselines))
 
     seeds = [12, 13, 14, 15, 16]
     num_tasks = 5
@@ -139,7 +143,7 @@ if __name__ == "__main__":
         all_ibp_uncerts[i, :, :] = uncerts
 
         # Run Vanilla VCL
-        if args.run_baslines:
+        if args.run_baselines:
             tf.reset_default_graph()
             hidden_size = [10]*args.num_layers
             data_gen = PermutedMnistGenerator(num_tasks)

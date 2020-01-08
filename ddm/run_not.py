@@ -152,7 +152,7 @@ if __name__ == "__main__":
     parser.add_argument('--run_baselines', action='store_true',
                         default=False,
                         dest='run_baselines',
-                        help='Whether to run VCL baselines.')
+                        help='Whether to run the baselines.')
     args = parser.parse_args()
 
     print('tag                  = {!r}'.format(args.tag))
@@ -217,7 +217,7 @@ if __name__ == "__main__":
         vcl_ibp_accs[i, :, :] = ibp_acc
         all_ibp_uncerts[i, :, :] = uncerts
 
-        if args.run_baslines:
+        if args.run_baselines:
             # Run Vanilla VCL
             tf.reset_default_graph()
             hidden_size = [10]*args.num_layers
