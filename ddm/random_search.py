@@ -311,14 +311,14 @@ if __name__ == "__main__":
 
     # define hyper parameters
 
-    hyper_param_choices_grid = {'batch_size': [128, 256, 512]}
+    hyper_param_choices_grid = {}
 
     hyper_param_choices_ranges = {'learning_rate': [0.00001, 0.0001],
-                                  'alpha0': [1., 5.],
+                                  'alpha0': [1., 10.],
                                   'lambda_1': [0.5, 1.],
                                   'lambda_2': [0.5, 1.],
                                   'prior_var': [0.001, 1.],
-                                  'alpha':[1., 5.]}
+                                  'alpha':[1., 10.]}
 
     fixed_param_choices = {'ibp_samples': 10,
                            'no_pred_samples': 100,
@@ -335,7 +335,7 @@ if __name__ == "__main__":
 
     RndSearch.load_results()
     hidden_size = [100] * args.num_layers
-    no_epochs = 500
+    no_epochs = 600
     coreset_size = 0
     val = True
     for i in range(args.runs):
