@@ -337,14 +337,15 @@ if __name__ == "__main__":
             raise ValueError('Pick dataset in {normal, random, background}')
         return data_gen
 
-    # params
-    alpha0 = args.alpha0
+    # IBP params
+    alpha0 = 4.2
     beta0 = 1.0
-    lambda_1 = 1.0
-    lambda_2 = 1.0
+    lambda_1 = 0.5
+    lambda_2 = 0.7
+    alpha = 4.0
     # Gaussian params
     prior_mean = 0.0
-    prior_var = 0.1
+    prior_var = 0.7
 
     for i in range(len(seeds)):
         s = seeds[i]
@@ -362,7 +363,7 @@ if __name__ == "__main__":
         name = "split_{0}_run{1}_{2}".format(args.dataset, i + 1, args.tag)
         # Z matrix for each task is output
         # This is overwritten for each run
-        ibp_acc, Zs, uncerts = run_vcl_ibp(hidden_size=hidden_size, alphas=[1.]*len(hidden_size),
+        ibp_acc, Zs, uncerts = run_vcl_ibp(hidden_size=hidden_size, alphas=[alpha]*len(hidden_size),
                                            no_epochs=[no_epochs]*5, data_gen=data_gen,
                                            name=name, val=val, batch_size=batch_size, single_head=args.single_head,
                                            prior_mean=prior_mean, prior_var=prior_var, alpha0=alpha0,

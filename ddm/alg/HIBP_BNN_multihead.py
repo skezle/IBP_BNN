@@ -24,7 +24,8 @@ class HIBP_BNN(IBP_BNN):
                                        no_train_samples=no_train_samples, no_pred_samples=no_pred_samples,
                                        num_ibp_samples=num_ibp_samples, prev_means=prev_means,
                                        prev_log_variances=prev_log_variances, prev_betas=prev_betas,
-                                       learning_rate=learning_rate, prior_mean=prior_mean,
+                                       learning_rate=learning_rate, learning_rate_decay=learning_rate_decay,
+                                       prior_mean=prior_mean,
                                        prior_var=prior_var, alpha0=alpha0, beta0=beta0, lambda_1=lambda_1,
                                        lambda_2=lambda_2, tensorboard_dir=tensorboard_dir,
                                        name=name, tb_logging=tb_logging,
@@ -32,7 +33,6 @@ class HIBP_BNN(IBP_BNN):
                                        beta_2=beta_2, beta_3=beta_3, use_local_reparam=use_local_reparam,
                                        implicit_beta=implicit_beta)
         self.alphas = alphas # hyper-param for each child IBP
-        self.learning_rate_decay = learning_rate_decay
 
     def create_model(self):
         m, v, self.size = self.create_weights(self.input_size, self.hidden_size, self.output_size, self.prev_means, self.prev_log_variances)
@@ -80,16 +80,16 @@ class HIBP_BNN(IBP_BNN):
         optim = tf.train.AdamOptimizer(self.learning_rate)
         tvars = tf.trainable_variables()
         grads = optim.compute_gradients(self.cost, tvars)
-
-        for grad_var_tuple in grads:
-            current_variable = grad_var_tuple[1]
-            current_gradient = grad_var_tuple[0]
-            if current_gradient is None:
-                # the subclass variables are also being created in the graph :(
-                # Hack, just skip these variables when getting the gradients
-                continue
-            gradient_name_to_save = current_variable.name.replace(':', '_')  # tensorboard doesn't accept ':' symbol
-            tf.compat.v1.summary.histogram(gradient_name_to_save, current_gradient)
+        if self.output_tb_gradients:
+            for grad_var_tuple in grads:
+                current_variable = grad_var_tuple[1]
+                current_gradient = grad_var_tuple[0]
+                if current_gradient is None:
+                    # the subclass variables are also being created in the graph :(
+                    # Hack, just skip these variables when getting the gradients
+                    continue
+                gradient_name_to_save = current_variable.name.replace(':', '_')  # tensorboard doesn't accept ':' symbol
+                tf.compat.v1.summary.histogram(gradient_name_to_save, current_gradient)
         _grads, _ = tf.clip_by_global_norm(tf.gradients(self.cost, tvars), 10.0)
         self.train_step = optim.apply_gradients(grads_and_vars=zip(_grads, tvars), global_step=global_step)
 
