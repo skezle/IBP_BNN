@@ -11,10 +11,11 @@ from cla_models_multihead import Cla_NN
 class IBP_BNN(Cla_NN):
     def __init__(self, input_size, hidden_size, output_size, training_size,
                  no_train_samples=10, no_pred_samples=100, num_ibp_samples=10, prev_means=None, prev_log_variances=None,
-                 prev_betas=None, learning_rate=0.001,
+                 prev_betas=None, learning_rate=0.001, learning_rate_decay=0.87,
                  prior_mean=0, prior_var=1, alpha0=5., beta0=1., lambda_1=1., lambda_2=1.,
                  tensorboard_dir='logs', name='ibp', tb_logging=True, output_tb_gradients=False,
-                 beta_1=1.0, beta_2=1.0, beta_3=1.0, use_local_reparam=True, implicit_beta=False):
+                 beta_1=1.0, beta_2=1.0, beta_3=1.0, use_local_reparam=False, implicit_beta=False,
+                 clip_grads=False):
 
         super(IBP_BNN, self).__init__(input_size, hidden_size, output_size, training_size)
 
@@ -44,8 +45,10 @@ class IBP_BNN(Cla_NN):
         self.prev_log_variances = prev_log_variances
         self.prev_betas = prev_betas
         self.learning_rate = learning_rate
+        self.learning_rate_decay = learning_rate_decay
         self.prior_mean = prior_mean
         self.prior_var = prior_var
+        self.clip_grads = clip_grads
 
     def create_model(self):
         m, v, betas, self.size = self.create_weights(
@@ -80,11 +83,16 @@ class IBP_BNN(Cla_NN):
         self.assign_session()
 
     def assign_optimizer(self, learning_rate=0.001):
-        self.optim = tf.train.AdamOptimizer(learning_rate)
-        grads = self.optim.compute_gradients(self.cost)
+        global_step = tf.Variable(0, trainable=False)
+        self.learning_rate = tf.compat.v1.train.exponential_decay(learning_rate,
+                                                                  global_step,
+                                                                  1000, self.learning_rate_decay, staircase=False)
+
+        self.optim = tf.train.AdamOptimizer(self.learning_rate)
+        gradients = self.optim.compute_gradients(self.cost)
         # Debug
         if self.output_tb_gradients:
-            for grad_var_tuple in grads:
+            for grad_var_tuple in gradients:
                 current_variable = grad_var_tuple[1]
                 current_gradient = grad_var_tuple[0]
                 if current_gradient is None:
@@ -93,8 +101,11 @@ class IBP_BNN(Cla_NN):
                     continue
                 gradient_name_to_save = current_variable.name.replace(':', '_')  # tensorboard doesn't accept ':' symbol
                 tf.summary.histogram(gradient_name_to_save, current_gradient)
-
-        self.train_step = self.optim.apply_gradients(grads_and_vars=grads)
+        if self.clip_grads:
+            grads, variables = zip(*gradients)
+            _grads, _ = tf.clip_by_global_norm(grads, 10.0)
+            gradients = zip(_grads, variables)
+        self.train_step = self.optim.apply_gradients(grads_and_vars=gradients, global_step=global_step)
 
     def _prediction(self, inputs, task_idx, no_samples):
         y, y_local, prior_log_pis, log_pis, log_z_sample = self._prediction_layer(inputs, task_idx, no_samples)

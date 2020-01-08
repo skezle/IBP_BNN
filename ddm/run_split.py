@@ -294,7 +294,7 @@ if __name__ == "__main__":
     parser.add_argument('--run_baselines', action='store_true',
                         default=False,
                         dest='run_baselines',
-                        help='Whether to run VCL baselines.')
+                        help='Whether to run the baselines.')
     args = parser.parse_args()
 
     print('difficult            = {!r}'.format(args.difficult))
@@ -337,20 +337,21 @@ if __name__ == "__main__":
             raise ValueError('Pick dataset in {normal, random, background}')
         return data_gen
 
-    # params
-    alpha0 = args.alpha0
+    # IBP params
+    alpha0 = 4.2
     beta0 = 1.0
-    lambda_1 = 1.0
-    lambda_2 = 1.0
+    lambda_1 = 0.5
+    lambda_2 = 0.7
+    alpha = 4.0
     # Gaussian params
     prior_mean = 0.0
-    prior_var = 0.1
+    prior_var = 0.7
 
     for i in range(len(seeds)):
         s = seeds[i]
         hidden_size = [100] * args.num_layers
         batch_size = 512
-        no_epochs = 500
+        no_epochs = 600
         ibp_samples = 10
         no_pred_samples = 100
 
@@ -363,11 +364,11 @@ if __name__ == "__main__":
         # Z matrix for each task is output
         # This is overwritten for each run
         ibp_acc, Zs, uncerts = run_vcl_ibp(hidden_size=hidden_size, alphas=[1.]*len(hidden_size),
-                                           no_epochs=[no_epochs]*5, data_gen=data_gen,
+                                           no_epochs= [no_epochs*1.5] + [no_epochs]*(num_tasks-1), data_gen=data_gen,
                                            name=name, val=val, batch_size=batch_size, single_head=args.single_head,
                                            prior_mean=prior_mean, prior_var=prior_var, alpha0=alpha0,
                                            beta0=beta0, lambda_1=lambda_1, lambda_2=lambda_2,
-                                           learning_rate=[0.001] + [0.0001]*(num_tasks-1),
+                                           learning_rate=[0.0001]*num_tasks,
                                            no_pred_samples=no_pred_samples, ibp_samples=ibp_samples, log_dir=args.log_dir,
                                            use_local_reparam=args.use_local_reparam,
                                            implicit_beta=args.implicit_beta, hibp=args.hibp)
@@ -433,8 +434,7 @@ if __name__ == "__main__":
     print("Prop of neurons which are active for each task (and layer):", [np.mean(Zs[i]) for i in range(num_tasks*args.num_layers)])
 
     # Uncertainties
-    plot_uncertainties(num_tasks, all_ibp_uncerts, all_vcl_h5_uncerts, all_vcl_h10_uncerts,
-                       all_vcl_h50_uncerts, args.tag)
+    plot_uncertainties(num_tasks, all_ibp_uncerts, all_vcl_h5_uncerts, all_vcl_h10_uncerts, all_vcl_h50_uncerts, args.tag)
 
     with open('results/split_mnist_res5_{}.pkl'.format(args.tag), 'wb') as input_file:
         pickle.dump({'vcl_ibp': vcl_ibp_accs,
