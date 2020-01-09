@@ -86,6 +86,11 @@ if __name__ == "__main__":
                         default=False,
                         dest='run_baselines',
                         help='Whether to run the baselines.')
+    parser.add_argument('--h', nargs='+',
+                        dest='h_list',
+                        type=int,
+                        default=[5, 50],
+                        help='List of hidden states')
     args = parser.parse_args()
 
     print('single_head          = {!r}'.format(args.single_head))
@@ -95,18 +100,15 @@ if __name__ == "__main__":
     print('log_dir              = {!r}'.format(args.log_dir))
     print('tag                  = {!r}'.format(args.tag))
     print('run_baselines        = {!r}'.format(args.run_baselines))
+    print('h_list               = {!r}'.format(args.h_list))
 
     seeds = [12, 13, 14, 15, 16]
     num_tasks = 5
 
     vcl_ibp_accs = np.zeros((len(seeds), num_tasks, num_tasks))
-    vcl_h5_accs = np.zeros((len(seeds), num_tasks, num_tasks))
-    vcl_h10_accs = np.zeros((len(seeds), num_tasks, num_tasks))
-    vcl_h50_accs = np.zeros((len(seeds), num_tasks, num_tasks))
+    baseline_accs = {h: np.zeros((len(seeds), num_tasks, num_tasks)) for h in args.h_list}
     all_ibp_uncerts = np.zeros((len(seeds), num_tasks, num_tasks))
-    all_vcl_h5_uncerts = np.zeros((len(seeds), num_tasks, num_tasks))
-    all_vcl_h10_uncerts = np.zeros((len(seeds), num_tasks, num_tasks))
-    all_vcl_h50_uncerts = np.zeros((len(seeds), num_tasks, num_tasks))
+    baseline_uncerts = {h: np.zeros((len(seeds), num_tasks, num_tasks)) for h in args.h_list}
     all_Zs = []
 
     alpha0 = 5.0
@@ -144,47 +146,24 @@ if __name__ == "__main__":
 
         # Run Vanilla VCL
         if args.run_baselines:
-            tf.reset_default_graph()
-            hidden_size = [10]*args.num_layers
-            data_gen = PermutedMnistGenerator(num_tasks)
-            vcl_result_h10, uncerts = run_vcl(hidden_size, no_epochs, data_gen,
+            for h in args.h_list:
+                tf.reset_default_graph()
+                hidden_size = [h] * args.num_layers
+                data_gen = PermutedMnistGenerator(num_tasks)
+                vcl_result, uncerts = run_vcl(hidden_size, no_epochs, data_gen,
                                               lambda a: a, coreset_size, batch_size, args.single_head, val=False,
-                                              name='vcl_perm_h10_{0}_run{1}'.format(args.tag, i + 1),
-                                              log_dir=args.log_dir)
-            vcl_h10_accs[i, :, :] = vcl_result_h10
-            all_vcl_h10_uncerts[i, :, :] = uncerts
-
-            tf.reset_default_graph()
-            hidden_size = [5]*args.num_layers
-            data_gen = PermutedMnistGenerator(num_tasks)
-            vcl_result_h5, uncerts = run_vcl(hidden_size, no_epochs, data_gen,
-                                             lambda a: a, coreset_size, batch_size, args.single_head, val=False,
-                                             name='vcl_perm_h5_{0}_run{1}'.format(args.tag, i + 1),
-                                             log_dir=args.log_dir)
-            vcl_h5_accs[i, :, :] = vcl_result_h5
-            all_vcl_h5_uncerts[i, :, :] = uncerts
-
-            # Run Vanilla VCL
-            tf.reset_default_graph()
-            hidden_size = [50]*args.num_layers
-            data_gen = PermutedMnistGenerator(num_tasks)
-            vcl_result_h50, uncerts = run_vcl(hidden_size, no_epochs, data_gen,
-                                              lambda a: a, coreset_size, batch_size, args.single_head, val=False,
-                                              name='vcl_perm_h50_{0}_run{1}'.format(args.tag, i + 1),
-                                              log_dir=args.log_dir)
-            vcl_h50_accs[i, :, :] = vcl_result_h50
-            all_vcl_h50_uncerts[i, :, :] = uncerts
+                                               name='vcl_perm_h{0}_{1}_run{2}'.format(h, args.tag, i + 1),
+                                               log_dir=args.log_dir)
+                baseline_accs[h][i, :, :] = vcl_result
+                baseline_uncerts[h][i, :, :] = uncerts
 
     _ibp_acc = np.nanmean(vcl_ibp_accs, (0, 1))
-    _vcl_result_h10 = np.nanmean(vcl_h10_accs, (0, 1))
-    _vcl_result_h5 = np.nanmean(vcl_h5_accs, (0, 1))
-    _vcl_result_h50 = np.nanmean(vcl_h50_accs, (0, 1))
     fig = plt.figure(figsize=(7, 4))
     ax = plt.gca()
     plt.plot(np.arange(len(_ibp_acc)) + 1, _ibp_acc, label='VCL + IBP', marker='o')
-    plt.plot(np.arange(len(_ibp_acc)) + 1, _vcl_result_h10, label='VCL h10', marker='o')
-    plt.plot(np.arange(len(_ibp_acc)) + 1, _vcl_result_h5, label='VCL h5', marker='o')
-    plt.plot(np.arange(len(_ibp_acc)) + 1, _vcl_result_h50, label='VCL h50', marker='o')
+    for h in args.h_list:
+        plt.plot(np.arange(len(_ibp_acc)) + 1, np.nanmean(baseline_accs[h], (0, 1)), label='VCL h{}'.format(h),
+                 marker='o')
     ax.set_xticks(range(1, len(_ibp_acc) + 1))
     ax.set_ylabel('Average accuracy')
     ax.set_xlabel('\# tasks')
@@ -193,25 +172,21 @@ if __name__ == "__main__":
     fig.savefig('permuted_mnist_accs_{}.png'.format(args.tag), bbox_inches='tight')
     plt.close()
 
-    # we are only plotting the results from the final optimisation
-    print("length of Zs: {}".format(len(Zs)))
-    plot_Zs(num_tasks, args.num_layers, Zs, "perm", args.tag)
     print("Prop of neurons which are active for each task (and layer):",
           [np.mean(Zs[i]) for i in range(num_tasks * args.num_layers)])
 
     # Uncertainties
-    plot_uncertainties(num_tasks, all_ibp_uncerts, all_vcl_h5_uncerts, all_vcl_h10_uncerts,
-                       all_vcl_h50_uncerts, args.tag)
+    # TODO: make plotting function cleaner
+    if len(args.h_list) == 3:
+        plot_uncertainties(num_tasks, all_ibp_uncerts, baseline_uncerts[args.h_list[0]],
+                           baseline_uncerts[args.h_list[1]],
+                           baseline_uncerts[args.h_list[2]], args.tag)
 
     with open('results/permuted_mnist_res5_{}.pkl'.format(args.tag), 'wb') as input_file:
         pickle.dump({'vcl_ibp': vcl_ibp_accs,
-                     'vcl_h10': vcl_h10_accs,
-                     'vcl_h5': vcl_h5_accs,
-                     'vcl_h50': vcl_h50_accs,
+                     'vcl_baselines': baseline_accs,
                      'uncerts_ibp': all_ibp_uncerts,
-                     'uncerts_vcl_h5': all_vcl_h5_uncerts,
-                     'uncerts_vcl_h10': all_vcl_h10_uncerts,
-                     'uncerts_vcl_h50': all_vcl_h50_uncerts,
+                     'uncerts_vcl_baselines': baseline_uncerts,
                      'Z': all_Zs}, input_file)
 
     print("Finished running.")
