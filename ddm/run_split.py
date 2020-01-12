@@ -16,163 +16,13 @@ matplotlib.use('agg')
 import matplotlib.pyplot as plt
 
 
-class SplitMnistBackgroundGenerator:
-    """ Thanks https://sites.google.com/a/lisa.iro.umontreal.ca/public_static_twiki/variations-on-the-mnist-digits
-    """
-    def __init__(self, val=False):
-        self.val = val
-        # 12000 train, 50000 test
-        train = np.loadtxt('data/mnist_background_images/mnist_background_images_train.amat')
-        test = np.loadtxt('data/mnist_background_images/mnist_background_images_test.amat')
-        all = np.vstack((train, test))
-        if self.val:
-            n_train = 40000
-            n_test = 10000
-            n_val = 10000
-            self.X_train = all[:n_train, :-1]
-            self.train_label = all[:n_train, -1:]
-            self.X_test = all[n_train:(n_train+n_test), :-1]
-            self.test_label = all[n_train:(n_train+n_test), -1:]
-            self.X_val = all[(n_train+n_test):, :-1]
-            self.val_label = all[(n_train+n_test):, -1:]
-        else:
-            n_train = 52000
-            n_test = 10000
-            self.X_train = all[:n_train, :-1]
-            self.train_label = all[:n_train, -1:]
-            self.X_test = all[n_train:, :-1]
-            self.test_label = all[n_train:, -1:]
-
-        assert self.X_train.shape[1] == 28 * 28
-        assert self.X_test.shape[1] == 28 * 28
-
-        self.sets_0 = [0, 2, 4, 6, 8]
-        self.sets_1 = [1, 3, 5, 7, 9]
-        self.max_iter = len(self.sets_0)
-        self.cur_iter = 0
-
-    def get_dims(self):
-        return self.X_train.shape[1], 2
-
-    def next_task(self):
-        if self.cur_iter >= self.max_iter:
-            raise Exception('Number of tasks exceeded!')
-        else:
-            # Retrieve train data
-            train_0_id = np.where(self.train_label == self.sets_0[self.cur_iter])[0]
-            train_1_id = np.where(self.train_label == self.sets_1[self.cur_iter])[0]
-            next_x_train = np.vstack((self.X_train[train_0_id], self.X_train[train_1_id]))
-
-            next_y_train = np.vstack((np.ones((train_0_id.shape[0], 1)), np.zeros((train_1_id.shape[0], 1))))
-            next_y_train = np.hstack((next_y_train, 1-next_y_train))
-
-            # Retrieve test data
-            test_0_id = np.where(self.test_label == self.sets_0[self.cur_iter])[0]
-            test_1_id = np.where(self.test_label == self.sets_1[self.cur_iter])[0]
-            next_x_test = np.vstack((self.X_test[test_0_id], self.X_test[test_1_id]))
-
-            next_y_test = np.vstack((np.ones((test_0_id.shape[0], 1)), np.zeros((test_1_id.shape[0], 1))))
-            next_y_test = np.hstack((next_y_test, 1-next_y_test))
-
-            if self.val:
-                val_0_id = np.where(self.val_label == self.sets_0[self.cur_iter])[0]
-                val_1_id = np.where(self.val_label == self.sets_1[self.cur_iter])[0]
-                next_x_val = np.vstack((self.X_val[val_0_id], self.X_val[val_1_id]))
-
-                next_y_val = np.vstack((np.ones((val_0_id.shape[0], 1)), np.zeros((val_1_id.shape[0], 1))))
-                next_y_val = np.hstack((next_y_val, 1 - next_y_val))
-                self.cur_iter += 1
-                return next_x_train, next_y_train, next_x_test, next_y_test, next_x_val, next_y_val
-            else:
-                self.cur_iter += 1
-                return next_x_train, next_y_train, next_x_test, next_y_test
-
-    def reset_cur_iter(self):
-        self.cur_iter = 0
-
-
-class SplitMnistRandomGenerator:
-    """ Thanks https://sites.google.com/a/lisa.iro.umontreal.ca/public_static_twiki/variations-on-the-mnist-digits
-
-    """
-    def __init__(self, val=False):
-        self.val = val
-        # 12000 train, 50000 test
-        train = np.loadtxt('data/mnist_background_random/mnist_background_random_train.amat')
-        test = np.loadtxt('data/mnist_background_random/mnist_background_random_test.amat')
-        all = np.vstack((train, test))
-        if self.val:
-            n_train = 40000
-            n_test = 10000
-            n_val = 10000
-            self.X_train = all[:n_train, :-1]
-            self.train_label = all[:n_train, -1:]
-            self.X_test = all[n_train:(n_train+n_test), :-1]
-            self.test_label = all[n_train:(n_train+n_test), -1:]
-            self.X_val = all[(n_train+n_test):, :-1]
-            self.val_label = all[(n_train+n_test):, -1:]
-        else:
-            n_train = 52000
-            n_test = 10000
-            self.X_train = all[:n_train, :-1]
-            self.train_label = all[:n_train, -1:]
-            self.X_test = all[n_train:, :-1]
-            self.test_label = all[n_train:, -1:]
-
-        assert self.X_train.shape[1] == 28 * 28
-        assert self.X_test.shape[1] == 28 * 28
-
-        self.sets_0 = [0, 2, 4, 6, 8]
-        self.sets_1 = [1, 3, 5, 7, 9]
-        self.max_iter = len(self.sets_0)
-        self.cur_iter = 0
-
-    def get_dims(self):
-        return self.X_train.shape[1], 2
-
-    def next_task(self):
-        if self.cur_iter >= self.max_iter:
-            raise Exception('Number of tasks exceeded!')
-        else:
-            # Retrieve train data
-            train_0_id = np.where(self.train_label == self.sets_0[self.cur_iter])[0]
-            train_1_id = np.where(self.train_label == self.sets_1[self.cur_iter])[0]
-            next_x_train = np.vstack((self.X_train[train_0_id], self.X_train[train_1_id]))
-
-            next_y_train = np.vstack((np.ones((train_0_id.shape[0], 1)), np.zeros((train_1_id.shape[0], 1))))
-            next_y_train = np.hstack((next_y_train, 1-next_y_train))
-
-            # Retrieve test data
-            test_0_id = np.where(self.test_label == self.sets_0[self.cur_iter])[0]
-            test_1_id = np.where(self.test_label == self.sets_1[self.cur_iter])[0]
-            next_x_test = np.vstack((self.X_test[test_0_id], self.X_test[test_1_id]))
-
-            next_y_test = np.vstack((np.ones((test_0_id.shape[0], 1)), np.zeros((test_1_id.shape[0], 1))))
-            next_y_test = np.hstack((next_y_test, 1-next_y_test))
-
-            if self.val:
-                val_0_id = np.where(self.val_label == self.sets_0[self.cur_iter])[0]
-                val_1_id = np.where(self.val_label == self.sets_1[self.cur_iter])[0]
-                next_x_val = np.vstack((self.X_val[val_0_id], self.X_val[val_1_id]))
-
-                next_y_val = np.vstack((np.ones((val_0_id.shape[0], 1)), np.zeros((val_1_id.shape[0], 1))))
-                next_y_val = np.hstack((next_y_val, 1 - next_y_val))
-                self.cur_iter += 1
-                return next_x_train, next_y_train, next_x_test, next_y_test, next_x_val, next_y_val
-            else:
-                self.cur_iter += 1
-                return next_x_train, next_y_train, next_x_test, next_y_test
-
-    def reset_cur_iter(self):
-        self.cur_iter = 0
-
-
 class SplitMnistGenerator:
-    def __init__(self, val=False, num_tasks=5, difficult=False):
+    def __init__(self, val=False, num_tasks=5, difficult=False, cl3=False):
         # train, val, test (50000, 784) (10000, 784) (10000, 784)
         self.val = val
         self.num_tasks = num_tasks
         self.difficult = difficult # make the hardest task the first to see if the number of active neurons can shrink
+        self.cl3 = cl3
         with gzip.open('data/mnist.pkl.gz', 'rb') as f:
             train_set, valid_set, test_set = pickle.load(f, encoding='latin1')
 
@@ -204,7 +54,10 @@ class SplitMnistGenerator:
 
     def get_dims(self):
         # Get data input and output dimensions
-        return self.X_train.shape[1], 2
+        if self.cl3:
+            return self.X_train.shape[1], 2 * (self.cur_iter + 1)
+        else:
+            return self.X_train.shape[1], 2
 
     def next_task(self):
         if self.cur_iter >= self.max_iter:
@@ -216,7 +69,11 @@ class SplitMnistGenerator:
             next_x_train = np.vstack((self.X_train[train_0_id], self.X_train[train_1_id]))
 
             next_y_train = np.vstack((np.ones((train_0_id.shape[0], 1)), np.zeros((train_1_id.shape[0], 1))))
-            next_y_train = np.hstack((next_y_train, 1-next_y_train))
+            if self.cl3 and self.cur_iter > 0:
+                next_y_train = np.hstack((np.zeros((next_y_train.shape[0], 2 * self.cur_iter)), next_y_train, 1 - next_y_train))
+                assert next_y_train.shape[1] == 2 * (self.cur_iter + 1)
+            else:
+                next_y_train = np.hstack((next_y_train, 1-next_y_train))
 
             # Retrieve test data
             test_0_id = np.where(self.test_label == self.sets_0[self.cur_iter])[0]
@@ -224,7 +81,11 @@ class SplitMnistGenerator:
             next_x_test = np.vstack((self.X_test[test_0_id], self.X_test[test_1_id]))
 
             next_y_test = np.vstack((np.ones((test_0_id.shape[0], 1)), np.zeros((test_1_id.shape[0], 1))))
-            next_y_test = np.hstack((next_y_test, 1-next_y_test))
+            if self.cl3 and self.cur_iter > 0:
+                next_y_test = np.hstack((np.zeros((next_y_test.shape[0], 2 * self.cur_iter)), next_y_test, 1 - next_y_test))
+                assert next_y_test.shape[1] == 2 * (self.cur_iter + 1)
+            else:
+                next_y_test = np.hstack((next_y_test, 1-next_y_test))
 
             if self.val:
                 val_0_id = np.where(self.val_label == self.sets_0[self.cur_iter])[0]
@@ -232,7 +93,10 @@ class SplitMnistGenerator:
                 next_x_val = np.vstack((self.X_val[val_0_id], self.X_val[val_1_id]))
 
                 next_y_val = np.vstack((np.ones((val_0_id.shape[0], 1)), np.zeros((val_1_id.shape[0], 1))))
-                next_y_val = np.hstack((next_y_val, 1 - next_y_val))
+                if self.cl3 and self.cur_iter > 0:
+                    next_y_val = np.hstack((np.zeros((next_y_val.shape[0], 2 * self.cur_iter)), next_y_val, 1 - next_y_val))
+                else:
+                    next_y_val = np.hstack((next_y_val, 1 - next_y_val))
                 self.cur_iter += 1
                 return next_x_train, next_y_train, next_x_test, next_y_test, next_x_val, next_y_val
             else:
@@ -240,6 +104,81 @@ class SplitMnistGenerator:
                 return next_x_train, next_y_train, next_x_test, next_y_test
 
     def reset_cur_iter(self):
+        self.cur_iter = 0
+
+
+class SplitMnistBackgroundGenerator(SplitMnistGenerator):
+    """ Thanks https://sites.google.com/a/lisa.iro.umontreal.ca/public_static_twiki/variations-on-the-mnist-digits
+    """
+    def __init__(self, val=False, cl3=False):
+
+        super(SplitMnistGenerator, self).__init__(val=val, cl3=cl3)
+
+        # 12000 train, 50000 test
+        train = np.loadtxt('data/mnist_background_images/mnist_background_images_train.amat')
+        test = np.loadtxt('data/mnist_background_images/mnist_background_images_test.amat')
+        all = np.vstack((train, test))
+        if self.val:
+            n_train = 40000
+            n_test = 10000
+            n_val = 10000
+            self.X_train = all[:n_train, :-1]
+            self.train_label = all[:n_train, -1:]
+            self.X_test = all[n_train:(n_train+n_test), :-1]
+            self.test_label = all[n_train:(n_train+n_test), -1:]
+            self.X_val = all[(n_train+n_test):, :-1]
+            self.val_label = all[(n_train+n_test):, -1:]
+        else:
+            n_train = 52000
+            n_test = 10000
+            self.X_train = all[:n_train, :-1]
+            self.train_label = all[:n_train, -1:]
+            self.X_test = all[n_train:, :-1]
+            self.test_label = all[n_train:, -1:]
+
+        assert self.X_train.shape[1] == 28 * 28
+        assert self.X_test.shape[1] == 28 * 28
+
+        self.sets_0 = [0, 2, 4, 6, 8]
+        self.sets_1 = [1, 3, 5, 7, 9]
+        self.max_iter = len(self.sets_0)
+        self.cur_iter = 0
+
+
+class SplitMnistRandomGenerator(SplitMnistGenerator):
+    """ Thanks https://sites.google.com/a/lisa.iro.umontreal.ca/public_static_twiki/variations-on-the-mnist-digits
+
+    """
+    def __init__(self, val=False, cl3=False):
+        super(SplitMnistGenerator, self).__init__(val=val, cl3=cl3)
+        # 12000 train, 50000 test
+        train = np.loadtxt('data/mnist_background_random/mnist_background_random_train.amat')
+        test = np.loadtxt('data/mnist_background_random/mnist_background_random_test.amat')
+        all = np.vstack((train, test))
+        if self.val:
+            n_train = 40000
+            n_test = 10000
+            n_val = 10000
+            self.X_train = all[:n_train, :-1]
+            self.train_label = all[:n_train, -1:]
+            self.X_test = all[n_train:(n_train+n_test), :-1]
+            self.test_label = all[n_train:(n_train+n_test), -1:]
+            self.X_val = all[(n_train+n_test):, :-1]
+            self.val_label = all[(n_train+n_test):, -1:]
+        else:
+            n_train = 52000
+            n_test = 10000
+            self.X_train = all[:n_train, :-1]
+            self.train_label = all[:n_train, -1:]
+            self.X_test = all[n_train:, :-1]
+            self.test_label = all[n_train:, -1:]
+
+        assert self.X_train.shape[1] == 28 * 28
+        assert self.X_test.shape[1] == 28 * 28
+
+        self.sets_0 = [0, 2, 4, 6, 8]
+        self.sets_1 = [1, 3, 5, 7, 9]
+        self.max_iter = len(self.sets_0)
         self.cur_iter = 0
 
 if __name__ == "__main__":
@@ -300,6 +239,10 @@ if __name__ == "__main__":
                         type=int,
                         default=[5, 50],
                         help='List of hidden states')
+    parser.add_argument('--cl3', naction='store_true',
+                        dest='cl3',
+                        default=False,
+                        help='Whether to use incremental class learning')
 
     args = parser.parse_args()
 
@@ -315,6 +258,7 @@ if __name__ == "__main__":
     print('hibp                 = {!r}'.format(args.hibp))
     print('run_baselines        = {!r}'.format(args.run_baselines))
     print('h_list               = {!r}'.format(args.h_list))
+    print('cl3                  = {!r}'.format(args.cl3))
     print('tag                  = {!r}'.format(args.tag))
 
     seeds = list(range(1, 1 + args.runs))
@@ -331,11 +275,11 @@ if __name__ == "__main__":
 
     def get_datagen():
         if args.dataset == 'normal':
-            data_gen = SplitMnistGenerator(val=val, difficult=args.difficult)
+            data_gen = SplitMnistGenerator(val=val, difficult=args.difficult, cl3=args.cl3)
         elif args.dataset == 'random':
-            data_gen = SplitMnistRandomGenerator(val=val)
+            data_gen = SplitMnistRandomGenerator(val=val, cl3=args.cl3)
         elif args.dataset == 'background':
-            data_gen = SplitMnistBackgroundGenerator(val=val)
+            data_gen = SplitMnistBackgroundGenerator(val=val, cl3=args.cl3)
         else:
             raise ValueError('Pick dataset in {normal, random, background}')
         return data_gen
@@ -343,8 +287,8 @@ if __name__ == "__main__":
     # IBP params
     alpha0 = 4.2
     beta0 = 1.0
-    lambda_1 = 0.5
-    lambda_2 = 0.7
+    lambda_1 = 0.5 # posterior
+    lambda_2 = 0.7 # prior
     alpha = 4.0
     # Gaussian params
     prior_mean = 0.0
@@ -366,7 +310,7 @@ if __name__ == "__main__":
         name = "split_{0}_run{1}_{2}".format(args.dataset, i + 1, args.tag)
         # Z matrix for each task is output
         # This is overwritten for each run
-        ibp_acc, Zs, uncerts = run_vcl_ibp(hidden_size=hidden_size, alphas=[1.]*len(hidden_size),
+        ibp_acc, Zs, uncerts = run_vcl_ibp(hidden_size=hidden_size, alphas=[alpha]*len(hidden_size),
                                            no_epochs= [int(no_epochs*1.5)] + [no_epochs]*(num_tasks-1), data_gen=data_gen,
                                            name=name, val=val, batch_size=batch_size, single_head=args.single_head,
                                            prior_mean=prior_mean, prior_var=prior_var, alpha0=alpha0,

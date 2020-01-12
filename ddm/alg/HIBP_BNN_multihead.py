@@ -48,7 +48,7 @@ class HIBP_BNN(IBP_BNN):
 
         # used for the calculation of the KL term
         m, v = self.create_prior(self.input_size, self.hidden_size, self.output_size, self.prev_means, self.prev_log_variances,
-                                 self.prev_betas, self.prior_mean, self.prior_var)
+                                 self.prior_mean, self.prior_var)
         self.prior_W_m, self.prior_b_m, self.prior_W_last_m, self.prior_b_last_m = m[0], m[1], m[2], m[3]
         self.prior_W_v, self.prior_b_v, self.prior_W_last_v, self.prior_b_last_v = v[0], v[1], v[2], v[3]
 
@@ -306,14 +306,14 @@ class HIBP_BNN(IBP_BNN):
         # are then passed to before sampling from the Beta distribution.
         hidden_size = deepcopy(hidden_size)
         dout = hidden_size[-1]
-        # if prev_betas is None:
-        #     global_beta_a_val = tf.constant(np.log(np.exp(self.alpha0) - 1.), shape=[dout], dtype=tf.float32)
-        #     global_beta_b_val = tf.constant(np.log(np.exp(self.beta0) - 1.), shape=[dout], dtype=tf.float32)
-        # else:
-        #     global_beta_a_val = prev_betas[0]
-        #     global_beta_b_val = prev_betas[1]
-        global_beta_a_val = tf.constant(np.log(np.exp(self.alpha0) - 1.), shape=[dout], dtype=tf.float32)
-        global_beta_b_val = tf.constant(np.log(np.exp(self.beta0) - 1.), shape=[dout], dtype=tf.float32)
+        if prev_betas is None:
+            global_beta_a_val = tf.constant(np.log(np.exp(self.alpha0) - 1.), shape=[dout], dtype=tf.float32)
+            global_beta_b_val = tf.constant(np.log(np.exp(self.beta0) - 1.), shape=[dout], dtype=tf.float32)
+        else:
+            global_beta_a_val = prev_betas[0]
+            global_beta_b_val = prev_betas[1]
+        # global_beta_a_val = tf.constant(np.log(np.exp(self.alpha0) - 1.), shape=[dout], dtype=tf.float32)
+        # global_beta_b_val = tf.constant(np.log(np.exp(self.beta0) - 1.), shape=[dout], dtype=tf.float32)
 
         gb_a = tf.Variable(global_beta_a_val, name="global_beta_a", dtype=tf.float32)
         gb_b = tf.Variable(global_beta_b_val, name="global_beta_b", dtype=tf.float32)
@@ -427,7 +427,7 @@ class HIBP_BNN(IBP_BNN):
 
         return [global_beta_a_val, global_beta_b_val]
 
-    def create_prior(self, in_dim, hidden_size, out_dim, prev_weights, prev_variances, prev_betas, prior_mean, prior_var):
+    def create_prior(self, in_dim, hidden_size, out_dim, prev_weights, prev_variances, prior_mean, prior_var):
         hidden_size = deepcopy(hidden_size)
         hidden_size.append(out_dim)
         hidden_size.insert(0, in_dim)
@@ -444,7 +444,7 @@ class HIBP_BNN(IBP_BNN):
         for i in range(no_layers - 1):
             din = hidden_size[i]
             dout = hidden_size[i + 1]
-            if prev_weights is not None and prev_variances is not None and prev_betas is not None:
+            if prev_weights is not None and prev_variances is not None:
                 Wi_m = prev_weights[0][i]
                 bi_m = prev_weights[1][i]
                 Wi_v = np.exp(prev_variances[0][i])
