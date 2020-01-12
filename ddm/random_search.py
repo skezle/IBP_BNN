@@ -269,6 +269,10 @@ if __name__ == "__main__":
                         default=False,
                         dest='hibp',
                         help='Whether to use HIBP.')
+    parser.add_argument('--cl3', naction='store_true',
+                        dest='cl3',
+                        default=False,
+                        help='Whether to use incremental class learning')
     args = parser.parse_args()
 
     print('single_head            = {!r}'.format(args.single_head))
@@ -280,6 +284,7 @@ if __name__ == "__main__":
     print('use_local_reparam      = {!r}'.format(args.use_local_reparam))
     print('noise                  = {!r}'.format(args.noise))
     print('hibp                   = {!r}'.format(args.hibp))
+    print('cl3                    = {!r}'.format(args.cl3))
     print('tag                    = {!r}'.format(args.tag))
 
     seeds = list(range(10, 10 + 5))
@@ -298,13 +303,13 @@ if __name__ == "__main__":
     # define data generator
     def get_datagen(val):
         if args.dataset == 'normal':
-            data_gen = SplitMnistGenerator(val=val, difficult=False)
+            data_gen = SplitMnistGenerator(val=val, difficult=False, cl3=args.cl3)
         elif args.dataset == 'random':
-            data_gen = SplitMnistRandomGenerator(val=val)
+            data_gen = SplitMnistRandomGenerator(val=val, cl3=args.cl3)
         elif args.dataset == 'background':
-            data_gen = SplitMnistBackgroundGenerator(val=val)
+            data_gen = SplitMnistBackgroundGenerator(val=val, cl3=args.cl3)
         elif args.dataset == 'not':
-            data_gen = NotMnistGenerator(val =val, noise=args.noise)
+            data_gen = NotMnistGenerator(val =val, noise=args.noise, cl3=args.cl3)
         else:
             raise ValueError('Pick dataset in {normal, random, background, not}')
         return data_gen

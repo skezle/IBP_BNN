@@ -225,12 +225,6 @@ class IBP_BNN(Cla_NN):
             for i in range(len(self.hidden_size)):
                 tf.compat.v1.summary.histogram("v_beta_a_l{}".format(i), tf.cast(tf.math.softplus(tf.exp(tf.log(self.beta_a[i] + 1e-8))) + 0.01, tf.float32))
                 tf.compat.v1.summary.histogram("v_beta_b_l{}".format(i), tf.cast(tf.math.softplus(tf.exp(tf.log(self.beta_b[i] + 1e-8))) + 0.01, tf.float32))
-                tf.compat.v1.summary.histogram("p_beta_a_l{}".format(i),
-                                               tf.cast(tf.math.softplus(tf.exp(tf.log(self.prior_beta_a[i] + 1e-8))) + 0.01,
-                                                       tf.float32))
-                tf.compat.v1.summary.histogram("p_beta_b_l{}".format(i),
-                                               tf.cast(tf.math.softplus(tf.exp(tf.log(self.prior_beta_b[i] + 1e-8))) + 0.01,
-                                                       tf.float32))
             for i in range(len(self.Z)):
                 # tf.summary.images expects 4-d tensor b x height x width x channels
                 print("Z: {}".format(self.Z[i].get_shape()))
