@@ -15,12 +15,20 @@ matplotlib.use('agg')
 import matplotlib.pyplot as plt
 
 class PermutedMnistGenerator():
-    def __init__(self, max_iter=10):
+    def __init__(self, max_iter=10, val=False):
+
+        self.val = val
         with gzip.open('data/mnist.pkl.gz', 'rb') as f:
             train_set, valid_set, test_set = pickle.load(f, encoding='latin1')
 
-        self.X_train = np.vstack((train_set[0], valid_set[0]))
-        self.Y_train = np.hstack((train_set[1], valid_set[1]))
+        if self.val:
+            self.X_train = train_set[0]
+            self.X_val = valid_set[0]
+            self.Y_train = train_set[1]
+            self.Y_val = valid_set[1]
+        else:
+            self.X_train = np.vstack((train_set[0], valid_set[0]))
+            self.Y_train = np.hstack((train_set[1], valid_set[1]))
         self.X_test = test_set[0]
         self.Y_test = test_set[1]
         self.max_iter = max_iter
@@ -45,12 +53,18 @@ class PermutedMnistGenerator():
 
             # Retrieve test data
             next_x_test = deepcopy(self.X_test)
-            next_x_test = next_x_test[:,perm_inds]
+            next_x_test = next_x_test[:, perm_inds]
             next_y_test = np.eye(10)[self.Y_test]
 
-            self.cur_iter += 1
+            if self.val:
+                next_x_val = deepcopy(self.X_val)
+                next_x_val = next_x_val[:, perm_inds]
+                next_y_val = np.eye(10)[self.Y_val]
 
-            return next_x_train, next_y_train, next_x_test, next_y_test
+                self.cur_iter += 1
+                return next_x_train, next_y_train, next_x_test, next_y_test, next_x_val, next_y_val
+            else:
+                return next_x_train, next_y_train, next_x_test, next_y_test
 
     def reset_cur_iter(self):
         self.cur_iter = 0
@@ -114,29 +128,30 @@ if __name__ == "__main__":
     beta0 = 1.0
     lambda_1 = 1.0
     lambda_2 = 1.0
+    alpha = 4.0
 
+    hidden_size = [100] * args.num_layers
+    batch_size = 512
+    no_epochs = 200
+    ibp_samples = 10
+
+    val = True
     for i in range(len(seeds)):
         s = seeds[i]
-        hidden_size = [100]*args.num_layers
-        batch_size = 256
-        no_epochs = 1000
-        ibp_samples = 10
-
         tf.set_random_seed(s)
         np.random.seed(1)
 
-        val = False
         coreset_size = 0
-        data_gen = PermutedMnistGenerator(num_tasks)
+        data_gen = PermutedMnistGenerator(num_tasks, val=val)
         name = "ibp_{0}_run{1}_{2}".format("perm", i + 1, args.tag)
         # Z matrix for each task is output
         # This is overwritten for each run
-        ibp_acc, Zs, uncerts = run_vcl_ibp(hidden_size=hidden_size, alphas=[1.]*len(hidden_size),
+        ibp_acc, Zs, uncerts = run_vcl_ibp(hidden_size=hidden_size, alphas=[alpha]*len(hidden_size),
                                            no_epochs=[no_epochs]*num_tasks,
                                            data_gen=data_gen, name=name, val=val, batch_size=batch_size,
                                            single_head=args.single_head, alpha0=alpha0, beta0=beta0,
                                            lambda_1=lambda_1, lambda_2=lambda_2,
-                                           learning_rate=0.0001, no_pred_samples=100, ibp_samples=ibp_samples,
+                                           learning_rate=0.001, no_pred_samples=100, ibp_samples=ibp_samples,
                                            log_dir=args.log_dir,
                                            implicit_beta=args.implicit_beta, hibp=args.hibp)
         all_Zs.append(Zs)
@@ -148,9 +163,9 @@ if __name__ == "__main__":
             for h in args.h_list:
                 tf.reset_default_graph()
                 hidden_size = [h] * args.num_layers
-                data_gen = PermutedMnistGenerator(num_tasks)
+                data_gen = PermutedMnistGenerator(num_tasks, val=val)
                 vcl_result, uncerts = run_vcl(hidden_size, no_epochs, data_gen,
-                                              lambda a: a, coreset_size, batch_size, args.single_head, val=False,
+                                              lambda a: a, coreset_size, batch_size, args.single_head, val=val,
                                                name='vcl_perm_h{0}_{1}_run{2}'.format(h, args.tag, i + 1),
                                                log_dir=args.log_dir)
                 baseline_accs[h][i, :, :] = vcl_result
