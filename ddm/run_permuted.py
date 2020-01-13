@@ -52,6 +52,9 @@ class PermutedMnistGenerator():
 
             return next_x_train, next_y_train, next_x_test, next_y_test
 
+    def reset_cur_iter(self):
+        self.cur_iter = 0
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--single_head', action='store_true',
