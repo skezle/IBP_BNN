@@ -132,10 +132,12 @@ def run_vcl_ibp(hidden_size, alphas, no_epochs, data_gen, name,
         else:
             lr = learning_rate
 
-        if isinstance(beta_1, list):
+        if isinstance(beta_1, list) and isinstance(name, list):
             b1 = beta_1[task_id]
+            _name = name[task_id]
         else:
             b1 = beta_1
+            _name = name
 
         # Train network with maximum likelihood to initialize first model
         # lambda_1 --> temp of the variational Concrete posterior
@@ -160,7 +162,7 @@ def run_vcl_ibp(hidden_size, alphas, no_epochs, data_gen, name,
                              lambda_2=lambda_2 if task_id == 0 else lambda_1,
                              no_pred_samples=no_pred_samples,
                              tensorboard_dir=log_dir,
-                             name='{0}_task{1}'.format(name, task_id + 1),
+                             name='{0}_task{1}'.format(_name, task_id + 1),
                              use_local_reparam=use_local_reparam,
                              implicit_beta=implicit_beta,
                              beta_1=b1, beta_2=beta_2, beta_3=beta_3)
