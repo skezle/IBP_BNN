@@ -239,7 +239,7 @@ if __name__ == "__main__":
                         type=int,
                         default=[5, 50],
                         help='List of hidden states')
-    parser.add_argument('--cl3', naction='store_true',
+    parser.add_argument('--cl3', action='store_true',
                         dest='cl3',
                         default=False,
                         help='Whether to use incremental class learning')
