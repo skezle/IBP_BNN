@@ -132,6 +132,11 @@ def run_vcl_ibp(hidden_size, alphas, no_epochs, data_gen, name,
         else:
             lr = learning_rate
 
+        if isinstance(beta_1, list):
+            b1 = beta_1[task_id]
+        else:
+            b1 = beta_1
+
         # Train network with maximum likelihood to initialize first model
         # lambda_1 --> temp of the variational Concrete posterior
         # lambda_2 --> temp of the relaxed prior, for task != 0 this should be lambda_1!!!
@@ -158,7 +163,7 @@ def run_vcl_ibp(hidden_size, alphas, no_epochs, data_gen, name,
                              name='{0}_task{1}'.format(name, task_id + 1),
                              use_local_reparam=use_local_reparam,
                              implicit_beta=implicit_beta,
-                             beta_1=beta_1, beta_2=beta_2, beta_3=beta_3)
+                             beta_1=b1, beta_2=beta_2, beta_3=beta_3)
         else:
             model = IBP_BNN(in_dim, hidden_size, out_dim, x_train.shape[0], num_ibp_samples=ibp_samples,
                             prev_means=mf_weights,
@@ -171,7 +176,7 @@ def run_vcl_ibp(hidden_size, alphas, no_epochs, data_gen, name,
                             name='{0}_task{1}'.format(name, task_id + 1),
                             use_local_reparam=use_local_reparam,
                             implicit_beta=implicit_beta,
-                            beta_1=beta_1, beta_2=beta_2, beta_3=beta_3)
+                            beta_1=b1, beta_2=beta_2, beta_3=beta_3)
 
         model.create_model()
         if os.path.isdir(model.log_folder):
