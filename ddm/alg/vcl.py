@@ -9,7 +9,7 @@ from HIBP_BNN_multihead import HIBP_BNN
 
 def run_vcl(hidden_size, no_epochs, data_gen, coreset_method, coreset_size=0, batch_size=None, single_head=True, val=False,
             verbose=True, name='vcl', log_dir='logs', use_local_reparam=False):
-    in_dim, out_dim = data_gen.get_dims()
+
     x_coresets, y_coresets = [], []
     x_testsets, y_testsets = [], []
     all_x_testsets, all_y_testsets = [], []
@@ -29,6 +29,8 @@ def run_vcl(hidden_size, no_epochs, data_gen, coreset_method, coreset_size=0, ba
 
     for task_id in range(data_gen.max_iter):
 
+        in_dim, out_dim = data_gen.get_dims()
+        
         tf.reset_default_graph()
 
         if val:
@@ -88,7 +90,6 @@ def run_vcl_ibp(hidden_size, alphas, no_epochs, data_gen, name,
                 run_val_set=False, use_local_reparam=False, implicit_beta=False,
                 hibp=False, beta_1=1.0, beta_2=1.0, beta_3=1.0):
 
-    in_dim, out_dim = data_gen.get_dims()
     all_acc = np.array([])
     all_uncerts = np.zeros((data_gen.max_iter, data_gen.max_iter))
     x_testsets, y_testsets = [], []
@@ -108,6 +109,8 @@ def run_vcl_ibp(hidden_size, alphas, no_epochs, data_gen, name,
     data_gen.reset_cur_iter()
 
     for task_id in range(data_gen.max_iter):
+
+        in_dim, out_dim = data_gen.get_dims()
 
         tf.reset_default_graph()
         if val:
