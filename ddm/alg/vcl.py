@@ -132,6 +132,11 @@ def run_vcl_ibp(hidden_size, alphas, no_epochs, data_gen, name,
         else:
             lr = learning_rate
 
+        if isinstance(beta_1, list):
+            b1 = beta_1[task_id]
+        else:
+            b1 = beta_1
+
         # Train network with maximum likelihood to initialize first model
         # lambda_1 --> temp of the variational Concrete posterior
         # lambda_2 --> temp of the relaxed prior, for task != 0 this should be lambda_1!!!
