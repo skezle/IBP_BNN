@@ -86,7 +86,7 @@ def run_vcl_ibp(hidden_size, alphas, no_epochs, data_gen, name,
                 learning_rate_decay=0.87,
                 no_pred_samples=100, ibp_samples = 10, log_dir='logs',
                 run_val_set=False, use_local_reparam=False, implicit_beta=False,
-                hibp=False):
+                hibp=False, beta_1=1.0, beta_2=1.0, beta_3=1.0):
 
     in_dim, out_dim = data_gen.get_dims()
     all_acc = np.array([])
@@ -157,7 +157,8 @@ def run_vcl_ibp(hidden_size, alphas, no_epochs, data_gen, name,
                              tensorboard_dir=log_dir,
                              name='{0}_task{1}'.format(name, task_id + 1),
                              use_local_reparam=use_local_reparam,
-                             implicit_beta=implicit_beta)
+                             implicit_beta=implicit_beta,
+                             beta_1=beta_1, beta_2=beta_2, beta_3=beta_3)
         else:
             model = IBP_BNN(in_dim, hidden_size, out_dim, x_train.shape[0], num_ibp_samples=ibp_samples,
                             prev_means=mf_weights,
@@ -169,7 +170,8 @@ def run_vcl_ibp(hidden_size, alphas, no_epochs, data_gen, name,
                             tensorboard_dir=log_dir,
                             name='{0}_task{1}'.format(name, task_id + 1),
                             use_local_reparam=use_local_reparam,
-                            implicit_beta=implicit_beta)
+                            implicit_beta=implicit_beta,
+                            beta_1=beta_1, beta_2=beta_2, beta_3=beta_3)
 
         model.create_model()
         if os.path.isdir(model.log_folder):
