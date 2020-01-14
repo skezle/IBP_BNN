@@ -494,7 +494,7 @@ class MnistGenerator():
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--run_baslines', action='store_true',
+    parser.add_argument('--run_baselines', action='store_true',
                         default=False,
                         dest='run_baslines',
                         help='Whether to run MFVI baselines.')
@@ -509,7 +509,7 @@ if __name__ == '__main__':
 
     print('tag                    = {!r}'.format(args.tag))
     print('hibp                   = {!r}'.format(args.hibp))
-    print('run_baslines           = {!r}'.format(args.run_baslines))
+    print('run_baselines           = {!r}'.format(args.run_baselines))
 
     hidden_size = [200, 200]
     batch_size = 512
@@ -586,10 +586,15 @@ if __name__ == '__main__':
                                  name='ibp_wp_mnist_new_run{0}'.format(i),
                                  use_local_reparam=False, implicit_beta=True)
         model.create_model()
-        #model.restore(os.path.join("logs_wp", 'graph_{0}'.format('ibp_wp_mnist_new_run0')))
-        model.train(x_train, y_train, head, no_epochs, bsize)
 
-        xs, ya_ibp, yb_ibp  = model.prune_weights(x_test, y_test, head)
+        if os.path.isdir(model.log_folder):
+            print("Restoring model from {}".format(model.log_folder))
+            model.restore(model.log_folder)
+        else:
+            print("New model, training")
+            model.train(x_train, y_train, head, no_epochs, bsize)
+
+        xs, ya_ibp, yb_ibp = model.prune_weights(x_test, y_test, head)
         ya_ibp_all[i, :] = ya_ibp
         yb_ibp_all[i, :] = yb_ibp
 
