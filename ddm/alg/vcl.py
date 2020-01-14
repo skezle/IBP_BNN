@@ -145,7 +145,7 @@ def run_vcl_ibp(hidden_size, alphas, no_epochs, data_gen, name,
         # lambda_2 --> temp of the relaxed prior, for task != 0 this should be lambda_1!!!
         if task_id == 0:
             ml_model = Vanilla_NN(in_dim, hidden_size, out_dim, x_train.shape[0])
-            ml_model.train(x_train, y_train, task_id, no_epochs, bsize)
+            ml_model.train(x_train, y_train, task_id, n, bsize)
             mf_weights = ml_model.get_weights()
             mf_variances = None
             mf_betas = None
