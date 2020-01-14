@@ -496,7 +496,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--run_baselines', action='store_true',
                         default=False,
-                        dest='run_baslines',
+                        dest='run_baselines',
                         help='Whether to run MFVI baselines.')
     parser.add_argument('--hibp', action='store_true',
                         default=False,
