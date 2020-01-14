@@ -112,7 +112,7 @@ class SplitMnistBackgroundGenerator(SplitMnistGenerator):
     """
     def __init__(self, val=False, cl3=False):
 
-        super(SplitMnistGenerator, self).__init__(val=val, cl3=cl3)
+        super(SplitMnistBackgroundGenerator, self).__init__(val=val, cl3=cl3)
 
         # 12000 train, 50000 test
         train = np.loadtxt('data/mnist_background_images/mnist_background_images_train.amat')
@@ -150,7 +150,9 @@ class SplitMnistRandomGenerator(SplitMnistGenerator):
 
     """
     def __init__(self, val=False, cl3=False):
-        super(SplitMnistGenerator, self).__init__(val=val, cl3=cl3)
+
+        super(SplitMnistRandomGenerator, self).__init__(val=val, cl3=cl3)
+
         # 12000 train, 50000 test
         train = np.loadtxt('data/mnist_background_random/mnist_background_random_train.amat')
         test = np.loadtxt('data/mnist_background_random/mnist_background_random_test.amat')
