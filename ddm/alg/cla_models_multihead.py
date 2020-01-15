@@ -119,9 +119,11 @@ class Cla_NN(object):
 
 """ Neural Network Model """
 class Vanilla_NN(Cla_NN):
-    def __init__(self, input_size, hidden_size, output_size, training_size, prev_weights=None, learning_rate=0.001):
+    def __init__(self, input_size, hidden_size, output_size, training_size, prev_weights=None, learning_rate=0.001,
+                 cl3=False, cl3_dim=2):
 
-        super(Vanilla_NN, self).__init__(input_size, hidden_size, output_size, training_size)
+        super(Vanilla_NN, self).__init__(input_size, hidden_size,
+                                         cl3_dim if cl3 else output_size, training_size)
         # init weights and biases
 
         self.input_size = input_size
@@ -130,6 +132,8 @@ class Vanilla_NN(Cla_NN):
         self.training_size = training_size
         self.prev_weights = prev_weights
         self.learning_rate = learning_rate
+        self.cl3 = cl3
+        self.cl3_dim = cl3_dim
         self.create_model()
 
     def create_model(self):
@@ -149,7 +153,7 @@ class Vanilla_NN(Cla_NN):
             pre = tf.add(tf.matmul(act, self.W[i]), self.b[i])
             act = tf.nn.relu(pre)
         pre = tf.add(tf.matmul(act, tf.gather(self.W_last, task_idx)), tf.gather(self.b_last, task_idx))
-        return pre
+        return pre[:, :self.cl3_dim]
 
     def _logpred(self, inputs, targets, task_idx):
         pred = self._prediction(inputs, task_idx)
@@ -206,15 +210,20 @@ class Vanilla_NN(Cla_NN):
 
 """ Bayesian Neural Network with Mean field VI approximation """
 class MFVI_NN(Cla_NN):
-    def __init__(self, input_size, hidden_size, output_size, training_size, 
-        no_train_samples=10, no_pred_samples=100, prev_means=None, prev_log_variances=None, learning_rate=0.001, 
-        prior_mean=0, prior_var=1, tensorboard_dir='logs', name='vcl', use_local_reparam=True):
+    def __init__(self, input_size, hidden_size, output_size, training_size,
+                 no_train_samples=10, no_pred_samples=100, prev_means=None, prev_log_variances=None,
+                 learning_rate=0.001,
+                 prior_mean=0, prior_var=1, tensorboard_dir='logs', name='vcl', use_local_reparam=True,
+                 cl3=False, cl3_dim=2):
 
-        super(MFVI_NN, self).__init__(input_size, hidden_size, output_size, training_size)
+        super(MFVI_NN, self).__init__(input_size, hidden_size,
+                                      cl3_dim if cl3 else output_size, training_size)
 
         self.tensorboard_dir = tensorboard_dir
         self.name = name
         self.use_local_reparam = use_local_reparam
+        self.cl3 = cl3
+        self.cl3_dim = cl3_dim
 
         self.log_folder = os.path.join(self.tensorboard_dir, "graph_{}".format(self.name))
 
@@ -303,7 +312,10 @@ class MFVI_NN(Cla_NN):
         v_h = tf.add(tf.reduce_sum(tf.square(_act_local) * tf.square(tf.exp(0.5*Wtask_v)), 2),
                      tf.square(tf.exp(0.5*btask_v)))
         pre_local = m_h + tf.sqrt(v_h + 1e-6) * tf.random_normal(tf.shape(v_h), dtype=tf.float32) # (K, batch_size, out_dim)
-        return pre, pre_local
+        if self.cl3:
+            return pre[:, :, :self.cl3_dim], pre_local[:, :, :self.cl3_dim]
+        else:
+            return pre, pre_local
 
     def _logpred(self, inputs, targets, task_idx):
         pred = self._prediction(inputs, task_idx, self.no_train_samples)

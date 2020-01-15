@@ -8,7 +8,7 @@ from IBP_BNN_multihead import IBP_BNN
 from HIBP_BNN_multihead import HIBP_BNN
 
 def run_vcl(hidden_size, no_epochs, data_gen, coreset_method, coreset_size=0, batch_size=None, single_head=True, val=False,
-            verbose=True, name='vcl', log_dir='logs', use_local_reparam=False):
+            verbose=True, name='vcl', log_dir='logs', use_local_reparam=False, cl3=False):
 
     x_coresets, y_coresets = [], []
     x_testsets, y_testsets = [], []
@@ -30,8 +30,11 @@ def run_vcl(hidden_size, no_epochs, data_gen, coreset_method, coreset_size=0, ba
     for task_id in range(data_gen.max_iter):
 
         in_dim, out_dim = data_gen.get_dims()
-        
+        out_dim = data_gen.get_full_dim() if cl3 else out_dim
         tf.reset_default_graph()
+
+        # Set output dimensions for class incremental learning experiment
+        _, cl3_out_dim = data_gen.get_dims()
 
         if val:
             x_train, y_train, x_test, y_test, _, _ = data_gen.next_task()
@@ -46,7 +49,8 @@ def run_vcl(hidden_size, no_epochs, data_gen, coreset_method, coreset_size=0, ba
 
         # Train network with maximum likelihood to initialize first model
         if task_id == 0:
-            ml_model = Vanilla_NN(in_dim, hidden_size, out_dim, x_train.shape[0])
+            ml_model = Vanilla_NN(in_dim, hidden_size, out_dim, x_train.shape[0],
+                                  cl3=cl3, cl3_dim=cl3_out_dim)
             ml_model.train(x_train, y_train, task_id, no_epochs, bsize)
             mf_weights = ml_model.get_weights()
             mf_variances = None
@@ -58,7 +62,8 @@ def run_vcl(hidden_size, no_epochs, data_gen, coreset_method, coreset_size=0, ba
 
         # Train on non-coreset data
         mf_model = MFVI_NN(in_dim, hidden_size, out_dim, x_train.shape[0], prev_means=mf_weights, prev_log_variances=mf_variances,
-                           name="{0}_task{1}".format(name, task_id+1), tensorboard_dir=log_dir, use_local_reparam=use_local_reparam)
+                           name="{0}_task{1}".format(name, task_id+1), tensorboard_dir=log_dir, use_local_reparam=use_local_reparam,
+                           cl3=cl3, cl3_dim=cl3_out_dim)
 
         if os.path.isdir(mf_model.log_folder):
             print("Restoring model from {}".format(mf_model.log_folder))

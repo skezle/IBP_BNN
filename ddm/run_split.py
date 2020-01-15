@@ -59,6 +59,9 @@ class SplitMnistGenerator:
         else:
             return self.X_train.shape[1], 2
 
+    def get_full_dim(self):
+        return 10
+
     def next_task(self):
         if self.cur_iter >= self.max_iter:
             raise Exception('Number of tasks exceeded!')
@@ -334,9 +337,10 @@ if __name__ == "__main__":
                 hidden_size = [h] * args.num_layers
                 data_gen = get_datagen()
                 vcl_result, uncerts = run_vcl(hidden_size, no_epochs, data_gen,
-                                                  lambda a: a, coreset_size, batch_size, args.single_head, val=val,
-                                                  name='vcl_h{0}_{1}_run{2}_{3}'.format(h, args.dataset, i+1, args.tag),
-                                                  log_dir=args.log_dir, use_local_reparam=args.use_local_reparam)
+                                              lambda a: a, coreset_size, batch_size, args.single_head, val=val,
+                                              name='vcl_h{0}_{1}_run{2}_{3}'.format(h, args.dataset, i+1, args.tag),
+                                              log_dir=args.log_dir, use_local_reparam=args.use_local_reparam,
+                                              cl3=args.cl3)
                 baseline_accs[h][i, :, :] = vcl_result
                 baseline_uncerts[h][i, :, :] = uncerts
 
