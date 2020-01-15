@@ -287,10 +287,10 @@ if __name__ == "__main__":
         return data_gen
 
     # IBP params
-    alpha0 = 5.0
+    alpha0 = 4.2
     beta0 = 1.0
-    lambda_1 = 1.0 # posterior
-    lambda_2 = 1.0 # prior
+    lambda_1 = 0.7 # posterior
+    lambda_2 = 0.7 # prior
     alpha = 4.0
     # Gaussian params
     prior_mean = 0.0
