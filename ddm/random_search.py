@@ -281,7 +281,6 @@ if __name__ == "__main__":
     print('use_local_reparam      = {!r}'.format(args.use_local_reparam))
     print('noise                  = {!r}'.format(args.noise))
     print('hibp                   = {!r}'.format(args.hibp))
-    print('cl3                    = {!r}'.format(args.cl3))
     print('tag                    = {!r}'.format(args.tag))
 
     seeds = list(range(10, 10 + 5))
