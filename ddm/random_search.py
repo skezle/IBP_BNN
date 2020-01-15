@@ -14,8 +14,8 @@ import tensorflow as tf
 
 from run_split import SplitMnistBackgroundGenerator, SplitMnistRandomGenerator, SplitMnistGenerator
 from run_not import NotMnistGenerator
+from run_permuted import PermutedMnistGenerator
 from vcl import run_vcl_ibp, run_vcl
-from visualise import plot_uncertainties, plot_Zs
 
 import matplotlib
 matplotlib.use('agg')
@@ -253,7 +253,7 @@ if __name__ == "__main__":
                         help='TB log directory.')
     parser.add_argument('--dataset', action='store',
                         dest='dataset',
-                        help='Which dataset to choose {normal, noise, background, not}.')
+                        help='Which dataset to choose {normal, noise, background, not, perm}.')
     parser.add_argument('--tag', action='store',
                         dest='tag',
                         help='Tag to use in naming file outputs')
@@ -269,10 +269,7 @@ if __name__ == "__main__":
                         default=False,
                         dest='hibp',
                         help='Whether to use HIBP.')
-    parser.add_argument('--cl3', naction='store_true',
-                        dest='cl3',
-                        default=False,
-                        help='Whether to use incremental class learning')
+
     args = parser.parse_args()
 
     print('single_head            = {!r}'.format(args.single_head))
@@ -310,6 +307,8 @@ if __name__ == "__main__":
             data_gen = SplitMnistBackgroundGenerator(val=val, cl3=args.cl3)
         elif args.dataset == 'not':
             data_gen = NotMnistGenerator(val =val, noise=args.noise, cl3=args.cl3)
+        elif args.dataset == 'perm':
+            data_gen = PermutedMnistGenerator(val=val)
         else:
             raise ValueError('Pick dataset in {normal, random, background, not}')
         return data_gen
