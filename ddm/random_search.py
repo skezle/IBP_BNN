@@ -299,13 +299,13 @@ if __name__ == "__main__":
     # define data generator
     def get_datagen(val):
         if args.dataset == 'normal':
-            data_gen = SplitMnistGenerator(val=val, difficult=False, cl3=args.cl3)
+            data_gen = SplitMnistGenerator(val=val, difficult=False)
         elif args.dataset == 'random':
-            data_gen = SplitMnistRandomGenerator(val=val, cl3=args.cl3)
+            data_gen = SplitMnistRandomGenerator(val=val)
         elif args.dataset == 'background':
-            data_gen = SplitMnistBackgroundGenerator(val=val, cl3=args.cl3)
+            data_gen = SplitMnistBackgroundGenerator(val=val)
         elif args.dataset == 'not':
-            data_gen = NotMnistGenerator(val =val, noise=args.noise, cl3=args.cl3)
+            data_gen = NotMnistGenerator(val =val, noise=args.noise)
         elif args.dataset == 'perm':
             data_gen = PermutedMnistGenerator(val=val)
         else:
