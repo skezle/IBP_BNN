@@ -579,7 +579,7 @@ if __name__ == '__main__':
                                    alpha0=alpha0, beta0=beta0,
                                    lambda_1=lambda_1, lambda_2=lambda_2,
                                    tensorboard_dir='logs_wp',
-                                   name='hibp_wp_mnist_new_run{0}'.format(i),
+                                   name='hibp_wp_{0}_run{1}'.format(args.tag, i),
                                    use_local_reparam=False, implicit_beta=True)
         else:
             model = IBP_NN_prune(in_dim, hidden_size, out_dim,
@@ -594,7 +594,7 @@ if __name__ == '__main__':
                                  alpha0=alpha0, beta0=beta0,
                                  lambda_1=lambda_1, lambda_2=lambda_2,
                                  tensorboard_dir='logs_wp',
-                                 name='ibp_wp_mnist_new_run{0}'.format(i),
+                                 name='ibp_wp_{0}_run{1}'.format(args.tag, i),
                                  use_local_reparam=False, implicit_beta=True)
         model.create_model()
 
