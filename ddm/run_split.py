@@ -199,8 +199,8 @@ class SplitCIFAR10Generator:
             idx = np.random.permutation(train.shape[0])
             self.X_train = train[idx[10000:], :]
             self.X_val = train[idx[:10000], :]
-            self.train_label = train_labels[idx[:10000]]
-            self.val_label = train_labels[idx[10000:]]
+            self.train_label = train_labels[idx[10000:]]
+            self.val_label = train_labels[idx[:10000]]
         else:
             self.X_train = train
             self.train_label = train_labels
@@ -237,7 +237,7 @@ class SplitCIFAR10Generator:
 
             next_y_test = np.vstack((np.ones((test_0_id.shape[0], 1)), np.zeros((test_1_id.shape[0], 1))))
             next_y_test = np.hstack((next_y_test, 1 - next_y_test))
-            pdb.set_trace()
+            #pdb.set_trace()
             if self.val:
                 val_0_id = np.where(self.val_label == self.sets_0[self.cur_iter])[0]
                 val_1_id = np.where(self.val_label == self.sets_1[self.cur_iter])[0]
