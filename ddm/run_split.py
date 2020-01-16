@@ -189,9 +189,9 @@ class SplitCIFAR10Generator:
         self.val = val
 
         train, test = tf.compat.v1.keras.datasets.cifar10.load_data() # (50000, 32, 32, 3), (50000, 1), (10000, 32, 32, 3), (10000, 1)
-        train_labels = train[1]
+        train_labels = train[1].reshape(-1)
         train = train[0].reshape(-1, 32*32*3)
-        test_labels = test[1]
+        test_labels = test[1].reshape(-1)
         test = test[0].reshape(-1, 32*32*3)
 
         if self.val:
