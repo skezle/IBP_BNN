@@ -522,6 +522,17 @@ if __name__ == '__main__':
     ###########
     ## H-IBP ##
     ###########
+
+    # IBP params
+    alpha0 = 4.2
+    beta0 = 1.0
+    lambda_1 = 0.7  # posterior
+    lambda_2 = 0.7  # prior
+    alpha = 4.0
+    # Gaussian params
+    prior_mean = 0.0
+    prior_var = 0.7
+
     ya_ibp_all = np.zeros((runs, len(xs)))
     yb_ibp_all = np.zeros((runs, len(xs)))
 
@@ -564,9 +575,9 @@ if __name__ == '__main__':
                                    prev_log_variances=mf_variances,
                                    prev_betas=mf_betas,
                                    learning_rate=0.001, learning_rate_decay=0.87,
-                                   prior_mean=0.0, prior_var=0.1,
-                                   alpha0=5.0, beta0=1.0,
-                                   lambda_1=1.0, lambda_2=1.0,
+                                   prior_mean=prior_mean, prior_var=prior_var,
+                                   alpha0=alpha0, beta0=beta0,
+                                   lambda_1=lambda_1, lambda_2=lambda_2,
                                    tensorboard_dir='logs_wp',
                                    name='hibp_wp_mnist_new_run{0}'.format(i),
                                    use_local_reparam=False, implicit_beta=True)
@@ -579,9 +590,9 @@ if __name__ == '__main__':
                                  prev_log_variances=mf_variances,
                                  prev_betas=mf_betas,
                                  learning_rate=0.001, learning_rate_decay=0.87,
-                                 prior_mean=1.0, prior_var=0.1,
-                                 alpha0=5.0, beta0=1.0,
-                                 lambda_1=1.0, lambda_2=1.0,
+                                 prior_mean=prior_mean, prior_var=prior_var,
+                                 alpha0=alpha0, beta0=beta0,
+                                 lambda_1=lambda_1, lambda_2=lambda_2,
                                  tensorboard_dir='logs_wp',
                                  name='ibp_wp_mnist_new_run{0}'.format(i),
                                  use_local_reparam=False, implicit_beta=True)
