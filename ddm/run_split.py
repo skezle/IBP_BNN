@@ -283,7 +283,7 @@ if __name__ == "__main__":
                         help='TB log directory.')
     parser.add_argument('--dataset', action='store',
                         dest='dataset',
-                        help='Which dataset to choose {normal, noise, background}.')
+                        help='Which dataset to choose {normal, noise, background, cifar10}.')
     parser.add_argument('--tag', action='store',
                         dest='tag',
                         help='Tag to use in naming file outputs')
@@ -317,6 +317,11 @@ if __name__ == "__main__":
                         dest='cl3',
                         default=False,
                         help='Whether to use incremental class learning')
+    parser.add_argument('--K', action='store',
+                        dest='K',
+                        default=100,
+                        type=int,
+                        help='Variational truncation param for IBP.')
 
     args = parser.parse_args()
 
@@ -333,6 +338,7 @@ if __name__ == "__main__":
     print('run_baselines        = {!r}'.format(args.run_baselines))
     print('h_list               = {!r}'.format(args.h_list))
     print('cl3                  = {!r}'.format(args.cl3))
+    print('K                    = {!r}'.format(args.K))
     print('tag                  = {!r}'.format(args.tag))
 
     seeds = list(range(1, 1 + args.runs))
@@ -349,17 +355,19 @@ if __name__ == "__main__":
 
     def get_datagen():
         if args.dataset == 'normal':
-            data_gen = SplitMnistGenerator(val=val, difficult=args.difficult, cl3=args.cl3)
+            data_gen = SplitMnistGenerator(val=val, difficult=args.difficult)
         elif args.dataset == 'random':
-            data_gen = SplitMnistRandomGenerator(val=val, cl3=args.cl3)
+            data_gen = SplitMnistRandomGenerator(val=val)
         elif args.dataset == 'background':
-            data_gen = SplitMnistBackgroundGenerator(val=val, cl3=args.cl3)
+            data_gen = SplitMnistBackgroundGenerator(val=val)
+        elif args.dataset == 'cifar10':
+            data_gen = SplitCIFAR10Generator(val=val)
         else:
             raise ValueError('Pick dataset in {normal, random, background}')
         return data_gen
 
     # IBP params
-    alpha0 = 4.2
+    alpha0 = args.alpha0
     beta0 = 1.0
     lambda_1 = 0.7 # posterior
     lambda_2 = 0.7 # prior
@@ -370,7 +378,7 @@ if __name__ == "__main__":
 
     for i in range(len(seeds)):
         s = seeds[i]
-        hidden_size = [100] * args.num_layers
+        hidden_size = [args.K] * args.num_layers
         batch_size = 512
         no_epochs = 600
         ibp_samples = 10
