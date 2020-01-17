@@ -594,6 +594,19 @@ class IBP_BNN(Cla_NN):
             avg_neg_elbo += neg_elbo / total_batch
         return avg_acc, avg_neg_elbo
 
+    def prediction_Zs(self, x_test, batch_size, task_idx):
+        sess = self.sess
+        N = x_test.shape[0]
+        Zs = []
+        total_batch = int(np.ceil(N * 1.0 / batch_size))
+        # Loop over all batches
+        for i in range(total_batch):
+            start_ind = i * batch_size
+            end_ind = np.min([(i + 1) * batch_size, N])
+            batch_x = x_test[start_ind:end_ind, :]
+            Zs.append(self.sess.run(self.Z, feed_dict={self.x: batch_x, self.task_idx: task_idx, self.training: False}))
+        return Zs
+
     def save(self, model_dir):
         self.saver.save(self.sess, os.path.join(model_dir, "model.ckpt"))
 
