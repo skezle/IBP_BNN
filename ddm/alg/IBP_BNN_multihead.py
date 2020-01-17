@@ -604,7 +604,7 @@ class IBP_BNN(Cla_NN):
             start_ind = i * batch_size
             end_ind = np.min([(i + 1) * batch_size, N])
             batch_x = x_test[start_ind:end_ind, :]
-            Zs.append(self.sess.run(self.Z, feed_dict={self.x: batch_x, self.task_idx: task_idx, self.training: False}))
+            Zs.append(sess.run(self.Z, feed_dict={self.x: batch_x, self.task_idx: task_idx, self.training: False}))
         return Zs
 
     def save(self, model_dir):
