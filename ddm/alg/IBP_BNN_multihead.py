@@ -570,6 +570,30 @@ class IBP_BNN(Cla_NN):
                                                                     self.training: False})[0]
         return prob
 
+    def prediction_acc(self, x_test, y_test, batch_size, task_idx):
+        sess = self.sess
+        N = x_test.shape[0]
+        avg_acc = 0.
+        avg_neg_elbo = 0.
+        total_batch = int(np.ceil(N * 1.0 / batch_size))
+        # Loop over all batches
+        for i in range(total_batch):
+            start_ind = i * batch_size
+            end_ind = np.min([(i + 1) * batch_size, N])
+            batch_x = x_test[start_ind:end_ind, :]
+            batch_y = y_test[start_ind:end_ind, :]
+
+            acc, neg_elbo = sess.run([self.acc, self.cost],
+                                     feed_dict={self.x: batch_x,
+                                                self.y: batch_y,
+                                                self.task_idx: task_idx,
+                                                self.training: False})
+
+            # Compute average loss
+            avg_acc += acc / total_batch
+            avg_neg_elbo += neg_elbo / total_batch
+        return avg_acc, avg_neg_elbo
+
     def save(self, model_dir):
         self.saver.save(self.sess, os.path.join(model_dir, "model.ckpt"))
 

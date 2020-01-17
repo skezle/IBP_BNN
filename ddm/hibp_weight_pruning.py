@@ -33,7 +33,7 @@ class IBP_NN_prune(IBP_BNN):
                  name=name, tb_logging=tb_logging, output_tb_gradients=output_tb_gradients,
                  use_local_reparam=use_local_reparam, implicit_beta=implicit_beta)
 
-    def prune_weights(self, X_test, Y_test, task_id):
+    def prune_weights(self, X_test, Y_test, bsize, task_id):
         """ Performs weight pruning.
 
         Z is at a data level doesn't make sense to introduce this intot he mask over weights which get zeroed
@@ -43,6 +43,7 @@ class IBP_NN_prune(IBP_BNN):
         Args:
             X_test: numpy array
             Y_test: numpy array
+            bsize: int
             task_id: int
         :return: cutoffs, accs via naive pruning, accs via snr pruning,
         weight values, sigma values of network
@@ -64,7 +65,7 @@ class IBP_NN_prune(IBP_BNN):
                 self.sess.run(tf.assign(v, tf.cast(_v, v.dtype)))
 
         def pruning(remove_pct, weightvalues, sigmavalues,
-                    weights, sigmas, uncert_pruning=True):
+                    weights, sigmas, bsize, uncert_pruning=True):
             """ Performs weight pruning experiment
             Args:
                 weightvalues: np array of weights
@@ -72,6 +73,7 @@ class IBP_NN_prune(IBP_BNN):
                 weights: list of tf weight variable
                 new_weights: list of new tf weight variables which wil
                 sigmas: list of tf sigma variables
+                bsize: int batch size
                 uncert_pruning: bool pruning by snr
             """
             if uncert_pruning:
@@ -89,14 +91,11 @@ class IBP_NN_prune(IBP_BNN):
                 else:
                     mask = tf.greater_equal(tf.abs(v), cutoff)
                 self.sess.run(tf.assign(v, tf.multiply(v, tf.cast(mask, v.dtype))))
-                # self.sess.run(tf.assign(s, np.multiply(self.sess.run(s), mask)))  # also apply zero std to weight!!!
 
             accs = []
             for _ in range(10):
-                accs.append(self.sess.run(self.acc, {self.x: X_test,
-                                                     self.y: Y_test,
-                                                     self.task_idx: task_id,
-                                                     self.training: False}))
+                acc, _ = self.prediction_acc(X_test, Y_test, bsize, task_id)
+                accs.append(acc)
             print("%.2f, %s" % (np.sum(sorted_STN < cutoff) / len(sorted_STN), np.mean(accs)))
             return np.mean(accs)
 
@@ -127,11 +126,9 @@ class IBP_NN_prune(IBP_BNN):
             else:
                 print("Un-matched: {}".format(v.name))
 
-        acc = self.sess.run(self.acc, {self.x: X_test,
-                                       self.y: Y_test,
-                                       self.task_idx: task_id,
-                                       self.training: False})  # z mask for each layer in a list, each Z \in dout
+        acc, neg_elbo = self.prediction_acc(X_test, Y_test, bsize, task_id)  # z mask for each layer in a list, each Z \in dout
         print("test acc: {}".format(acc))
+        print("test neg elbo: {}".format(neg_elbo))
         # cache network weights of resetting the network
         _mus_w = [self.sess.run(w) for w in mus_w]
         _sigmas_w = [self.sess.run(w) for w in sigmas_w]
@@ -148,7 +145,7 @@ class IBP_NN_prune(IBP_BNN):
         ya_ibp = []
         for pct in xs:
             ya_ibp.append(pruning(pct, weightvalues, sigmavalues, mus_w + mus_b + mus_h,
-                                  sigmas_w + sigmas_b + sigmas_h, uncert_pruning=False))
+                                  sigmas_w + sigmas_b + sigmas_h, bsize, uncert_pruning=False))
 
         # reset etc.
         reset_weights(mus_w, sigmas_w, _mus_w, _sigmas_w)
@@ -157,7 +154,7 @@ class IBP_NN_prune(IBP_BNN):
         yb_ibp = []
         for pct in xs:
             yb_ibp.append(pruning(pct, weightvalues, sigmavalues, mus_w + mus_b + mus_h,
-                                  sigmas_w + sigmas_b + sigmas_h, uncert_pruning=True))
+                                  sigmas_w + sigmas_b + sigmas_h, bsize, uncert_pruning=True))
 
         reset_weights(mus_w, sigmas_w, _mus_w, _sigmas_w)
         reset_weights(mus_b, sigmas_b, _mus_b, _sigmas_b)
@@ -177,7 +174,7 @@ class MFVI_NN_prune(MFVI_NN):
         prior_mean, prior_var)
 
 
-    def prune_weights(self, X_test, Y_test, task_id):
+    def prune_weights(self, X_test, Y_test, bsize, task_id):
         """ Performs weight pruning.
 
         Z is at a data level doesn't make sense to introduce this intot he mask over weights which get zeroed
@@ -187,6 +184,7 @@ class MFVI_NN_prune(MFVI_NN):
         Args:
             X_test: numpy array
             Y_test: numpy array
+            bsize: int
             task_id: int
         :return: cutoffs, accs via naive pruning, accs via snr pruning,
         weight values, sigma values of network
@@ -208,7 +206,7 @@ class MFVI_NN_prune(MFVI_NN):
                 self.sess.run(tf.assign(v, tf.cast(_v, v.dtype)))
 
         def pruning(remove_pct, weightvalues, sigmavalues,
-                    weights, sigmas, uncert_pruning=True):
+                    weights, sigmas, bsize, uncert_pruning=True):
             """ Performs weight pruning experiment
             Args:
                 weightvalues: np array of weights
@@ -235,9 +233,8 @@ class MFVI_NN_prune(MFVI_NN):
 
             accs = []
             for _ in range(10):
-                accs.append(self.sess.run(self.acc, {self.x: X_test,
-                                                     self.y: Y_test,
-                                                     self.task_idx: task_id}))
+                acc, _ = self.prediction_acc(X_test, Y_test, bsize, task_id)
+                accs.append(acc)
             print("%.2f, %s" % (np.sum(sorted_STN < cutoff) / len(sorted_STN), np.mean(accs)))
             return np.mean(accs)
 
@@ -267,6 +264,11 @@ class MFVI_NN_prune(MFVI_NN):
             else:
                 print("Un-matched: {}".format(v.name))
 
+        acc, neg_elbo = self.prediction_acc(X_test, Y_test, bsize,
+                                            task_id)  # z mask for each layer in a list, each Z \in dout
+        print("test acc: {}".format(acc))
+        print("test neg elbo: {}".format(neg_elbo))
+
         # cache network weights of resetting the network
         _mus_w = [self.sess.run(w) for w in mus_w]
         _sigmas_w = [self.sess.run(w) for w in sigmas_w]
@@ -283,7 +285,7 @@ class MFVI_NN_prune(MFVI_NN):
         ya = []
         for pct in xs:
             ya.append(pruning(pct, weightvalues, sigmavalues, mus_w + mus_b + mus_h,
-                              sigmas_w + sigmas_b + sigmas_h, uncert_pruning=False))
+                              sigmas_w + sigmas_b + sigmas_h, bsize, uncert_pruning=False))
 
         # reset etc.
         reset_weights(mus_w, sigmas_w, _mus_w, _sigmas_w)
@@ -292,7 +294,7 @@ class MFVI_NN_prune(MFVI_NN):
         yb = []
         for pct in xs:
             yb.append(pruning(pct, weightvalues, sigmavalues, mus_w + mus_b + mus_h,
-                                  sigmas_w + sigmas_b + sigmas_h, uncert_pruning=True))
+                                  sigmas_w + sigmas_b + sigmas_h, bsize, uncert_pruning=True))
 
         reset_weights(mus_w, sigmas_w, _mus_w, _sigmas_w)
         reset_weights(mus_b, sigmas_b, _mus_b, _sigmas_b)
@@ -332,7 +334,7 @@ class HIBP_BNN_prune(HIBP_BNN):
                  implicit_beta=implicit_beta)
 
 
-    def prune_weights(self, X_test, Y_test, task_id):
+    def prune_weights(self, X_test, Y_test, bsize, task_id):
         """ Performs weight pruning.
 
         Z is at a data level doesn't make sense to introduce this intot he mask over weights which get zeroed
@@ -342,6 +344,7 @@ class HIBP_BNN_prune(HIBP_BNN):
         Args:
             X_test: numpy array
             Y_test: numpy array
+            bsize: int
             task_id: int
         :return: cutoffs, accs via naive pruning, accs via snr pruning,
         weight values, sigma values of network
@@ -363,7 +366,7 @@ class HIBP_BNN_prune(HIBP_BNN):
                 self.sess.run(tf.assign(v, tf.cast(_v, v.dtype)))
 
         def pruning(remove_pct, weightvalues, sigmavalues,
-                    weights, sigmas, uncert_pruning=True):
+                    weights, sigmas, bsize, uncert_pruning=True):
             """ Performs weight pruning experiment
             Args:
                 weightvalues: np array of weights
@@ -392,10 +395,8 @@ class HIBP_BNN_prune(HIBP_BNN):
 
             accs = []
             for _ in range(10):
-                accs.append(self.sess.run(self.acc, {self.x: X_test,
-                                                     self.y: Y_test,
-                                                     self.task_idx: task_id,
-                                                     self.training: False}))
+                acc, _ = self.prediction_acc(X_test, Y_test, bsize, task_id)
+                accs.append(acc)
             print("%.2f, %s" % (np.sum(sorted_STN < cutoff) / len(sorted_STN), np.mean(accs)))
             return np.mean(accs)
 
@@ -425,11 +426,10 @@ class HIBP_BNN_prune(HIBP_BNN):
             else:
                 print("Un-matched: {}".format(v.name))
 
-        acc = self.sess.run(self.acc, {self.x: X_test,
-                                       self.y: Y_test,
-                                       self.task_idx: task_id,
-                                       self.training: False}) # z mask for each layer in a list, each Z \in dout
+        acc, neg_elbo = self.prediction_acc(X_test, Y_test, bsize,
+                                            task_id)  # z mask for each layer in a list, each Z \in dout
         print("test acc: {}".format(acc))
+        print("test neg_elbo: {}".format(neg_elbo))
         # cache network weights of resetting the network
         _mus_w = [self.sess.run(w) for w in mus_w]
         _sigmas_w = [self.sess.run(w) for w in sigmas_w]
@@ -445,7 +445,7 @@ class HIBP_BNN_prune(HIBP_BNN):
         ya_ibp = []
         for pct in xs:
             ya_ibp.append(pruning(pct, weightvalues, sigmavalues, mus_w + mus_b + mus_h,
-                              sigmas_w + sigmas_b + sigmas_h, uncert_pruning=False))
+                              sigmas_w + sigmas_b + sigmas_h, bsize, uncert_pruning=False))
 
         # reset etc.
         reset_weights(mus_w, sigmas_w, _mus_w, _sigmas_w)
@@ -454,13 +454,12 @@ class HIBP_BNN_prune(HIBP_BNN):
         yb_ibp = []
         for pct in xs:
             yb_ibp.append(pruning(pct, weightvalues, sigmavalues, mus_w + mus_b + mus_h,
-                                  sigmas_w + sigmas_b + sigmas_h, uncert_pruning=True))
+                                  sigmas_w + sigmas_b + sigmas_h, bsize, uncert_pruning=True))
 
         reset_weights(mus_w, sigmas_w, _mus_w, _sigmas_w)
         reset_weights(mus_b, sigmas_b, _mus_b, _sigmas_b)
         reset_weights(mus_h, sigmas_h, _mus_h, _sigmas_h)
 
-        #return xs, ya, yb, ya_ibp, yb_ibp
         return xs, ya_ibp, yb_ibp
 
 
@@ -605,7 +604,7 @@ if __name__ == '__main__':
             print("New model, training")
             model.train(x_train, y_train, head, no_epochs, bsize)
 
-        xs, ya_ibp, yb_ibp = model.prune_weights(x_test, y_test, head)
+        xs, ya_ibp, yb_ibp = model.prune_weights(x_test, y_test, bsize, head)
         ya_ibp_all[i, :] = ya_ibp
         yb_ibp_all[i, :] = yb_ibp
 
