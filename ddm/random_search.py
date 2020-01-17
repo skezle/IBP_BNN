@@ -285,13 +285,7 @@ if __name__ == "__main__":
     num_tasks = 5
 
     vcl_ibp_accs = np.zeros((len(seeds), num_tasks, num_tasks))
-    vcl_h5_accs = np.zeros((len(seeds), num_tasks, num_tasks))
-    vcl_h10_accs = np.zeros((len(seeds), num_tasks, num_tasks))
-    vcl_h50_accs = np.zeros((len(seeds), num_tasks, num_tasks))
     all_ibp_uncerts = np.zeros((len(seeds), num_tasks, num_tasks))
-    all_vcl_h5_uncerts = np.zeros((len(seeds), num_tasks, num_tasks))
-    all_vcl_h10_uncerts = np.zeros((len(seeds), num_tasks, num_tasks))
-    all_vcl_h50_uncerts = np.zeros((len(seeds), num_tasks, num_tasks))
     all_Zs = []
 
     # define data generator
@@ -388,48 +382,10 @@ if __name__ == "__main__":
         vcl_ibp_accs[i, :, :] = ibp_acc
         all_ibp_uncerts[i, :, :] = uncerts
 
-        # Run Vanilla VCL
-        tf.reset_default_graph()
-        hidden_size = [10] * args.num_layers
-        data_gen = get_datagen(val)
-        vcl_result_h10, uncerts = run_vcl(hidden_size, no_epochs, data_gen,
-                                          lambda a: a, coreset_size, int(thetas_opt['batch_size']), args.single_head, val=val,
-                                          name='vcl_h10_{0}_run{1}'.format(args.tag, i + 1),
-                                          log_dir=args.log_dir, use_local_reparam=args.use_local_reparam)
-        vcl_h10_accs[i, :, :] = vcl_result_h10
-        all_vcl_h10_uncerts[i, :, :] = uncerts
-
-        tf.reset_default_graph()
-        hidden_size = [5] * args.num_layers
-        data_gen = get_datagen(val)
-        vcl_result_h5, uncerts = run_vcl(hidden_size, no_epochs, data_gen,
-                                         lambda a: a, coreset_size, int(thetas_opt['batch_size']), args.single_head, val=val,
-                                         name='vcl_h5_{0}_run{1}'.format(args.tag, i + 1),
-                                         log_dir=args.log_dir, use_local_reparam=args.use_local_reparam)
-        vcl_h5_accs[i, :, :] = vcl_result_h5
-        all_vcl_h5_uncerts[i, :, :] = uncerts
-
-        # Run Vanilla VCL
-        tf.reset_default_graph()
-        hidden_size = [50] * args.num_layers
-        data_gen = get_datagen(val)
-        vcl_result_h50, uncerts = run_vcl(hidden_size, no_epochs, data_gen,
-                                          lambda a: a, coreset_size, int(thetas_opt['batch_size']), args.single_head, val=val,
-                                          name='vcl_h50_{0}_run{1}'.format(args.tag, i + 1),
-                                          log_dir=args.log_dir, use_local_reparam=args.use_local_reparam)
-        vcl_h50_accs[i, :, :] = vcl_result_h50
-        all_vcl_h50_uncerts[i, :, :] = uncerts
-
     tag="ibp_rs_split_{0}_{1}".format(args.dataset, args.tag)
     with open('results/split_mnist_res5_{}.pkl'.format(tag), 'wb') as input_file:
         pickle.dump({'vcl_ibp': vcl_ibp_accs,
-                     'vcl_h10': vcl_h10_accs,
-                     'vcl_h5': vcl_h5_accs,
-                     'vcl_h50': vcl_h50_accs,
                      'uncerts_ibp': all_ibp_uncerts,
-                     'uncerts_vcl_h5': all_vcl_h5_uncerts,
-                     'uncerts_vcl_h10': all_vcl_h10_uncerts,
-                     'uncerts_vcl_h50': all_vcl_h50_uncerts,
                      'Z': all_Zs,
                      'opt_params': thetas_opt}, input_file)
 
