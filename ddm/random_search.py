@@ -21,8 +21,6 @@ import matplotlib
 matplotlib.use('agg')
 import matplotlib.pyplot as plt
 
-np.random.seed(123)
-
 class HyperparamOptManager:
 
     def __init__(self,
