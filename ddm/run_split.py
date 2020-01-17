@@ -379,7 +379,7 @@ if __name__ == "__main__":
     for i in range(len(seeds)):
         s = seeds[i]
         hidden_size = [args.K] * args.num_layers
-        batch_size = 512
+        batch_size = 128
         no_epochs = 600
         ibp_samples = 10
         no_pred_samples = 100
