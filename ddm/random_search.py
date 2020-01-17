@@ -307,7 +307,7 @@ if __name__ == "__main__":
         elif args.dataset == 'not':
             data_gen = NotMnistGenerator(val =val, noise=args.noise)
         elif args.dataset == 'perm':
-            data_gen = PermutedMnistGenerator(val=val)
+            data_gen = PermutedMnistGenerator(max_iter=num_tasks, val=val)
         else:
             raise ValueError('Pick dataset in {normal, random, background, not}')
         return data_gen

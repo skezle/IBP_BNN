@@ -143,21 +143,15 @@ def concatenate_results(score, all_score):
         all_score = np.vstack((new_arr, score))
     return all_score
 
-def get_scores(model, x_testsets, y_testsets, single_head):
-    acc = []
-
+def get_scores(model, x_testsets, y_testsets, batch_size, single_head):
+    accs = []
     for i in range(len(x_testsets)):
-
         head = 0 if single_head else i
         x_test, y_test = x_testsets[i], y_testsets[i]
+        acc, _ = model.prediction_acc(x_test, y_test, batch_size, head)
+        accs.append(acc)
+    return accs
 
-        pred = model.prediction_prob(x_test, head)
-        pred_mean = np.mean(pred, axis=0)
-        pred_y = np.argmax(pred_mean, axis=1)
-        y = np.argmax(y_test, axis=1)
-        cur_acc = len(np.where((pred_y - y) == 0)[0]) * 1.0 / y.shape[0]
-        acc.append(cur_acc)
-
-    #model.close_session()
-
-    return acc
+def get_Zs(model, x_test, batch_size, task_id):
+    Zs = model.prediction_Zs(x_test, batch_size, task_id)
+    return Zs

@@ -15,7 +15,7 @@ matplotlib.use('agg')
 import matplotlib.pyplot as plt
 
 class PermutedMnistGenerator():
-    def __init__(self, max_iter=10, val=False):
+    def __init__(self, max_iter=5, val=False):
 
         self.val = val
         with gzip.open('data/mnist.pkl.gz', 'rb') as f:

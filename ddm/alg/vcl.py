@@ -2,7 +2,7 @@ import pdb
 import os.path
 import numpy as np
 import tensorflow as tf
-from utils import get_scores, get_uncertainties, concatenate_results
+from utils import get_scores, get_uncertainties, concatenate_results, get_Zs
 from cla_models_multihead import Vanilla_NN, MFVI_NN
 from IBP_BNN_multihead import IBP_BNN
 from HIBP_BNN_multihead import HIBP_BNN
@@ -82,7 +82,7 @@ def run_vcl(hidden_size, no_epochs, data_gen, coreset_method, coreset_size=0, ba
     return all_acc, all_uncerts
 
 def run_vcl_ibp(hidden_size, alphas, no_epochs, data_gen, name,
-                val, batch_size=None, single_head=True,
+                val, batch_size=None, single_head=False,
                 prior_mean=0.0, prior_var=1.0, alpha0=5.0,
                 beta0 = 1.0, lambda_1 = 1.0, lambda_2 = 1.0, learning_rate=0.0001,
                 learning_rate_decay=0.87,
@@ -192,15 +192,14 @@ def run_vcl_ibp(hidden_size, alphas, no_epochs, data_gen, name,
 
         # get accuracies for all test sets seen so far
         if run_val_set:
-            acc = get_scores(model, x_valsets, y_valsets, single_head)
+            acc = get_scores(model, x_valsets, y_valsets, bsize, single_head)
         else:
-            acc = get_scores(model, x_testsets, y_testsets, single_head)
+            acc = get_scores(model, x_testsets, y_testsets, bsize, single_head)
         all_acc = concatenate_results(acc, all_acc)
 
         # get Z matrices
-        Zs.append(model.sess.run(model.Z, feed_dict={model.x: x_test,
-                                                           model.task_idx: task_id,
-                                                           model.training: False}))
+        #Zs.append(get_Zs(model, x_test, bsize, task_id))
+        Zs.append(model.sess.run(model.Z, feed_dict={model.x: x_test, model.task_idx: task_id, model.training: False}))
 
         # get uncertainties
         uncert = get_uncertainties(model, all_x_testsets, all_y_testsets,
@@ -209,6 +208,5 @@ def run_vcl_ibp(hidden_size, alphas, no_epochs, data_gen, name,
 
         model.close_session()
 
-    _Zs = [item for sublist in Zs for item in sublist]
-
-    return all_acc, _Zs, all_uncerts
+    Zs = [item for sublist in Zs for item in sublist]
+    return all_acc, Zs, all_uncerts
