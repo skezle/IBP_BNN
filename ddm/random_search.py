@@ -12,7 +12,7 @@ import argparse
 import pickle
 import tensorflow as tf
 
-from run_split import SplitMnistBackgroundGenerator, SplitMnistRandomGenerator, SplitMnistGenerator
+from run_split import SplitMnistBackgroundGenerator, SplitMnistRandomGenerator, SplitMnistGenerator, SplitCIFAR10Generator
 from run_not import NotMnistGenerator
 from run_permuted import PermutedMnistGenerator
 from vcl import run_vcl_ibp, run_vcl
@@ -267,6 +267,11 @@ if __name__ == "__main__":
                         default=False,
                         dest='hibp',
                         help='Whether to use HIBP.')
+    parser.add_argument('--K', action='store',
+                        dest='K',
+                        default=100,
+                        type=int,
+                        help='Variational truncation param for IBP.')
 
     args = parser.parse_args()
 
@@ -285,13 +290,7 @@ if __name__ == "__main__":
     num_tasks = 5
 
     vcl_ibp_accs = np.zeros((len(seeds), num_tasks, num_tasks))
-    vcl_h5_accs = np.zeros((len(seeds), num_tasks, num_tasks))
-    vcl_h10_accs = np.zeros((len(seeds), num_tasks, num_tasks))
-    vcl_h50_accs = np.zeros((len(seeds), num_tasks, num_tasks))
     all_ibp_uncerts = np.zeros((len(seeds), num_tasks, num_tasks))
-    all_vcl_h5_uncerts = np.zeros((len(seeds), num_tasks, num_tasks))
-    all_vcl_h10_uncerts = np.zeros((len(seeds), num_tasks, num_tasks))
-    all_vcl_h50_uncerts = np.zeros((len(seeds), num_tasks, num_tasks))
     all_Zs = []
 
     # define data generator
@@ -306,6 +305,8 @@ if __name__ == "__main__":
             data_gen = NotMnistGenerator(val =val, noise=args.noise)
         elif args.dataset == 'perm':
             data_gen = PermutedMnistGenerator(max_iter=num_tasks, val=val)
+        elif args.dataset == 'cifar10':
+            data_gen = SplitCIFAR10Generator(val=val)
         else:
             raise ValueError('Pick dataset in {normal, random, background, not}')
         return data_gen
@@ -314,12 +315,12 @@ if __name__ == "__main__":
 
     hyper_param_choices_grid = {}
 
-    hyper_param_choices_ranges = {'learning_rate': [0.00001, 0.0001],
-                                  'alpha0': [1., 10.],
+    hyper_param_choices_ranges = {'learning_rate': [0.00001, 0.001],
+                                  'alpha0': [1., 50.],
                                   'lambda_1': [0.5, 1.],
                                   'lambda_2': [0.5, 1.],
                                   'prior_var': [0.001, 1.],
-                                  'alpha':[1., 10.]}
+                                  'alpha':[1., 50.]}
 
     fixed_param_choices = {'ibp_samples': 10,
                            'no_pred_samples': 10,
@@ -335,7 +336,7 @@ if __name__ == "__main__":
                                      network_class=None)
 
     RndSearch.load_results()
-    hidden_size = [100] * args.num_layers
+    hidden_size = [args.K] * args.num_layers
     no_epochs = 600
     coreset_size = 0
     val = True
@@ -388,48 +389,10 @@ if __name__ == "__main__":
         vcl_ibp_accs[i, :, :] = ibp_acc
         all_ibp_uncerts[i, :, :] = uncerts
 
-        # Run Vanilla VCL
-        tf.reset_default_graph()
-        hidden_size = [10] * args.num_layers
-        data_gen = get_datagen(val)
-        vcl_result_h10, uncerts = run_vcl(hidden_size, no_epochs, data_gen,
-                                          lambda a: a, coreset_size, int(thetas_opt['batch_size']), args.single_head, val=val,
-                                          name='vcl_h10_{0}_run{1}'.format(args.tag, i + 1),
-                                          log_dir=args.log_dir, use_local_reparam=args.use_local_reparam)
-        vcl_h10_accs[i, :, :] = vcl_result_h10
-        all_vcl_h10_uncerts[i, :, :] = uncerts
-
-        tf.reset_default_graph()
-        hidden_size = [5] * args.num_layers
-        data_gen = get_datagen(val)
-        vcl_result_h5, uncerts = run_vcl(hidden_size, no_epochs, data_gen,
-                                         lambda a: a, coreset_size, int(thetas_opt['batch_size']), args.single_head, val=val,
-                                         name='vcl_h5_{0}_run{1}'.format(args.tag, i + 1),
-                                         log_dir=args.log_dir, use_local_reparam=args.use_local_reparam)
-        vcl_h5_accs[i, :, :] = vcl_result_h5
-        all_vcl_h5_uncerts[i, :, :] = uncerts
-
-        # Run Vanilla VCL
-        tf.reset_default_graph()
-        hidden_size = [50] * args.num_layers
-        data_gen = get_datagen(val)
-        vcl_result_h50, uncerts = run_vcl(hidden_size, no_epochs, data_gen,
-                                          lambda a: a, coreset_size, int(thetas_opt['batch_size']), args.single_head, val=val,
-                                          name='vcl_h50_{0}_run{1}'.format(args.tag, i + 1),
-                                          log_dir=args.log_dir, use_local_reparam=args.use_local_reparam)
-        vcl_h50_accs[i, :, :] = vcl_result_h50
-        all_vcl_h50_uncerts[i, :, :] = uncerts
-
     tag="ibp_rs_split_{0}_{1}".format(args.dataset, args.tag)
     with open('results/split_mnist_res5_{}.pkl'.format(tag), 'wb') as input_file:
         pickle.dump({'vcl_ibp': vcl_ibp_accs,
-                     'vcl_h10': vcl_h10_accs,
-                     'vcl_h5': vcl_h5_accs,
-                     'vcl_h50': vcl_h50_accs,
                      'uncerts_ibp': all_ibp_uncerts,
-                     'uncerts_vcl_h5': all_vcl_h5_uncerts,
-                     'uncerts_vcl_h10': all_vcl_h10_uncerts,
-                     'uncerts_vcl_h50': all_vcl_h50_uncerts,
                      'Z': all_Zs,
                      'opt_params': thetas_opt}, input_file)
 
