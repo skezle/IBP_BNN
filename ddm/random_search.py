@@ -12,7 +12,7 @@ import argparse
 import pickle
 import tensorflow as tf
 
-from run_split import SplitMnistBackgroundGenerator, SplitMnistRandomGenerator, SplitMnistGenerator
+from run_split import SplitMnistBackgroundGenerator, SplitMnistRandomGenerator, SplitMnistGenerator, SplitCIFAR10Generator
 from run_not import NotMnistGenerator
 from run_permuted import PermutedMnistGenerator
 from vcl import run_vcl_ibp, run_vcl
@@ -267,6 +267,11 @@ if __name__ == "__main__":
                         default=False,
                         dest='hibp',
                         help='Whether to use HIBP.')
+    parser.add_argument('--K', action='store',
+                        dest='K',
+                        default=100,
+                        type=int,
+                        help='Variational truncation param for IBP.')
 
     args = parser.parse_args()
 
@@ -300,6 +305,8 @@ if __name__ == "__main__":
             data_gen = NotMnistGenerator(val =val, noise=args.noise)
         elif args.dataset == 'perm':
             data_gen = PermutedMnistGenerator(max_iter=num_tasks, val=val)
+        elif args.dataset == 'cifar10':
+            data_gen = SplitCIFAR10Generator(val=val)
         else:
             raise ValueError('Pick dataset in {normal, random, background, not}')
         return data_gen
@@ -308,12 +315,12 @@ if __name__ == "__main__":
 
     hyper_param_choices_grid = {}
 
-    hyper_param_choices_ranges = {'learning_rate': [0.00001, 0.0001],
-                                  'alpha0': [1., 10.],
+    hyper_param_choices_ranges = {'learning_rate': [0.00001, 0.001],
+                                  'alpha0': [1., 50.],
                                   'lambda_1': [0.5, 1.],
                                   'lambda_2': [0.5, 1.],
                                   'prior_var': [0.001, 1.],
-                                  'alpha':[1., 10.]}
+                                  'alpha':[1., 50.]}
 
     fixed_param_choices = {'ibp_samples': 10,
                            'no_pred_samples': 10,
@@ -329,7 +336,7 @@ if __name__ == "__main__":
                                      network_class=None)
 
     RndSearch.load_results()
-    hidden_size = [100] * args.num_layers
+    hidden_size = [args.K] * args.num_layers
     no_epochs = 600
     coreset_size = 0
     val = True
