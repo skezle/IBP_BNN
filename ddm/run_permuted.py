@@ -104,6 +104,11 @@ if __name__ == "__main__":
                         type=int,
                         default=[5, 50],
                         help='List of hidden states')
+    parser.add_argument('--K', action='store',
+                        dest='K',
+                        type=int,
+                        default=100,
+                        help='Variational truncation param for IBP.')
     args = parser.parse_args()
 
     print('single_head          = {!r}'.format(args.single_head))
@@ -114,6 +119,7 @@ if __name__ == "__main__":
     print('tag                  = {!r}'.format(args.tag))
     print('run_baselines        = {!r}'.format(args.run_baselines))
     print('h_list               = {!r}'.format(args.h_list))
+    print('K                    = {!r}'.format(args.K))
 
     seeds = [12, 13, 14, 15, 16]
     num_tasks = 5
@@ -130,7 +136,7 @@ if __name__ == "__main__":
     lambda_2 = 1.0
     alpha = 4.0
 
-    hidden_size = [100] * args.num_layers
+    hidden_size = [args.K] * args.num_layers
     batch_size = 512
     no_epochs = 200
     ibp_samples = 10
