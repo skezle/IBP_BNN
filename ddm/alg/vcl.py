@@ -70,7 +70,7 @@ def run_vcl(hidden_size, no_epochs, data_gen, coreset_method, coreset_size=0, ba
         mf_weights, mf_variances = mf_model.get_weights()
 
         # Incorporate coreset data and make prediction
-        acc = get_scores(mf_model, x_testsets, y_testsets, single_head)
+        acc = get_scores(mf_model, x_testsets, y_testsets, bsize, single_head)
         all_acc = concatenate_results(acc, all_acc)
 
         uncert = get_uncertainties(mf_model, all_x_testsets, all_y_testsets,

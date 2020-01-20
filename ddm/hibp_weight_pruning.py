@@ -16,7 +16,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 
 
-class IBP_NN_prune(IBP_BNN):
+class IBP_BNN_prune(IBP_BNN):
     def __init__(self, input_size, hidden_size, output_size, training_size, num_ibp_samples=10,
                  no_train_samples=10, no_pred_samples=100, prev_means=None, prev_log_variances=None,
                  prev_betas=None, learning_rate=0.001, learning_rate_decay=0.87,
@@ -24,7 +24,7 @@ class IBP_NN_prune(IBP_BNN):
                  tensorboard_dir='logs', name='ibp_wp', min_temp=0.5, tb_logging=True,
                  output_tb_gradients=True, use_local_reparam=False, implicit_beta=True):
 
-        super(IBP_NN_prune, self).__init__(input_size, hidden_size, output_size, training_size,
+        super(IBP_BNN_prune, self).__init__(input_size, hidden_size, output_size, training_size,
                  no_train_samples=no_train_samples, no_pred_samples=no_pred_samples,
                  num_ibp_samples=num_ibp_samples, prev_means=prev_means, prev_log_variances=prev_log_variances,
                  prev_betas=prev_betas, learning_rate=learning_rate, learning_rate_decay=learning_rate_decay,
@@ -164,12 +164,12 @@ class IBP_NN_prune(IBP_BNN):
         return xs, ya_ibp, yb_ibp
 
 
-class MFVI_NN_prune(MFVI_NN):
+class MFVI_BNN_prune(MFVI_NN):
     def __init__(self, input_size, hidden_size, output_size, training_size,
         no_train_samples=10, no_pred_samples=100, prev_means=None, prev_log_variances=None, learning_rate=0.001,
         prior_mean=0, prior_var=1):
 
-        super(MFVI_NN_prune, self).__init__(input_size, hidden_size, output_size, training_size,
+        super(MFVI_BNN_prune, self).__init__(input_size, hidden_size, output_size, training_size,
         no_train_samples, no_pred_samples, prev_means, prev_log_variances, learning_rate,
         prior_mean, prior_var)
 
