@@ -73,9 +73,10 @@ def run_vcl(hidden_size, no_epochs, data_gen, coreset_method, coreset_size=0, ba
         acc = get_scores(mf_model, x_testsets, y_testsets, bsize, single_head)
         all_acc = concatenate_results(acc, all_acc)
 
-        uncert = get_uncertainties(mf_model, all_x_testsets, all_y_testsets,
-                                   single_head, task_id)
-        all_uncerts[task_id, :] = uncert
+        # TODO: mutual information not a good measure of uncertainty for VCL use predictive entropy and batchify
+        # uncert = get_uncertainties(mf_model, all_x_testsets, all_y_testsets,
+        #                            single_head, task_id)
+        # all_uncerts[task_id, :] = uncert
 
         mf_model.close_session()
 
@@ -201,10 +202,11 @@ def run_vcl_ibp(hidden_size, alphas, no_epochs, data_gen, name,
         #Zs.append(get_Zs(model, x_test, bsize, task_id))
         Zs.append(model.sess.run(model.Z, feed_dict={model.x: x_test, model.task_idx: task_id, model.training: False}))
 
-        # get uncertainties
-        uncert = get_uncertainties(model, all_x_testsets, all_y_testsets,
-                                   single_head, task_id)
-        all_uncerts[task_id, :] = uncert
+        # TODO: change to predictive entropy and batchify
+        # # get uncertainties
+        # uncert = get_uncertainties(model, all_x_testsets, all_y_testsets,
+        #                            single_head, task_id)
+        # all_uncerts[task_id, :] = uncert
 
         model.close_session()
 
