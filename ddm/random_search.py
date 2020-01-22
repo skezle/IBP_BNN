@@ -317,8 +317,7 @@ if __name__ == "__main__":
 
     hyper_param_choices_ranges = {'learning_rate': [0.00001, 0.001],
                                   'alpha0': [1., 50.],
-                                  'lambda_1': [0.5, 1.],
-                                  'lambda_2': [0.5, 1.],
+                                  'lambda': [0.5, 1.],
                                   'prior_var': [0.001, 1.],
                                   'alpha':[1., 50.]}
 
@@ -351,8 +350,8 @@ if __name__ == "__main__":
                                     name=name, val=val, batch_size=thetas['batch_size'],
                                     single_head=args.single_head, prior_mean=thetas['prior_mean'],
                                     prior_var=thetas['prior_var'], alpha0=thetas['alpha0'],
-                                    beta0=thetas['beta0'], lambda_1=thetas['lambda_1'],
-                                    lambda_2=thetas['lambda_2'], learning_rate=thetas['learning_rate'],
+                                    beta0=thetas['beta0'], lambda_1=thetas['lambda'],
+                                    lambda_2=thetas['lambda'], learning_rate=thetas['learning_rate'],
                                     no_pred_samples=thetas['no_pred_samples'],
                                     ibp_samples=thetas['ibp_samples'],
                                     log_dir=args.log_dir, run_val_set=val,
@@ -376,8 +375,8 @@ if __name__ == "__main__":
                                            name=name, val=val, batch_size=int(thetas_opt['batch_size']),
                                            single_head=args.single_head, prior_mean=thetas_opt['prior_mean'],
                                            prior_var=thetas_opt['prior_var'], alpha0=thetas_opt['alpha0'],
-                                           beta0=thetas_opt['beta0'], lambda_1=thetas_opt['lambda_1'],
-                                           lambda_2=thetas_opt['lambda_2'], learning_rate=thetas_opt['learning_rate'],
+                                           beta0=thetas_opt['beta0'], lambda_1=thetas_opt['lambda'],
+                                           lambda_2=thetas_opt['lambda'], learning_rate=thetas_opt['learning_rate'],
                                            no_pred_samples=int(thetas_opt['no_pred_samples']),
                                            ibp_samples=int(thetas_opt['ibp_samples']),
                                            log_dir=args.log_dir, run_val_set=False,
