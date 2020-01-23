@@ -206,16 +206,17 @@ class Vanilla_NN(Cla_NN):
 
 """ Bayesian Neural Network with Mean field VI approximation """
 class MFVI_NN(Cla_NN):
-    def __init__(self, input_size, hidden_size, output_size, training_size, 
-        no_train_samples=10, no_pred_samples=100, prev_means=None, prev_log_variances=None, learning_rate=0.001, 
-        prior_mean=0, prior_var=1, tensorboard_dir='logs', name='vcl', use_local_reparam=True):
+    def __init__(self, input_size, hidden_size, output_size, training_size,
+                 no_train_samples=10, no_pred_samples=100, prev_means=None, prev_log_variances=None,
+                 learning_rate=0.001, learning_rate_decay=0.87,
+                 prior_mean=0, prior_var=1, tensorboard_dir='logs', name='vcl', use_local_reparam=True):
 
         super(MFVI_NN, self).__init__(input_size, hidden_size, output_size, training_size)
 
         self.tensorboard_dir = tensorboard_dir
         self.name = name
         self.use_local_reparam = use_local_reparam
-
+        self.learning_rate_decay = learning_rate_decay
         self.log_folder = os.path.join(self.tensorboard_dir, "graph_{}".format(self.name))
 
         m, v, self.size = self.create_weights(
@@ -243,6 +244,16 @@ class MFVI_NN(Cla_NN):
         self.create_summaries()
 
         self.assign_session()
+
+    def assign_optimizer(self, learning_rate=0.001):
+        global_step = tf.Variable(0, trainable=False)
+        self.learning_rate = tf.compat.v1.train.exponential_decay(learning_rate,
+                                                                  global_step,
+                                                                  1000, self.learning_rate_decay, staircase=False)
+
+        self.optim = tf.train.AdamOptimizer(self.learning_rate)
+        gradients = self.optim.compute_gradients(self.cost)
+        self.train_step = self.optim.apply_gradients(grads_and_vars=gradients, global_step=global_step)
 
     def create_summaries(self):
         # Creates summaries in TensorBoard
