@@ -206,16 +206,17 @@ class Vanilla_NN(Cla_NN):
 
 """ Bayesian Neural Network with Mean field VI approximation """
 class MFVI_NN(Cla_NN):
-    def __init__(self, input_size, hidden_size, output_size, training_size, 
-        no_train_samples=10, no_pred_samples=100, prev_means=None, prev_log_variances=None, learning_rate=0.001, 
-        prior_mean=0, prior_var=1, tensorboard_dir='logs', name='vcl', use_local_reparam=True):
+    def __init__(self, input_size, hidden_size, output_size, training_size,
+                 no_train_samples=10, no_pred_samples=100, prev_means=None, prev_log_variances=None,
+                 learning_rate=0.001, learning_rate_decay=0.87,
+                 prior_mean=0, prior_var=1, tensorboard_dir='logs', name='vcl', use_local_reparam=True):
 
         super(MFVI_NN, self).__init__(input_size, hidden_size, output_size, training_size)
 
         self.tensorboard_dir = tensorboard_dir
         self.name = name
         self.use_local_reparam = use_local_reparam
-
+        self.learning_rate_decay = learning_rate_decay
         self.log_folder = os.path.join(self.tensorboard_dir, "graph_{}".format(self.name))
 
         m, v, self.size = self.create_weights(
@@ -244,6 +245,16 @@ class MFVI_NN(Cla_NN):
 
         self.assign_session()
 
+    def assign_optimizer(self, learning_rate=0.001):
+        global_step = tf.Variable(0, trainable=False)
+        self.learning_rate = tf.compat.v1.train.exponential_decay(learning_rate,
+                                                                  global_step,
+                                                                  1000, self.learning_rate_decay, staircase=False)
+
+        self.optim = tf.train.AdamOptimizer(self.learning_rate)
+        gradients = self.optim.compute_gradients(self.cost)
+        self.train_step = self.optim.apply_gradients(grads_and_vars=gradients, global_step=global_step)
+
     def create_summaries(self):
         # Creates summaries in TensorBoard
         with tf.name_scope("summaries"):
@@ -258,14 +269,14 @@ class MFVI_NN(Cla_NN):
 
     # this samples a layer at a time
     def _prediction_layer(self, inputs, task_idx, no_samples):
-        K = no_samples
-        act = tf.tile(tf.expand_dims(inputs, 0), [K, 1, 1])
-        act_local = tf.tile(tf.expand_dims(inputs, 0), [K, 1, 1])
+        batch_size = tf.to_int32(tf.shape(inputs)[0])
+        act = tf.tile(tf.expand_dims(inputs, 0), [no_samples, 1, 1])
+        act_local = tf.tile(tf.expand_dims(inputs, 0), [no_samples, 1, 1])
         for i in range(self.no_layers-1):
             din = self.size[i]
             dout = self.size[i+1]
-            eps_w = tf.random_normal((K, din, dout), 0, 1, dtype=tf.float32)
-            eps_b = tf.random_normal((K, 1, dout), 0, 1, dtype=tf.float32)
+            eps_w = tf.random_normal((no_samples, din, dout), 0, 1, dtype=tf.float32)
+            eps_b = tf.random_normal((no_samples, 1, dout), 0, 1, dtype=tf.float32)
             
             weights = tf.add(tf.multiply(eps_w, tf.exp(0.5*self.W_v[i])), self.W_m[i])
             biases = tf.add(tf.multiply(eps_b, tf.exp(0.5*self.b_v[i])), self.b_m[i])
@@ -273,16 +284,18 @@ class MFVI_NN(Cla_NN):
             act = tf.nn.relu(pre) # shape (K, batch_size (None, ?), out)
 
             # apply local reparameterisation trick: sample activations before applying the non-linearity
-            m_h = tf.add(tf.einsum('mni,io->mno', act_local, self.W_m[i]), self.b_m[i])
-            v_h = tf.add(tf.einsum('mni,io->mno', tf.square(act_local), tf.square(tf.exp(0.5*self.W_v[i]))),
-                         tf.square(tf.exp(0.5*self.b_v[i])))
-            pre_local = m_h + tf.sqrt(v_h + 1e-6) * tf.random_normal(tf.shape(v_h), dtype=tf.float32)
+            m_h = tf.einsum('mni,io->mno', act_local, self.W_m[i]) # e^0.5 x ** 2 = e^x
+            m_h = m_h + self.b_m[i]
+            v_h = tf.einsum('mni,io->mno', tf.square(act_local), tf.exp(self.W_v[i]))
+            v_h = v_h + tf.exp(self.b_v[i])
+            eps = tf.random_normal([no_samples, 1, dout], 0.0, 1.0, dtype=tf.float32)
+            pre_local = m_h + tf.sqrt(v_h + 1e-9) * eps
             act_local = tf.nn.relu(pre_local) # shape (K, batch_size (None, ?), out)
 
         din = self.size[-2]
         dout = self.size[-1]
-        eps_w = tf.random_normal((K, din, dout), 0, 1, dtype=tf.float32)
-        eps_b = tf.random_normal((K, 1, dout), 0, 1, dtype=tf.float32)
+        eps_w = tf.random_normal((no_samples, din, dout), 0, 1, dtype=tf.float32)
+        eps_b = tf.random_normal((no_samples, 1, dout), 0, 1, dtype=tf.float32)
 
         Wtask_m = tf.gather(self.W_last_m, task_idx) # (hidden, out)
         Wtask_v = tf.gather(self.W_last_v, task_idx)
@@ -295,14 +308,13 @@ class MFVI_NN(Cla_NN):
         pre = tf.add(tf.reduce_sum(act * weights, 2), biases) # (K, batch_size, out_dim)
 
         # apply local reparam trick to final output layer
-        _act_local = tf.expand_dims(act_local, 3) # (K, batch_size, hidden, 1)
-        _Wtask_m = tf.expand_dims(tf.expand_dims(Wtask_m, 0), 1)
-        _Wtask_v = tf.expand_dims(tf.expand_dims(Wtask_v, 0), 1)
-
-        m_h = tf.add(tf.reduce_sum(_act_local * _Wtask_m, 2), btask_m)
-        v_h = tf.add(tf.reduce_sum(tf.square(_act_local) * tf.square(tf.exp(0.5*Wtask_v)), 2),
-                     tf.square(tf.exp(0.5*btask_v)))
-        pre_local = m_h + tf.sqrt(v_h + 1e-6) * tf.random_normal(tf.shape(v_h), dtype=tf.float32) # (K, batch_size, out_dim)
+        m_h = tf.einsum('mni,io->mno', act_local, Wtask_m)
+        m_h = m_h + btask_m
+        v_h = tf.einsum('mni,io->mno', tf.square(act_local), tf.exp(Wtask_v))
+        v_h = v_h + tf.exp(btask_v)
+        eps = tf.random_normal((no_samples, 1, dout), 0.0, 1.0, dtype=tf.float32)
+        pre_local = m_h + tf.sqrt(v_h + 1e-9) * eps
+        pre_local = tf.reshape(pre_local, [no_samples, batch_size, dout])
         return pre, pre_local
 
     def _logpred(self, inputs, targets, task_idx):

@@ -126,10 +126,9 @@ class IBP_BNN(Cla_NN):
         """
         # inputs # [batch, d]
         batch_size = tf.to_int32(tf.shape(inputs)[0])
-        K = no_samples
-        K_ibp = self.num_ibp_samples
-        act = tf.tile(tf.expand_dims(inputs, 0), [K, 1, 1]) # [1, batch, d] --> [K, batch, d]
-        act_local = tf.tile(tf.expand_dims(inputs, 0), [K, 1, 1])
+        no_samples_ibp = self.num_ibp_samples
+        act = tf.tile(tf.expand_dims(inputs, 0), [no_samples, 1, 1]) # [1, batch, d] --> [no_samples, batch, d]
+        act_local = tf.tile(tf.expand_dims(inputs, 0), [no_samples, 1, 1])
         self.Z = []
         self.vars = []
         self.means = []
@@ -139,8 +138,8 @@ class IBP_BNN(Cla_NN):
         for i in range(self.no_layers - 1):
             din = self.size[i]
             dout = self.size[i + 1]
-            eps_w = tf.random_normal((K, din, dout), 0, 1, dtype=tf.float32)
-            eps_b = tf.random_normal((K, 1, dout), 0, 1, dtype=tf.float32)
+            eps_w = tf.random_normal((no_samples, din, dout), 0, 1, dtype=tf.float32)
+            eps_b = tf.random_normal((no_samples, 1, dout), 0, 1, dtype=tf.float32)
 
             # Gaussian re-parameterization
             _weights = tf.add(tf.multiply(eps_w, tf.exp(0.5 * self.W_v[i])), self.W_m[i]) # in [K, in, out]
@@ -153,14 +152,14 @@ class IBP_BNN(Cla_NN):
             prior_beta_a = tf.cast(tf.math.softplus(self.prior_beta_a[i]) + 0.01, tf.float32)
             prior_beta_b = tf.cast(tf.math.softplus(self.prior_beta_b[i]) + 0.01, tf.float32)
             # prior Bernoulli params
-            prior_log_pi = stick_breaking_probs(prior_beta_a, prior_beta_b, size=(K_ibp, batch_size, dout), ibp=True, log=True, implicit=self.implicit_beta)
+            prior_log_pi = stick_breaking_probs(prior_beta_a, prior_beta_b, size=(no_samples_ibp, batch_size, dout), ibp=True, log=True, implicit=self.implicit_beta)
             prior_log_pis.append(prior_log_pi)
             # Variational Bernoulli params
-            self.log_pi = stick_breaking_probs(beta_a, beta_b, size=(K_ibp, batch_size, dout), ibp=True, log=True, implicit=self.implicit_beta)
+            self.log_pi = stick_breaking_probs(beta_a, beta_b, size=(no_samples_ibp, batch_size, dout), ibp=True, log=True, implicit=self.implicit_beta)
             log_pis.append(self.log_pi)
             # Concrete reparam
-            z_log_sample = reparameterize_discrete(self.log_pi, self.lambda_1, size=(K_ibp, batch_size, dout))
-            z_discrete = tf.expand_dims(tf.reduce_mean(tf.sigmoid(z_log_sample), axis=0), 0)# (K_ibp, batch_size, dout) --> (1, batch_size, dout)
+            z_log_sample = reparameterize_discrete(self.log_pi, self.lambda_1, size=(no_samples_ibp, batch_size, dout))
+            z_discrete = tf.expand_dims(tf.reduce_mean(tf.sigmoid(z_log_sample), axis=0), 0)# (no_samples_ibp, batch_size, dout) --> (1, batch_size, dout)
 
             self.Z.append(z_discrete)
             self.vars += [tf.exp(0.5 * self.W_v[i]), tf.exp(0.5 * self.b_v[i])]
@@ -171,17 +170,19 @@ class IBP_BNN(Cla_NN):
             act = tf.multiply(tf.nn.relu(pre), z_discrete) # [K, din, dout]
 
             # apply local reparameterisation trick: sample activations before applying the non-linearity
-            m_h = tf.add(tf.einsum('mni,io->mno', act_local, self.W_m[i]), self.b_m[i])
-            v_h = tf.add(tf.einsum('mni,io->mno', tf.square(act_local), tf.square(tf.exp(0.5 * self.W_v[i]))),
-                         tf.square(tf.exp(0.5 * self.b_v[i])))
-            pre_local = m_h + tf.sqrt(v_h + 1e-6) * tf.random_normal(tf.shape(v_h), dtype=tf.float32)
+            m_h = tf.einsum('mni,io->mno', act_local, self.W_m[i])
+            m_h = m_h + self.b_m[i]
+            v_h = tf.einsum('mni,io->mno', tf.square(act_local), tf.exp(self.W_v[i])) # e^0.5 x ** 2 = e^x
+            v_h = v_h + tf.exp(self.b_v[i])
+            eps = tf.random_normal([no_samples, 1, dout], 0.0, 1.0, dtype=tf.float32)
+            pre_local = m_h + tf.sqrt(v_h + 1e-9) * eps
             act_local = tf.multiply(tf.nn.relu(pre_local), z_discrete)  # shape (K, batch_size (None, ?), out)
 
 
         din = self.size[-2]
         dout = self.size[-1]
-        eps_w = tf.random_normal((K, din, dout), 0, 1, dtype=tf.float32)
-        eps_b = tf.random_normal((K, 1, dout), 0, 1, dtype=tf.float32)
+        eps_w = tf.random_normal((no_samples, din, dout), 0, 1, dtype=tf.float32)
+        eps_b = tf.random_normal((no_samples, 1, dout), 0, 1, dtype=tf.float32)
 
         Wtask_m = tf.gather(self.W_last_m, task_idx)
         Wtask_v = tf.gather(self.W_last_v, task_idx)
@@ -198,14 +199,13 @@ class IBP_BNN(Cla_NN):
         pre = tf.add(tf.reduce_sum(act * _weights, 2), _biases)
 
         # apply local reparam trick to final output layer
-        _act_local = tf.expand_dims(act_local, 3)  # (K, batch_size, hidden, 1)
-        _Wtask_m = tf.expand_dims(tf.expand_dims(Wtask_m, 0), 1)
-        _Wtask_v = tf.expand_dims(tf.expand_dims(Wtask_v, 0), 1)
-
-        m_h = tf.add(tf.reduce_sum(_act_local * _Wtask_m, 2), btask_m)
-        v_h = tf.add(tf.reduce_sum(tf.square(_act_local) * tf.square(tf.exp(0.5 * Wtask_v)), 2),
-                     tf.square(tf.exp(0.5 * btask_v)))
-        pre_local = m_h + tf.sqrt(v_h + 1e-6) * tf.random_normal(tf.shape(v_h), dtype=tf.float32)  # (K, batch_size, out_dim)
+        m_h = tf.einsum('mni,io->mno', act_local, Wtask_m)
+        m_h = m_h + btask_m
+        v_h = tf.einsum('mni,io->mno', tf.square(act_local), tf.exp(Wtask_v))
+        v_h = v_h + tf.exp(btask_v)
+        eps = tf.random_normal((no_samples, 1, dout), 0.0, 1.0, dtype=tf.float32)
+        pre_local = m_h + tf.sqrt(v_h + 1e-9) * eps
+        pre_local = tf.reshape(pre_local, [no_samples, batch_size, dout])
         return pre, pre_local, prior_log_pis, log_pis, log_z_sample
 
     def create_summaries(self):
@@ -268,8 +268,6 @@ class IBP_BNN(Cla_NN):
         return kl_beta_implicit(v_a, v_b, p_a, p_b) if self.implicit_beta else kl_beta_reparam(v_a, v_b, p_a, p_b)
 
     def _KL_term(self, no_samples, prior_log_pis, log_pis, z_log_sample):
-        K = no_samples
-        K_ibp = self.num_ibp_samples
         kl = 0
         kl_beta = 0
         kl_bern = 0
