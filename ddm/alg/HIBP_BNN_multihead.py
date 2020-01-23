@@ -158,10 +158,12 @@ class HIBP_BNN(IBP_BNN):
             act = tf.multiply(tf.nn.relu(pre), z_discrete) # [K, din, dout]
 
             # apply local reparameterisation trick: sample activations before applying the non-linearity
-            m_h = tf.add(tf.einsum('mni,io->mno', act_local, self.W_m[i]), self.b_m[i])
-            v_h = tf.add(tf.einsum('mni,io->mno', tf.square(act_local), tf.square(tf.exp(0.5 * self.W_v[i]))),
-                         tf.square(tf.exp(0.5 * self.b_v[i])))
-            pre_local = m_h + tf.sqrt(v_h + 1e-6) * tf.random_normal(tf.shape(v_h), dtype=tf.float32)
+            m_h = tf.einsum('mni,io->mno', act_local, self.W_m[i])
+            m_h = m_h + self.b_m[i]
+            v_h = tf.einsum('mni,io->mno', tf.square(act_local), tf.exp(self.W_v[i])) # e^0.5 x ** 2 = e^x
+            v_h = v_h + tf.exp(self.b_v[i])
+            eps = tf.random_normal([no_samples, 1, dout], 0.0, 1.0, dtype=tf.float32)
+            pre_local = m_h + tf.sqrt(v_h + 1e-9) * eps
             act_local = tf.multiply(tf.nn.relu(pre_local), z_discrete)  # shape (K, batch_size (None, ?), out)
 
         din = self.size[-2]
@@ -188,10 +190,14 @@ class HIBP_BNN(IBP_BNN):
         _Wtask_m = tf.expand_dims(tf.expand_dims(Wtask_m, 0), 1)
         _Wtask_v = tf.expand_dims(tf.expand_dims(Wtask_v, 0), 1)
 
-        m_h = tf.add(tf.reduce_sum(_act_local * _Wtask_m, 2), btask_m)
-        v_h = tf.add(tf.reduce_sum(tf.square(_act_local) * tf.square(tf.exp(0.5 * Wtask_v)), 2),
-                     tf.square(tf.exp(0.5 * btask_v)))
-        pre_local = m_h + tf.sqrt(v_h + 1e-6) * tf.random_normal(tf.shape(v_h), dtype=tf.float32)  # (K, batch_size, out_dim)
+        # apply local reparam trick to final output layer
+        m_h = tf.einsum('mni,io->mno', act_local, Wtask_m)
+        m_h = m_h + btask_m
+        v_h = tf.einsum('mni,io->mno', tf.square(act_local), tf.exp(Wtask_v))
+        v_h = v_h + tf.exp(btask_v)
+        eps = tf.random_normal((no_samples, 1, dout), 0.0, 1.0, dtype=tf.float32)
+        pre_local = m_h + tf.sqrt(v_h + 1e-9) * eps
+        pre_local = tf.reshape(pre_local, [no_samples, batch_size, dout])
         return pre, pre_local, prior_log_pis, log_pis, log_z_sample
 
     def create_summaries(self):
