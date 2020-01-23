@@ -187,28 +187,39 @@ class HIBP_BNN(IBP_BNN):
         # print("self.W_last_m: {}".format(btask_m.get_shape()))
         # btask_v = self.b_last_v[task_idx]
         # print("self.W_last_m: {}".format(btask_v.get_shape()))
+        """
+        import numpy as np
+        >>> n=2
+        >>> I=3
+        >>> O=4
+        >>> b=5
+        >>> W = np.arange(I*O).reshape((I, O))
+        >>> A = np.arange(n*b*I).reshape((n, b, I))
+        >>> B = np.einsum('ijk, ko->ijo', W, A)
+        >>> B_bar = np.sum(np.multiply(A[:,:,:,np.newaxis], W[np.newaxis, np.newaxis, :, :]), 2)
+        The same!...
+        """
 
         _weights = tf.add(tf.multiply(eps_w, tf.exp(0.5 * Wtask_v)), Wtask_m)
         _biases = tf.add(tf.multiply(eps_b, tf.exp(0.5 * btask_v)), btask_m)
         self.vars += [tf.exp(0.5 * Wtask_v), tf.exp(0.5 * btask_v)]
         self.means += [Wtask_m, btask_m]
 
-        act = tf.expand_dims(act, 3) # [no_samples, din, dout, 1]
-        _weights = tf.expand_dims(_weights, 1) # [no_samples, 1, dout, 2]
+        act = tf.expand_dims(act, 3) # [no_samples, batch_size, din, 1]
+        _weights = tf.expand_dims(_weights, 1) # [no_samples, 1, din, dout]
         pre = tf.add(tf.reduce_sum(act * _weights, 2), _biases)
 
         # apply local reparam trick to final output layer
-        _act_local = tf.expand_dims(act_local, 3)  # (K, batch_size, hidden, 1)
-        _Wtask_m = tf.expand_dims(tf.expand_dims(Wtask_m, 0), 1)
-        _Wtask_v = tf.expand_dims(tf.expand_dims(Wtask_v, 0), 1)
-
-        # apply local reparam trick to final output layer
-        m_h = tf.einsum('mni,io->mno', act_local, Wtask_m)
-        m_h = m_h + btask_m
-        v_h = tf.einsum('mni,io->mno', tf.square(act_local), tf.exp(Wtask_v))
-        v_h = v_h + tf.exp(btask_v)
+        #m_h = tf.einsum('mni,io->mno', act_local, Wtask_m)
+        m_h = tf.reduce_sum(tf.multiply(tf.expand_dims(act_local, 3),
+                                        tf.expand_dims(tf.expand_dims(Wtask_m, 0), 0)), 2)
+        self.m_h = m_h + btask_m
+        #v_h = tf.einsum('mni,io->mno', tf.square(act_local), tf.exp(Wtask_v))
+        v_h = tf.reduce_sum(tf.multiply(tf.expand_dims(tf.square(act_local), 3),
+                                        tf.expand_dims(tf.expand_dims(tf.exp(Wtask_v), 0), 0)), 2)
+        self.v_h = v_h + tf.exp(btask_v)
         eps = tf.random_normal((no_samples, 1, dout), 0.0, 1.0, dtype=tf.float32)
-        pre_local = m_h + tf.sqrt(v_h + 1e-9) * eps
+        pre_local = self.m_h + tf.sqrt(self.v_h + 1e-9) * eps
         pre_local = tf.reshape(pre_local, [no_samples, batch_size, dout])
         return pre, pre_local, prior_log_pis, log_pis, log_z_sample
 
@@ -542,12 +553,10 @@ class HIBP_BNN(IBP_BNN):
                 #                 feed_dict={self.x: batch_x, self.y: batch_y, self.task_idx: task_idx,
                 #                            self.training: True})
                 # writer.add_summary(summary, global_step)
-                v_alpha, v_beta, log_pis, prior_log_pis, tmp_a, tmp_b = sess.run([self.gbeta_a, self.gbeta_b,
-                                                                    self.global_log_pi, self.prior_global_log_pi,
-                                                                    self.tmp_a, self.tmp_b],
+                m, v = sess.run([self.m_h, self.v_h],
                                 feed_dict={self.x: batch_x, self.y: batch_y, self.task_idx: task_idx,
                                            self.training: True})
-                print(log_pis)
+
                 pdb.set_trace()
                 # Run optimization op (backprop) and cost op (to get loss value)
                 _, c = sess.run(
