@@ -101,7 +101,7 @@ class HIBP_BNN(IBP_BNN):
         """ Outputs a prediction from the IBP BNN
 
         :param inputs: input tensor
-        :param task_idx: int
+        :param task_idx: tf plcaeholder
         :param no_samples: int
         :return: output tensor,
                  prior bernoulli params: list of tensors for each layer
@@ -171,22 +171,22 @@ class HIBP_BNN(IBP_BNN):
         eps_w = tf.random_normal((no_samples, din, dout), 0, 1, dtype=tf.float32)
         eps_b = tf.random_normal((no_samples, 1, dout), 0, 1, dtype=tf.float32)
 
-        # Wtask_m = tf.gather(self.W_last_m, task_idx)
-        # Wtask_v = tf.gather(self.W_last_v, task_idx)
-        # btask_m = tf.gather(self.b_last_m, task_idx)
-        # btask_v = tf.gather(self.b_last_v, task_idx)
-        print("self.W_last_m: {}".format(type(self.W_last_m)))
-        print("self.W_last_v: {}".format(type(self.W_last_v)))
-        print("self.b_last_m: {}".format(type(self.b_last_m)))
-        print("self.b_last_v: {}".format(type(self.b_last_v)))
-        Wtask_m = self.W_last_m[task_idx]
-        print("self.W_last_m: {}".format(Wtask_m.get_shape()))
-        Wtask_v = self.W_last_v[task_idx]
-        print("self.W_last_m: {}".format(Wtask_v.get_shape()))
-        btask_m = self.b_last_m[task_idx]
-        print("self.W_last_m: {}".format(btask_m.get_shape()))
-        btask_v = self.b_last_v[task_idx]
-        print("self.W_last_m: {}".format(btask_v.get_shape()))
+        Wtask_m = tf.gather(self.W_last_m, task_idx)
+        Wtask_v = tf.gather(self.W_last_v, task_idx)
+        btask_m = tf.gather(self.b_last_m, task_idx)
+        btask_v = tf.gather(self.b_last_v, task_idx)
+        # print("self.W_last_m: {}".format(type(self.W_last_m)))
+        # print("self.W_last_v: {}".format(type(self.W_last_v)))
+        # print("self.b_last_m: {}".format(type(self.b_last_m)))
+        # print("self.b_last_v: {}".format(type(self.b_last_v)))
+        # Wtask_m = self.W_last_m[task_idx]
+        # print("self.W_last_m: {}".format(Wtask_m.get_shape()))
+        # Wtask_v = self.W_last_v[task_idx]
+        # print("self.W_last_m: {}".format(Wtask_v.get_shape()))
+        # btask_m = self.b_last_m[task_idx]
+        # print("self.W_last_m: {}".format(btask_m.get_shape()))
+        # btask_v = self.b_last_v[task_idx]
+        # print("self.W_last_m: {}".format(btask_v.get_shape()))
 
         _weights = tf.add(tf.multiply(eps_w, tf.exp(0.5 * Wtask_v)), Wtask_m)
         _biases = tf.add(tf.multiply(eps_b, tf.exp(0.5 * btask_v)), btask_m)
