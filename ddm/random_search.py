@@ -251,7 +251,7 @@ if __name__ == "__main__":
                         help='TB log directory.')
     parser.add_argument('--dataset', action='store',
                         dest='dataset',
-                        help='Which dataset to choose {normal, noise, background, not, perm}.')
+                        help='Which dataset to choose {normal, noise, background, not, perm, cifar10}.')
     parser.add_argument('--tag', action='store',
                         dest='tag',
                         help='Tag to use in naming file outputs')

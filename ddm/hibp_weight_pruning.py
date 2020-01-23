@@ -516,7 +516,8 @@ if __name__ == '__main__':
     runs = 5
     seeds = [1,2,3,4,5]
     np.random.seed(1)
-    xs = np.append(0.05 * np.array(range(20)), np.array([0.98, 0.99, 0.999]))
+    #xs = np.append(0.05 * np.array(range(20)), np.array([0.98, 0.99, 0.999]))
+    xs = np.append(0.05 * np.array(range(20)), [0.96, 0.97, 0.98, 0.99, 0.992, 0.995, 0.997, 0.999, 1.0])
 
     ###########
     ## H-IBP ##
