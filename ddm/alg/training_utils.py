@@ -1,11 +1,8 @@
+import pdb
 import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
 tfd = tfp.distributions
-
-import matplotlib
-matplotlib.use('agg')
-import matplotlib.pyplot as plt
 
 eps = 1e-16
 
@@ -72,7 +69,7 @@ def kl_discrete(log_post, log_prior, log_samples):
     :param log_samples: samples from Concrete distribution, before sigmoid is applied \in (K, din, dout)
     :return: kl
     """
-
+    pdb.set_trace()
     pi_post = tf.exp(log_post)
     pi_prior = tf.exp(log_prior)
     z_discrete = tf.sigmoid(log_samples)
