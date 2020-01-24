@@ -565,12 +565,12 @@ class IBP_BNN(Cla_NN):
     def prediction(self, x_test, task_idx):
         # Test model
         prediction = self.sess.run([self.pred], feed_dict={self.x: x_test, self.task_idx: task_idx,
-                                                           self.training: False})[0]
+                                                           self.training: True})[0]
         return prediction
 
     def prediction_prob(self, x_test, task_idx):
         prob = self.sess.run([tf.nn.softmax(self.pred)], feed_dict={self.x: x_test, self.task_idx: task_idx,
-                                                                    self.training: False})[0]
+                                                                    self.training: True})[0]
         return prob
 
     def prediction_acc(self, x_test, y_test, batch_size, task_idx):
@@ -590,7 +590,7 @@ class IBP_BNN(Cla_NN):
                                      feed_dict={self.x: batch_x,
                                                 self.y: batch_y,
                                                 self.task_idx: task_idx,
-                                                self.training: False})
+                                                self.training: True}) # we want to output concrete kl so make training True
             #pdb.set_trace()
             # Compute average loss
             avg_acc += acc / total_batch
@@ -607,7 +607,7 @@ class IBP_BNN(Cla_NN):
             start_ind = i * batch_size
             end_ind = np.min([(i + 1) * batch_size, N])
             batch_x = x_test[start_ind:end_ind, :]
-            Zs.append(sess.run(self.Z, feed_dict={self.x: batch_x, self.task_idx: task_idx, self.training: False}))
+            Zs.append(sess.run(self.Z, feed_dict={self.x: batch_x, self.task_idx: task_idx, self.training: True}))
         return Zs
 
     def save(self, model_dir):
