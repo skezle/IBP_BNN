@@ -196,13 +196,13 @@ if __name__ == '__main__':
     print('run_baselines          = {!r}'.format(args.run_baselines))
 
     hidden_size = [200, 200]
-    batch_size = 512
+    batch_size = 128
     no_epochs = 500
     runs = 5
     seeds = [1, 2, 3, 4, 5]
     np.random.seed(1)
     #xs = np.append(0.05 * np.array(range(20)), np.array([0.98, 0.99, 0.999]))
-    xs = np.append(0.05 * np.array(range(20)), [0.96, 0.97, 0.98, 0.99, 0.992, 0.995, 0.997, 0.999, 1.0])
+    xs = np.append(0.1 * np.array(range(10)), [0.95, 0.96, 0.97, 0.98, 0.99, 0.992, 0.995, 0.997, 0.999])
 
     ###########
     ## H-IBP ##
@@ -296,7 +296,7 @@ if __name__ == '__main__':
             model.restore(model.log_folder)
         else:
             print("New model, training")
-            model.train(x_train, y_train, head, no_epochs, bsize)
+            model.train(x_train, y_train, head, no_epochs, bsize, verbose=False)
 
         xs, ya_ibp, yb_ibp = prune_weights(model, x_test, y_test, bsize, head, xs)
         ya_ibp_all[i, :] = ya_ibp
