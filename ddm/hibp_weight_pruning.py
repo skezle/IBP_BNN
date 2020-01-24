@@ -309,6 +309,7 @@ if __name__ == '__main__':
     ##########
     ya_all = np.zeros((runs, len(xs)))
     yb_all = np.zeros((runs, len(xs)))
+    no_epochs = 200
     if args.run_baselines:
         for i in range(runs):
             tf.set_random_seed(seeds[i])
@@ -337,8 +338,8 @@ if __name__ == '__main__':
             mf_model = MFVI_NN(in_dim, hidden_size, out_dim,
                                x_train.shape[0], no_train_samples=10, no_pred_samples=100,
                                prev_means=mf_weights, prev_log_variances=mf_variances,
-                               learning_rate=0.001, learning_decay_rate=0.87,
-                               prior_mean=0, prior_var=1,
+                               learning_rate=0.001, learning_decay_rate=0.50,
+                               prior_mean=0, prior_var=0.9,
                                use_local_reparam=args.use_local_reparam)
 
             mf_model.train(x_train, y_train, head, no_epochs, bsize)
@@ -349,77 +350,6 @@ if __name__ == '__main__':
 
             mf_model.close_session()
 
-        ###########
-        ## Plots ##
-        ###########
-        _ibp_ya_mean = np.mean(ya_ibp_all, axis=0)
-        _ibp_ya_std = np.std(ya_ibp_all, axis=0)
-        _ibp_yb_mean = np.mean(yb_ibp_all, axis=0)
-        _ibp_yb_std = np.std(yb_ibp_all, axis=0)
-        _ya_mean = np.mean(ya_all, axis=0)
-        _ya_std = np.std(ya_all, axis=0)
-        _yb_mean = np.mean(yb_all, axis=0)
-        _yb_std = np.std(yb_all, axis=0)
-
-        fig_size = (6, 5)
-
-        set_y_axis = False
-
-        lw = 2
-
-        grid_color = '0.1'
-        grid_lw = 0.2
-
-        title_size = 16
-        label_size = 22
-        tick_size = 20
-        legend_size = 22
-
-        fig, ax = plt.subplots(1, 1, figsize=fig_size)
-
-        ax.plot(xs, _ibp_ya_mean,linewidth=lw, color='b')
-        ax.fill_between(xs,
-                       [x - y for x, y in zip(_ibp_ya_mean, _ibp_ya_std)],
-                       [x + y for x, y in zip(_ibp_ya_mean, _ibp_ya_std)],
-                       alpha=0.3, color='b')
-
-        ax.plot(xs, _ibp_yb_mean, linewidth=lw, color='g')
-        ax.fill_between(xs,
-                       [x - y for x, y in zip(_ibp_yb_mean, _ibp_yb_std)],
-                       [x + y for x, y in zip(_ibp_yb_mean, _ibp_yb_std)],
-                       alpha=0.3, color='g')
-
-        ax.plot(xs, _ya_mean,linewidth=lw, color='r')
-        ax.fill_between(xs,
-                       [x - y for x, y in zip(_ya_mean, _ya_std)],
-                       [x + y for x, y in zip(_ya_mean, _ya_std)],
-                       alpha=0.3, color='r')
-
-        ax.plot(xs, _yb_mean, linewidth=lw, color='c')
-        ax.fill_between(xs,
-                       [x - y for x, y in zip(_yb_mean, _yb_std)],
-                       [x + y for x, y in zip(_yb_mean, _yb_std)],
-                       alpha=0.3, color='c')
-
-        plt.grid(True, which="both", color=grid_color, linewidth=0.1, alpha=0.1)
-        ax.set_xlim(0.0, 0.5)
-        plt.yticks(fontsize=tick_size)
-        x_ticks = np.arange(0.0, 1.5, step=0.5)
-        plt.xticks(x_ticks, fontsize=tick_size)
-        plt.ticklabel_format(axis='y', style='sci')
-        ax = fig.gca()
-        ax.ticklabel_format(axis='y', style='sci', scilimits=(-1, 1))
-        #ax.set_yticklabels([])
-        plt.yscale('log')
-        plt.legend(["H-IBP $|\mu|$", 'H-IBP snr', '$|\mu|$', 'snr'], fontsize=legend_size, loc='lower left')
-        plt.tight_layout()
-        plt.xlabel("Cut off", fontsize=legend_size)
-        plt.ylabel("Test acc", fontsize=legend_size)
-        plt.xlim(0.0, 1.01)
-        plt.savefig("plots/weight_pruning_{0}.pdf".format(args.tag), bbox_inches='tight')
-        #plt.show()
-
-    xs = np.append(0.05 * np.array(range(20)), np.array([0.98, 0.99, 0.999]))
 
     with open('results/weight_pruning_runs5_{0}.pkl'.format(args.tag), 'wb') as input_file:
         pickle.dump({'xs': xs,
