@@ -199,9 +199,13 @@ class IBP_BNN(Cla_NN):
         pre = tf.add(tf.reduce_sum(act * _weights, 2), _biases)
 
         # apply local reparam trick to final output layer
-        m_h = tf.einsum('mni,io->mno', act_local, Wtask_m)
+        #m_h = tf.einsum('mni,io->mno', act_local, Wtask_m)
+        m_h = tf.reduce_sum(tf.multiply(tf.expand_dims(act_local, 3),
+                                        tf.expand_dims(tf.expand_dims(Wtask_m, 0), 0)), 2)
         m_h = m_h + btask_m
-        v_h = tf.einsum('mni,io->mno', tf.square(act_local), tf.exp(Wtask_v))
+        #v_h = tf.einsum('mni,io->mno', tf.square(act_local), tf.exp(Wtask_v))
+        v_h = tf.reduce_sum(tf.multiply(tf.expand_dims(tf.square(act_local), 3),
+                                        tf.expand_dims(tf.expand_dims(tf.exp(Wtask_v), 0), 0)), 2)
         v_h = v_h + tf.exp(btask_v)
         eps = tf.random_normal((no_samples, 1, dout), 0.0, 1.0, dtype=tf.float32)
         pre_local = m_h + tf.sqrt(v_h + 1e-9) * eps
