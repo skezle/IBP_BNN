@@ -1,4 +1,5 @@
 import os.path
+import pdb
 import tensorflow as tf
 import numpy as np
 from copy import deepcopy
@@ -590,7 +591,7 @@ class IBP_BNN(Cla_NN):
                                                 self.y: batch_y,
                                                 self.task_idx: task_idx,
                                                 self.training: False})
-
+            pdb.set_trace()
             # Compute average loss
             avg_acc += acc / total_batch
             avg_neg_elbo += neg_elbo / total_batch
