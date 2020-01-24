@@ -69,13 +69,12 @@ def kl_discrete(log_post, log_prior, log_samples):
     :param log_samples: samples from Concrete distribution, before sigmoid is applied \in (K, din, dout)
     :return: kl
     """
-    pdb.set_trace()
     pi_post = tf.exp(log_post)
     pi_prior = tf.exp(log_prior)
     z_discrete = tf.sigmoid(log_samples)
     kl_post = z_discrete * tf.log(pi_post + eps) + (1 - z_discrete) * tf.log(1 - pi_post + eps)
     kl_prior = z_discrete * tf.log(pi_prior + eps) + (1 - z_discrete) * tf.log(1 - pi_prior + eps)
-    return tf.reduce_sum(kl_post - kl_prior)
+    return tf.reduce_sum(tf.reduce_mean(kl_post - kl_prior, [0, 1]))
 
 def log_density_concrete(logpis, logsample, _temp):
     """ log-density of the ExpConcrete distribution, from
