@@ -18,7 +18,7 @@ class HIBP_BNN(IBP_BNN):
                  prior_mean=0, prior_var=1, alpha0=5., beta0=1., lambda_1=1., lambda_2=1.,
                  tensorboard_dir='logs', name='ibp', tb_logging=True, output_tb_gradients=False,
                  beta_1=1.0, beta_2=1.0, beta_3=1.0, use_local_reparam=True, implicit_beta=False,
-                 clip_grads=False):
+                 clip_grads=False, hard_Z=False, cutoff=0.0):
 
         super(HIBP_BNN, self).__init__(input_size=input_size, hidden_size=hidden_size,
                                        output_size=output_size, training_size=training_size,
@@ -34,6 +34,8 @@ class HIBP_BNN(IBP_BNN):
                                        beta_2=beta_2, beta_3=beta_3, use_local_reparam=use_local_reparam,
                                        implicit_beta=implicit_beta, clip_grads=clip_grads)
         self.alphas = alphas # hyper-param for each child IBP
+        self.hard_Z = hard_Z
+        self.cutoff = cutoff
 
     def create_model(self):
         m, v, self.size = self.create_weights(self.input_size, self.hidden_size, self.output_size, self.prev_means, self.prev_log_variances)
@@ -148,6 +150,13 @@ class HIBP_BNN(IBP_BNN):
             # Concrete reparam
             z_log_sample = reparameterize_discrete(self.log_pi, self.lambda_1, size=(no_samples_ibp, batch_size, dout))
             z_discrete = tf.expand_dims(tf.reduce_mean(tf.sigmoid(z_log_sample), axis=0), 0)# (no_samples_ibp, batch_size, dout) --> (1, batch_size, dout)
+
+            if self.hard_Z:
+                mask = tf.greater_equal(z_discrete, self.cutoff)
+                z_discrete = tf.cond(self.training,
+                                     true_fn=lambda: z_discrete,
+                                     false_fn=lambda: tf.multiply(tf.ones(z_discrete.get_shape(), z_discrete.dtype),
+                                                                  tf.cast(mask, z_discrete.dtype)))
 
             self.Z.append(z_discrete)
             self.vars += [tf.exp(0.5 * self.W_v[i]), tf.exp(0.5 * self.b_v[i])]
