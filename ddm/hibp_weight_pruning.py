@@ -144,16 +144,20 @@ def prune_weights(model, X_test, Y_test, bsize, task_id, xs):
 
 
 class MnistGenerator():
-    def __init__(self, max_iter=10):
+    def __init__(self, val=False):
         with gzip.open('data/mnist.pkl.gz', 'rb') as f:
             train_set, valid_set, test_set = pickle.load(f, encoding='latin1')
 
-        self.X_train = np.vstack((train_set[0], valid_set[0]))
-        self.Y_train = np.hstack((train_set[1], valid_set[1]))
+        if self.val:
+            self.X_train = train_set[0]
+            self.X_val = valid_set[0]
+            self.Y_train = train_set[1]
+            self.Y_val = valid_set[1]
+        else:
+            self.X_train = np.vstack((train_set[0], valid_set[0]))
+            self.Y_train = np.hstack((train_set[1], valid_set[1]))
         self.X_test = test_set[0]
         self.Y_test = test_set[1]
-        self.max_iter = max_iter
-        self.cur_iter = 0
 
     def get_dims(self):
         # Get data input and output dimensions
@@ -167,6 +171,11 @@ class MnistGenerator():
         # Retrieve test data
         x_test = deepcopy(self.X_test)
         y_test = np.eye(10)[self.Y_test]
+
+        if self.val:
+            x_val = deepcopy(self.X_val)
+            y_val = np.eye(10)[self.Y_val]
+            return x_train, y_train, x_test, y_test, x_val, y_val
 
         return x_train, y_train, x_test, y_test
 
@@ -217,7 +226,7 @@ if __name__ == '__main__':
     # Gaussian params
     prior_mean = 0.0
     prior_var = 0.7
-
+    val = False
     ya_ibp_all = np.zeros((runs, len(xs)))
     yb_ibp_all = np.zeros((runs, len(xs)))
 
@@ -231,7 +240,10 @@ if __name__ == '__main__':
         task_id=0
 
         tf.reset_default_graph()
-        x_train, y_train, x_test, y_test = data_gen.task()
+        if val:
+            x_train, y_train, x_test, y_test, _, _ = data_gen.task()
+        else:
+            x_train, y_train, x_test, y_test = data_gen.task()
         x_testsets.append(x_test)
         y_testsets.append(y_test)
 
