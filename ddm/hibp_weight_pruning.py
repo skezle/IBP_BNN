@@ -145,6 +145,7 @@ def prune_weights(model, X_test, Y_test, bsize, task_id, xs):
 
 class MnistGenerator():
     def __init__(self, val=False):
+        self.val = val
         with gzip.open('data/mnist.pkl.gz', 'rb') as f:
             train_set, valid_set, test_set = pickle.load(f, encoding='latin1')
 
