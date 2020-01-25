@@ -155,7 +155,7 @@ class HIBP_BNN(IBP_BNN):
                 mask = tf.greater_equal(z_discrete, self.cutoff)
                 z_discrete = tf.cond(self.training,
                                      true_fn=lambda: z_discrete,
-                                     false_fn=lambda: tf.multiply(tf.ones(z_discrete.get_shape(), z_discrete.dtype),
+                                     false_fn=lambda: tf.multiply(tf.ones(tf.shape(z_discrete), z_discrete.dtype),
                                                                   tf.cast(mask, z_discrete.dtype)))
 
             self.Z.append(z_discrete)
