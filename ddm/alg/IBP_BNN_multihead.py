@@ -590,7 +590,7 @@ class IBP_BNN(Cla_NN):
                                      feed_dict={self.x: batch_x,
                                                 self.y: batch_y,
                                                 self.task_idx: task_idx,
-                                                self.training: True}) # we want to output concrete kl so make training True
+                                                self.training: False}) # we want to output concrete kl so make training True
             #pdb.set_trace()
             # Compute average loss
             avg_acc += acc / total_batch
