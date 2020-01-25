@@ -207,7 +207,7 @@ if __name__ == '__main__':
 
     hidden_size = [200, 200]
     batch_size = 128
-    no_epochs = 500
+    no_epochs = 200
     runs = 5
     seeds = [1, 2, 3, 4, 5]
     np.random.seed(1)
