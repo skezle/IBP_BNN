@@ -49,6 +49,8 @@ class HIBP_BNN(IBP_BNN):
         self.weights = [m, v, betas]
         self.no_layers = len(self.size) - 1
 
+        self.assign_optimizer(self.learning_rate)
+
         self.assign_temperature()
 
         # used for the calculation of the KL term
@@ -67,8 +69,6 @@ class HIBP_BNN(IBP_BNN):
         self.ll = self._logpred(self.x, self.y, self.task_idx)
         self.cost = self.kl - self.ll
         self.acc = self._accuracy(self.x, self.y, self.task_idx)
-
-        self.assign_optimizer(self.learning_rate)
 
         self.saver = tf.train.Saver()
 
