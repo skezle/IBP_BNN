@@ -137,7 +137,7 @@ if __name__ == "__main__":
     alpha = 4.0
 
     hidden_size = [args.K] * args.num_layers
-    batch_size = 512
+    batch_size = 128
     no_epochs = 200
     ibp_samples = 10
 

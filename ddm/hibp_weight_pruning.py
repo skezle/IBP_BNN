@@ -207,7 +207,7 @@ if __name__ == '__main__':
 
     hidden_size = [200, 200]
     batch_size = 128
-    no_epochs = 200
+    no_epochs = 100
     runs = 5
     seeds = [1, 2, 3, 4, 5]
     np.random.seed(1)
@@ -351,7 +351,7 @@ if __name__ == '__main__':
             mf_model = MFVI_NN(in_dim, hidden_size, out_dim,
                                x_train.shape[0], no_train_samples=10, no_pred_samples=100,
                                prev_means=mf_weights, prev_log_variances=mf_variances,
-                               learning_rate=0.001, learning_decay_rate=0.50,
+                               learning_rate=0.001, learning_rate_decay=0.50,
                                prior_mean=0, prior_var=0.9,
                                use_local_reparam=args.use_local_reparam)
 
