@@ -103,7 +103,7 @@ class HIBP_BNN(IBP_BNN):
 
     def assign_temperature(self):
         tau0 = self.lambda_1
-        self.temp_posterior = tf.max(tf.Variable(0.5, trainable=False), tau0 * tf.exp(-1.0 * self.global_step * self.anneal_rate))
+        self.temp_posterior = tf.maximum(tf.Variable(0.5, trainable=False), tau0 * tf.exp(-1.0 * self.global_step * self.anneal_rate))
 
     # this samples a layer at a time
     def _prediction_layer(self, inputs, task_idx, no_samples):
