@@ -18,7 +18,7 @@ class HIBP_BNN(IBP_BNN):
                  prior_mean=0, prior_var=1, alpha0=5., beta0=1., lambda_1=1., lambda_2=1.,
                  tensorboard_dir='logs', name='ibp', tb_logging=True, output_tb_gradients=False,
                  beta_1=1.0, beta_2=1.0, beta_3=1.0, use_local_reparam=True, implicit_beta=False,
-                 clip_grads=False, hard_Z=False, cutoff=0.0):
+                 clip_grads=False, hard_Z=False, cutoff=0.0, temp_anneal_rate=0.00005):
 
         super(HIBP_BNN, self).__init__(input_size=input_size, hidden_size=hidden_size,
                                        output_size=output_size, training_size=training_size,
@@ -36,6 +36,7 @@ class HIBP_BNN(IBP_BNN):
         self.alphas = alphas # hyper-param for each child IBP
         self.hard_Z = hard_Z
         self.cutoff = cutoff
+        self.anneal_rate = temp_anneal_rate
 
     def create_model(self):
         m, v, self.size = self.create_weights(self.input_size, self.hidden_size, self.output_size, self.prev_means, self.prev_log_variances)
@@ -67,6 +68,8 @@ class HIBP_BNN(IBP_BNN):
 
         self.assign_optimizer(self.learning_rate)
 
+        self.assign_temperature()
+
         self.saver = tf.train.Saver()
 
         self.create_summaries()
@@ -75,9 +78,9 @@ class HIBP_BNN(IBP_BNN):
 
     def assign_optimizer(self, learning_rate=0.001):
         #self.train_step = tf.train.AdamOptimizer(learning_rate).minimize(self.cost)
-        global_step = tf.Variable(0, trainable=False)
+        self.global_step = tf.Variable(0, trainable=False)
         self.learning_rate = tf.compat.v1.train.exponential_decay(learning_rate,
-                                                                  global_step,
+                                                                  self.global_step,
                                                                   1000, self.learning_rate_decay, staircase=False)
 
         optim = tf.train.AdamOptimizer(self.learning_rate)
@@ -96,7 +99,11 @@ class HIBP_BNN(IBP_BNN):
             grads, variables = zip(*gradients)
             _grads, _ = tf.clip_by_global_norm(grads, 10.0)
             gradients = zip(_grads, variables)
-        self.train_step = optim.apply_gradients(grads_and_vars=gradients, global_step=global_step)
+        self.train_step = optim.apply_gradients(grads_and_vars=gradients, global_step=self.global_step)
+
+    def assign_temperature(self):
+        tau0 = self.lambda_1
+        self.temp_posterior = tf.max(tf.Variable(0.5, trainable=False), tau0 * tf.exp(-1.0 * self.global_step * self.anneal_rate))
 
     # this samples a layer at a time
     def _prediction_layer(self, inputs, task_idx, no_samples):
@@ -148,7 +155,7 @@ class HIBP_BNN(IBP_BNN):
                                                      alpha, size=(no_samples_ibp, batch_size, dout)) # (no_samples, batch_size, dout)
             log_pis.append(self.log_pi)
             # Concrete reparam
-            z_log_sample = reparameterize_discrete(self.log_pi, self.lambda_1, size=(no_samples_ibp, batch_size, dout))
+            z_log_sample = reparameterize_discrete(self.log_pi, self.temp_posterior, size=(no_samples_ibp, batch_size, dout))
             z_discrete = tf.expand_dims(tf.reduce_mean(tf.sigmoid(z_log_sample), axis=0), 0)# (no_samples_ibp, batch_size, dout) --> (1, batch_size, dout)
 
             if self.hard_Z:
@@ -236,6 +243,7 @@ class HIBP_BNN(IBP_BNN):
         """Creates summaries in TensorBoard"""
         with tf.name_scope("summaries"):
             tf.compat.v1.summary.scalar("learning_rate", self.learning_rate)
+            tf.compat.v1.summary.scalar("temp_posterior", self.temp_posterior)
             tf.compat.v1.summary.scalar("elbo", self.cost)
             tf.compat.v1.summary.scalar("loglik", self.ll)
             tf.compat.v1.summary.scalar("kl", self.kl)
@@ -297,7 +305,7 @@ class HIBP_BNN(IBP_BNN):
                                         alpha*(1-tf.reduce_mean(tf.exp(self.prior_global_log_pi), 0)))
             # Child IBP Bernoulli terms
             kl_bern += tf.cond(self.training,
-                               true_fn=lambda: kl_concrete(log_pis[i], prior_log_pis[i], z_log_sample[i], self.lambda_1, self.lambda_2),
+                               true_fn=lambda: kl_concrete(log_pis[i], prior_log_pis[i], z_log_sample[i], self.temp_posterior, self.lambda_2),
                                false_fn=lambda: kl_discrete(log_pis[i], prior_log_pis[i], z_log_sample[i]))
 
         # contribution from the head networks
