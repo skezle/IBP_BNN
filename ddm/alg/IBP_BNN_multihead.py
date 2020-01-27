@@ -218,6 +218,7 @@ class IBP_BNN(Cla_NN):
         """Creates summaries in TensorBoard"""
         with tf.name_scope("summaries"):
             tf.compat.v1.summary.scalar("elbo", self.cost)
+            tf.compat.v1.summary.scalar("temp_posterior", self.lambda_1)
             tf.compat.v1.summary.scalar("loglik", self.ll)
             tf.compat.v1.summary.scalar("kl", self.kl)
             tf.compat.v1.summary.scalar("kl_gauss", self.kl_gauss)
