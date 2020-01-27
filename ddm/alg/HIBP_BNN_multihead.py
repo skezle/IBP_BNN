@@ -36,7 +36,6 @@ class HIBP_BNN(IBP_BNN):
         self.alphas = alphas # hyper-param for each child IBP
         self.hard_Z = hard_Z
         self.cutoff = cutoff
-        self.anneal_rate = temp_anneal_rate
 
     def create_model(self):
         m, v, self.size = self.create_weights(self.input_size, self.hidden_size, self.output_size, self.prev_means, self.prev_log_variances)
@@ -48,10 +47,6 @@ class HIBP_BNN(IBP_BNN):
 
         self.weights = [m, v, betas]
         self.no_layers = len(self.size) - 1
-
-        self.assign_optimizer(self.learning_rate)
-
-        self.assign_temperature()
 
         # used for the calculation of the KL term
         m, v = self.create_prior(self.input_size, self.hidden_size, self.output_size, self.prev_means, self.prev_log_variances,
@@ -70,6 +65,8 @@ class HIBP_BNN(IBP_BNN):
         self.cost = self.kl - self.ll
         self.acc = self._accuracy(self.x, self.y, self.task_idx)
 
+        self.assign_optimizer(self.learning_rate)
+
         self.saver = tf.train.Saver()
 
         self.create_summaries()
@@ -78,9 +75,9 @@ class HIBP_BNN(IBP_BNN):
 
     def assign_optimizer(self, learning_rate=0.001):
         #self.train_step = tf.train.AdamOptimizer(learning_rate).minimize(self.cost)
-        self.global_step = tf.Variable(0, trainable=False)
+        global_step = tf.Variable(0, trainable=False)
         self.learning_rate = tf.compat.v1.train.exponential_decay(learning_rate,
-                                                                  self.global_step,
+                                                                  global_step,
                                                                   1000, self.learning_rate_decay, staircase=False)
 
         optim = tf.train.AdamOptimizer(self.learning_rate)
@@ -99,18 +96,14 @@ class HIBP_BNN(IBP_BNN):
             grads, variables = zip(*gradients)
             _grads, _ = tf.clip_by_global_norm(grads, 10.0)
             gradients = zip(_grads, variables)
-        self.train_step = optim.apply_gradients(grads_and_vars=gradients, global_step=self.global_step)
-
-    def assign_temperature(self):
-        tau0 = self.lambda_1
-        self.temp_posterior = tf.maximum(tf.Variable(0.5, trainable=False), tau0 * tf.exp(-1.0 * self.global_step * self.anneal_rate))
+        self.train_step = optim.apply_gradients(grads_and_vars=gradients, global_step=global_step)
 
     # this samples a layer at a time
     def _prediction_layer(self, inputs, task_idx, no_samples):
         """ Outputs a prediction from the IBP BNN
 
         :param inputs: input tensor
-        :param task_idx: tf plcaeholder
+        :param task_idx: tf placeholder
         :param no_samples: int
         :return: output tensor,
                  prior bernoulli params: list of tensors for each layer
@@ -570,6 +563,7 @@ class HIBP_BNN(IBP_BNN):
                 #                 feed_dict={self.x: batch_x, self.y: batch_y, self.task_idx: task_idx,
                 #                            self.training: True})
                 # writer.add_summary(summary, global_step)
+                # TODO: add temp it not obsolete
                 m, v = sess.run([self.m_h, self.v_h],
                                 feed_dict={self.x: batch_x, self.y: batch_y, self.task_idx: task_idx,
                                            self.training: True})
