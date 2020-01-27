@@ -345,6 +345,7 @@ if __name__ == "__main__":
     print('cl3                  = {!r}'.format(args.cl3))
     print('K                    = {!r}'.format(args.K))
     print('tag                  = {!r}'.format(args.tag))
+    print('beta_hack            = {!r}'.format(args.beta_hack))
 
     seeds = list(range(1, 1 + args.runs))
     num_tasks = 5
