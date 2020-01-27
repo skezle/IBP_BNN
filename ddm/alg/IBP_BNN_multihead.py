@@ -23,7 +23,7 @@ class IBP_BNN(Cla_NN):
         self.alpha0 = alpha0
         self.beta0 = beta0
         self.training = tf.placeholder(tf.bool, name='training')
-        self.lambda_1 = lambda_1 # temp of the variational Concrete posterior
+        #self.lambda_1 = lambda_1 # temp of the variational Concrete posterior
         self.lambda_2 = lambda_2 # temp of the relaxed prior
         self.tensorboard_dir = tensorboard_dir
         self.name = name
@@ -50,6 +50,7 @@ class IBP_BNN(Cla_NN):
         self.prior_mean = prior_mean
         self.prior_var = prior_var
         self.clip_grads = clip_grads
+        self.lambda_1 = tf.Variable(lambda_1, name="temperature")
 
     def create_model(self):
         m, v, betas, self.size = self.create_weights(
@@ -510,7 +511,8 @@ class IBP_BNN(Cla_NN):
         return [W_m, b_m, W_last_m, b_last_m], [W_v, b_v, W_last_v, b_last_v], \
                [betas_a, betas_b]
 
-    def train(self, x_train, y_train, task_idx, no_epochs=1000, batch_size=100, display_epoch=5, verbose=True):
+    def train(self, x_train, y_train, task_idx, no_epochs=1000, batch_size=100, display_epoch=5, verbose=True
+              ):
         N = x_train.shape[0]
         if batch_size > N:
             batch_size = N
@@ -518,6 +520,10 @@ class IBP_BNN(Cla_NN):
         sess = self.sess
         costs = []
         global_step = 0
+        anneal_rate = 0.00003
+        tau0 = 1.0
+        temp = tau0
+        min_temp = 0.5
 
         writer = tf.compat.v1.summary.FileWriter(self.log_folder, sess.graph)
         # Training cycle
@@ -540,16 +546,20 @@ class IBP_BNN(Cla_NN):
                 if global_step % 250 == 0:
                     summary = sess.run([self.summary_op],
                                     feed_dict={self.x: batch_x, self.y: batch_y, self.task_idx: task_idx,
-                                               self.training: True})[0]
+                                               self.training: True, self.lambda_1: temp})[0]
                     writer.add_summary(summary, global_step)
                 else:
                     # Run optimization op (backprop) and cost op (to get loss value)
                     _, c = sess.run(
                         [self.train_step, self.cost],
-                        feed_dict={self.x: batch_x, self.y: batch_y, self.task_idx: task_idx, self.training: True})
+                        feed_dict={self.x: batch_x, self.y: batch_y, self.task_idx: task_idx,
+                                   self.training: True, self.lambda_1: temp})
 
                     # Compute average loss
                     avg_cost += c / total_batch
+
+                if global_step % 1000 == 1:
+                    temp = np.maximum(tau0 * np.exp(-anneal_rate * global_step), min_temp)
 
                 global_step += 1
 
@@ -565,12 +575,12 @@ class IBP_BNN(Cla_NN):
     def prediction(self, x_test, task_idx):
         # Test model
         prediction = self.sess.run([self.pred], feed_dict={self.x: x_test, self.task_idx: task_idx,
-                                                           self.training: True})[0]
+                                                           self.training: True, self.lambda_1: 0.5})[0]
         return prediction
 
     def prediction_prob(self, x_test, task_idx):
         prob = self.sess.run([tf.nn.softmax(self.pred)], feed_dict={self.x: x_test, self.task_idx: task_idx,
-                                                                    self.training: True})[0]
+                                                                    self.training: True, self.lambda_1: 0.5})[0]
         return prob
 
     def prediction_acc(self, x_test, y_test, batch_size, task_idx):
@@ -590,7 +600,8 @@ class IBP_BNN(Cla_NN):
                                      feed_dict={self.x: batch_x,
                                                 self.y: batch_y,
                                                 self.task_idx: task_idx,
-                                                self.training: False}) # we want to output concrete kl so make training True
+                                                self.training: False,
+                                                self.lambda_1: 0.5}) # we want to output concrete kl so make training True
             #pdb.set_trace()
             # Compute average loss
             avg_acc += acc / total_batch
@@ -607,7 +618,8 @@ class IBP_BNN(Cla_NN):
             start_ind = i * batch_size
             end_ind = np.min([(i + 1) * batch_size, N])
             batch_x = x_test[start_ind:end_ind, :]
-            Zs.append(sess.run(self.Z, feed_dict={self.x: batch_x, self.task_idx: task_idx, self.training: True}))
+            Zs.append(sess.run(self.Z, feed_dict={self.x: batch_x, self.task_idx: task_idx, self.training: True,
+                                                  self.lambda_1:0.5}))
         return Zs
 
     def save(self, model_dir):
