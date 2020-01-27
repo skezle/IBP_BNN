@@ -218,7 +218,6 @@ class IBP_BNN(Cla_NN):
         """Creates summaries in TensorBoard"""
         with tf.name_scope("summaries"):
             tf.compat.v1.summary.scalar("elbo", self.cost)
-            tf.compat.v1.summary.scalar("temp_posterior", self.lambda_1)
             tf.compat.v1.summary.scalar("loglik", self.ll)
             tf.compat.v1.summary.scalar("kl", self.kl)
             tf.compat.v1.summary.scalar("kl_gauss", self.kl_gauss)
@@ -547,14 +546,18 @@ class IBP_BNN(Cla_NN):
                 if global_step % 250 == 0:
                     summary = sess.run([self.summary_op],
                                     feed_dict={self.x: batch_x, self.y: batch_y, self.task_idx: task_idx,
-                                               self.training: True, self.lambda_1: temp})[0]
+                                               self.training: True,
+                                               #self.lambda_1: temp,
+                                               })[0]
                     writer.add_summary(summary, global_step)
                 else:
                     # Run optimization op (backprop) and cost op (to get loss value)
                     _, c = sess.run(
                         [self.train_step, self.cost],
                         feed_dict={self.x: batch_x, self.y: batch_y, self.task_idx: task_idx,
-                                   self.training: True, self.lambda_1: temp})
+                                   self.training: True,
+                                   #self.lambda_1: temp,
+                                   })
 
                     # Compute average loss
                     avg_cost += c / total_batch
@@ -576,12 +579,16 @@ class IBP_BNN(Cla_NN):
     def prediction(self, x_test, task_idx):
         # Test model
         prediction = self.sess.run([self.pred], feed_dict={self.x: x_test, self.task_idx: task_idx,
-                                                           self.training: True, self.lambda_1: 0.5})[0]
+                                                           self.training: True,
+                                                           #self.lambda_1: 0.5,
+                                                           })[0]
         return prediction
 
     def prediction_prob(self, x_test, task_idx):
         prob = self.sess.run([tf.nn.softmax(self.pred)], feed_dict={self.x: x_test, self.task_idx: task_idx,
-                                                                    self.training: True, self.lambda_1: 0.5})[0]
+                                                                    self.training: True,
+                                                                    #self.lambda_1: 0.5,
+                                                                    })[0]
         return prob
 
     def prediction_acc(self, x_test, y_test, batch_size, task_idx):
@@ -602,7 +609,8 @@ class IBP_BNN(Cla_NN):
                                                 self.y: batch_y,
                                                 self.task_idx: task_idx,
                                                 self.training: False,
-                                                self.lambda_1: 0.5}) # we want to output concrete kl so make training True
+                                                #self.lambda_1: 0.5,
+                                                }) # we want to output concrete kl so make training True
             #pdb.set_trace()
             # Compute average loss
             avg_acc += acc / total_batch
@@ -620,7 +628,8 @@ class IBP_BNN(Cla_NN):
             end_ind = np.min([(i + 1) * batch_size, N])
             batch_x = x_test[start_ind:end_ind, :]
             Zs.append(sess.run(self.Z, feed_dict={self.x: batch_x, self.task_idx: task_idx, self.training: True,
-                                                  self.lambda_1:0.5}))
+                                                  #self.lambda_1:0.5,
+                                                  }))
         return Zs
 
     def save(self, model_dir):
