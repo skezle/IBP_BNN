@@ -313,6 +313,11 @@ if __name__ == "__main__":
                         type=int,
                         default=[5, 50],
                         help='List of hidden states')
+    parser.add_argument('--beta_hack', nargs='+',
+                        dest='beta_hack',
+                        type=int,
+                        default=[1, 1, 1, 1, 1],
+                        help='List beta_1 coefs, like beta-VAE paper.')
     parser.add_argument('--cl3', action='store_true',
                         dest='cl3',
                         default=False,
@@ -400,7 +405,7 @@ if __name__ == "__main__":
                                            learning_rate=[0.001]*num_tasks,
                                            no_pred_samples=no_pred_samples, ibp_samples=ibp_samples, log_dir=args.log_dir,
                                            use_local_reparam=args.use_local_reparam,
-                                           implicit_beta=args.implicit_beta, hibp=args.hibp)
+                                           implicit_beta=args.implicit_beta, hibp=args.hibp, beta_1=args.beta_hack)
 
         all_Zs.append(Zs)
         vcl_ibp_accs[i, :, :] = ibp_acc
