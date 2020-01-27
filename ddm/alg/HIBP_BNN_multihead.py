@@ -148,7 +148,7 @@ class HIBP_BNN(IBP_BNN):
                                                      alpha, size=(no_samples_ibp, batch_size, dout)) # (no_samples, batch_size, dout)
             log_pis.append(self.log_pi)
             # Concrete reparam
-            z_log_sample = reparameterize_discrete(self.log_pi, self.temp_posterior, size=(no_samples_ibp, batch_size, dout))
+            z_log_sample = reparameterize_discrete(self.log_pi, self.lambda_1, size=(no_samples_ibp, batch_size, dout))
             z_discrete = tf.expand_dims(tf.reduce_mean(tf.sigmoid(z_log_sample), axis=0), 0)# (no_samples_ibp, batch_size, dout) --> (1, batch_size, dout)
 
             if self.hard_Z:
@@ -298,7 +298,7 @@ class HIBP_BNN(IBP_BNN):
                                         alpha*(1-tf.reduce_mean(tf.exp(self.prior_global_log_pi), 0)))
             # Child IBP Bernoulli terms
             kl_bern += tf.cond(self.training,
-                               true_fn=lambda: kl_concrete(log_pis[i], prior_log_pis[i], z_log_sample[i], self.temp_posterior, self.lambda_2),
+                               true_fn=lambda: kl_concrete(log_pis[i], prior_log_pis[i], z_log_sample[i], self.lambda_1, self.lambda_2),
                                false_fn=lambda: kl_discrete(log_pis[i], prior_log_pis[i], z_log_sample[i]))
 
         # contribution from the head networks
