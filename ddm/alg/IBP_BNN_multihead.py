@@ -50,7 +50,7 @@ class IBP_BNN(Cla_NN):
         self.prior_mean = prior_mean
         self.prior_var = prior_var
         self.clip_grads = clip_grads
-        self.lambda_1 = tf.Variable(lambda_1, name="temperature")
+        self.lambda_1 = tf.placeholder(tf.float32, name="temperature")
 
     def create_model(self):
         m, v, betas, self.size = self.create_weights(
