@@ -370,13 +370,20 @@ if __name__ == "__main__":
         tf.set_random_seed(s)
         data_gen = get_datagen(val)
         name = "ibp_rs_opt_split_{0}_{1}_run{2}".format(args.dataset, args.tag, i+1)
+        # changed the search space...
+        if 'lambda_1' in thetas_opt and 'lambda_2' in thetas_opt:
+            lambda_1 = thetas_opt['lambda_1']
+            lambda_2 = thetas_opt['lambda_2']
+        else:
+            lambda_1 = thetas_opt['lambda']
+            lambda_2 = thetas_opt['lambda']
         ibp_acc, Zs, uncerts = run_vcl_ibp(hidden_size=hidden_size, alphas=[thetas_opt['alpha']]*len(hidden_size),
                                            no_epochs=[no_epochs]*num_tasks, data_gen=data_gen,
                                            name=name, val=val, batch_size=int(thetas_opt['batch_size']),
                                            single_head=args.single_head, prior_mean=thetas_opt['prior_mean'],
                                            prior_var=thetas_opt['prior_var'], alpha0=thetas_opt['alpha0'],
-                                           beta0=thetas_opt['beta0'], lambda_1=thetas_opt['lambda'],
-                                           lambda_2=thetas_opt['lambda'], learning_rate=thetas_opt['learning_rate'],
+                                           beta0=thetas_opt['beta0'], lambda_1=lambda_1,
+                                           lambda_2=lambda_2, learning_rate=thetas_opt['learning_rate'],
                                            no_pred_samples=int(thetas_opt['no_pred_samples']),
                                            ibp_samples=int(thetas_opt['ibp_samples']),
                                            log_dir=args.log_dir, run_val_set=False,
