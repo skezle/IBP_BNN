@@ -18,7 +18,7 @@ class HIBP_BNN(IBP_BNN):
                  prior_mean=0, prior_var=1, alpha0=5., beta0=1., lambda_1=1., lambda_2=1.,
                  tensorboard_dir='logs', name='ibp', tb_logging=True, output_tb_gradients=False,
                  beta_1=1.0, beta_2=1.0, beta_3=1.0, use_local_reparam=True, implicit_beta=False,
-                 clip_grads=False, hard_Z=False, cutoff=0.0, temp_anneal_rate=0.00005):
+                 clip_grads=False, hard_Z=False, cutoff=0.0):
 
         super(HIBP_BNN, self).__init__(input_size=input_size, hidden_size=hidden_size,
                                        output_size=output_size, training_size=training_size,

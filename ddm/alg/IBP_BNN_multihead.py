@@ -23,7 +23,7 @@ class IBP_BNN(Cla_NN):
         self.alpha0 = alpha0
         self.beta0 = beta0
         self.training = tf.placeholder(tf.bool, name='training')
-        #self.lambda_1 = lambda_1 # temp of the variational Concrete posterior
+        self.lambda_1 = lambda_1 # temp of the variational Concrete posterior
         self.lambda_2 = lambda_2 # temp of the relaxed prior
         self.tensorboard_dir = tensorboard_dir
         self.name = name
@@ -50,7 +50,7 @@ class IBP_BNN(Cla_NN):
         self.prior_mean = prior_mean
         self.prior_var = prior_var
         self.clip_grads = clip_grads
-        self.lambda_1 = tf.placeholder(tf.float32, name="temperature")
+        #self.lambda_1 = tf.placeholder(tf.float32, name="temperature")
 
     def create_model(self):
         m, v, betas, self.size = self.create_weights(
