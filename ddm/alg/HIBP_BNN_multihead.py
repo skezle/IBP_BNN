@@ -236,7 +236,7 @@ class HIBP_BNN(IBP_BNN):
         """Creates summaries in TensorBoard"""
         with tf.name_scope("summaries"):
             tf.compat.v1.summary.scalar("learning_rate", self.learning_rate)
-            tf.compat.v1.summary.scalar("temp_posterior", self.lambda_1)
+            #tf.compat.v1.summary.scalar("temp_posterior", self.lambda_1)
             tf.compat.v1.summary.scalar("elbo", self.cost)
             tf.compat.v1.summary.scalar("loglik", self.ll)
             tf.compat.v1.summary.scalar("kl", self.kl)
