@@ -322,7 +322,7 @@ if __name__ == '__main__':
     ##########
     ya_all = np.zeros((runs, len(xs)))
     yb_all = np.zeros((runs, len(xs)))
-    no_epochs = 200
+    #no_epochs = 200
     if args.run_baselines:
         for i in range(runs):
             tf.set_random_seed(seeds[i])

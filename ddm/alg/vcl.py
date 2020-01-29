@@ -85,7 +85,7 @@ def run_vcl(hidden_size, no_epochs, data_gen, coreset_method, coreset_size=0, ba
 def run_vcl_ibp(hidden_size, alphas, no_epochs, data_gen, name,
                 val, batch_size=None, single_head=False,
                 prior_mean=0.0, prior_var=1.0, alpha0=5.0,
-                beta0 = 1.0, lambda_1 = 1.0, lambda_2 = 1.0, learning_rate=0.0001,
+                beta0 = 1.0, lambda_1 = 1.0, lambda_2 = 1.0, learning_rate=0.001,
                 learning_rate_decay=0.87,
                 no_pred_samples=100, ibp_samples = 10, log_dir='logs',
                 run_val_set=False, use_local_reparam=False, implicit_beta=False,

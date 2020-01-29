@@ -327,6 +327,11 @@ if __name__ == "__main__":
                         default=100,
                         type=int,
                         help='Variational truncation param for IBP.')
+    parser.add_argument('--alpha', action='store',
+                        dest='alpha',
+                        default=4.0,
+                        type=int,
+                        help='H-IBP hyperparam.')
 
     args = parser.parse_args()
 
@@ -346,6 +351,7 @@ if __name__ == "__main__":
     print('K                    = {!r}'.format(args.K))
     print('tag                  = {!r}'.format(args.tag))
     print('beta_hack            = {!r}'.format(args.beta_hack))
+    print('alpha                = {!r}'.format(args.alpha))
 
     seeds = list(range(1, 1 + args.runs))
     num_tasks = 5
@@ -377,7 +383,7 @@ if __name__ == "__main__":
     beta0 = 1.0
     lambda_1 = 0.7 # posterior
     lambda_2 = 0.7 # prior
-    alpha = 4.0
+    alpha = args.alpha
     # Gaussian params
     prior_mean = 0.0
     prior_var = 0.7
@@ -420,9 +426,9 @@ if __name__ == "__main__":
                 hidden_size = [h] * args.num_layers
                 data_gen = get_datagen()
                 vcl_result, uncerts = run_vcl(hidden_size, no_epochs, data_gen,
-                                                  lambda a: a, coreset_size, batch_size, args.single_head, val=val,
-                                                  name='vcl_h{0}_{1}_run{2}_{3}'.format(h, args.dataset, i+1, args.tag),
-                                                  log_dir=args.log_dir, use_local_reparam=args.use_local_reparam)
+                                              lambda a: a, coreset_size, batch_size, args.single_head, val=val,
+                                              name='vcl_h{0}_{1}_run{2}_{3}'.format(h, args.dataset, i+1, args.tag),
+                                              log_dir=args.log_dir, use_local_reparam=args.use_local_reparam)
                 baseline_accs[h][i, :, :] = vcl_result
                 baseline_uncerts[h][i, :, :] = uncerts
 
