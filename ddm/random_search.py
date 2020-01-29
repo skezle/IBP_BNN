@@ -319,13 +319,18 @@ if __name__ == "__main__":
                                   'alpha0': [1., 50.],
                                   'lambda': [0.5, 1.],
                                   'prior_var': [0.001, 1.],
-                                  'alpha':[1., 50.]}
+                                  }
 
     fixed_param_choices = {'ibp_samples': 10,
                            'no_pred_samples': 10,
                            'prior_mean': 0.0,
                            'batch_size': 128,
                            'beta0': 1.0}
+
+    if args.hibp:
+        hyper_param_choices_ranges['alpha'] = [1., 50.]
+    else:
+        fixed_param_choices['alpha'] = 1.0
 
     RndSearch = HyperparamOptManager(param_grid=hyper_param_choices_grid,
                                      param_ranges=hyper_param_choices_ranges,
