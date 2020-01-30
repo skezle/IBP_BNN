@@ -109,6 +109,10 @@ if __name__ == "__main__":
                         type=int,
                         default=100,
                         help='Variational truncation param for IBP.')
+    parser.add_argument('--no_ibp', action='store_true',
+                        default=False,
+                        dest='no_ibp',
+                        help='Whether not to run ibp.')
     args = parser.parse_args()
 
     print('single_head          = {!r}'.format(args.single_head))
@@ -120,6 +124,7 @@ if __name__ == "__main__":
     print('run_baselines        = {!r}'.format(args.run_baselines))
     print('h_list               = {!r}'.format(args.h_list))
     print('K                    = {!r}'.format(args.K))
+    print('no_ibp               = {!r}'.format(args.no_ibp))
 
     seeds = [12, 13, 14, 15, 16]
     num_tasks = 5
@@ -148,21 +153,22 @@ if __name__ == "__main__":
         np.random.seed(1)
 
         coreset_size = 0
-        data_gen = PermutedMnistGenerator(num_tasks, val=val)
-        name = "ibp_{0}_run{1}_{2}".format("perm", i + 1, args.tag)
-        # Z matrix for each task is output
-        # This is overwritten for each run
-        ibp_acc, Zs, uncerts = run_vcl_ibp(hidden_size=hidden_size, alphas=[alpha]*len(hidden_size),
-                                           no_epochs=[no_epochs]*num_tasks,
-                                           data_gen=data_gen, name=name, val=val, batch_size=batch_size,
-                                           single_head=args.single_head, alpha0=alpha0, beta0=beta0,
-                                           lambda_1=lambda_1, lambda_2=lambda_2,
-                                           learning_rate=0.001, no_pred_samples=100, ibp_samples=ibp_samples,
-                                           log_dir=args.log_dir,
-                                           implicit_beta=args.implicit_beta, hibp=args.hibp)
-        all_Zs.append(Zs)
-        vcl_ibp_accs[i, :, :] = ibp_acc
-        all_ibp_uncerts[i, :, :] = uncerts
+        if not args.no_ibp:
+            data_gen = PermutedMnistGenerator(num_tasks, val=val)
+            name = "ibp_{0}_run{1}_{2}".format("perm", i + 1, args.tag)
+            # Z matrix for each task is output
+            # This is overwritten for each run
+            ibp_acc, Zs, uncerts = run_vcl_ibp(hidden_size=hidden_size, alphas=[alpha]*len(hidden_size),
+                                               no_epochs=[no_epochs]*num_tasks,
+                                               data_gen=data_gen, name=name, val=val, batch_size=batch_size,
+                                               single_head=args.single_head, alpha0=alpha0, beta0=beta0,
+                                               lambda_1=lambda_1, lambda_2=lambda_2,
+                                               learning_rate=0.001, no_pred_samples=100, ibp_samples=ibp_samples,
+                                               log_dir=args.log_dir,
+                                               implicit_beta=args.implicit_beta, hibp=args.hibp)
+            all_Zs.append(Zs)
+            vcl_ibp_accs[i, :, :] = ibp_acc
+            all_ibp_uncerts[i, :, :] = uncerts
 
         # Run Vanilla VCL
         if args.run_baselines:
