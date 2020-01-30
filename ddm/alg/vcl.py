@@ -10,22 +10,10 @@ from HIBP_BNN_multihead import HIBP_BNN
 def run_vcl(hidden_size, no_epochs, data_gen, coreset_method, coreset_size=0, batch_size=None, single_head=True, val=False,
             verbose=True, name='vcl', log_dir='logs', use_local_reparam=False):
 
-    x_coresets, y_coresets = [], []
     x_testsets, y_testsets = [], []
-    all_x_testsets, all_y_testsets = [], []
 
     all_acc = np.array([])
     all_uncerts = np.zeros((data_gen.max_iter, data_gen.max_iter))
-
-    for task_id in range(data_gen.max_iter):
-        if val:
-            _, _, x_test, y_test, _, _ = data_gen.next_task()
-        else:
-            _, _, x_test, y_test = data_gen.next_task()
-        all_x_testsets.append(x_test)
-        all_y_testsets.append(y_test)
-
-    data_gen.reset_cur_iter()
 
     for task_id in range(data_gen.max_iter):
 
@@ -51,10 +39,6 @@ def run_vcl(hidden_size, no_epochs, data_gen, coreset_method, coreset_size=0, ba
             mf_weights = ml_model.get_weights()
             mf_variances = None
             ml_model.close_session()
-
-        # Select coreset if needed
-        if coreset_size > 0:
-            x_coresets, y_coresets, x_train, y_train = coreset_method(x_coresets, y_coresets, x_train, y_train, coreset_size)
 
         # Train on non-coreset data
         mf_model = MFVI_NN(in_dim, hidden_size, out_dim, x_train.shape[0], prev_means=mf_weights, prev_log_variances=mf_variances,
@@ -95,19 +79,7 @@ def run_vcl_ibp(hidden_size, alphas, no_epochs, data_gen, name,
     all_uncerts = np.zeros((data_gen.max_iter, data_gen.max_iter))
     x_testsets, y_testsets = [], []
     x_valsets, y_valsets = [], []
-    all_x_testsets, all_y_testsets = [], []
     Zs = []
-
-    # get all testsets for uncertainty calculation
-    for task_id in range(data_gen.max_iter):
-        if val:
-            _, _, x_test, y_test, _, _ = data_gen.next_task()
-        else:
-            _, _, x_test, y_test = data_gen.next_task()
-        all_x_testsets.append(x_test)
-        all_y_testsets.append(y_test)
-
-    data_gen.reset_cur_iter()
 
     for task_id in range(data_gen.max_iter):
 
