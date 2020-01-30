@@ -118,10 +118,6 @@ if __name__ == "__main__":
                         default=1,
                         type=int,
                         help='Number optmisations to perform.')
-    parser.add_argument('--no_ibp', action='store_true',
-                        default=False,
-                        dest='no_ibp',
-                        help='Whether not to run ibp.')
     args = parser.parse_args()
 
     print('single_head          = {!r}'.format(args.single_head))
@@ -135,7 +131,6 @@ if __name__ == "__main__":
     print('K                    = {!r}'.format(args.K))
     print('no_ibp               = {!r}'.format(args.no_ibp))
     print('runs                 = {!r}'.format(args.runs))
-    print('no_ibp               = {!r}'.format(args.no_ibp))
 
     seeds = list(range(1, 1 + args.runs))
     num_tasks = 5
