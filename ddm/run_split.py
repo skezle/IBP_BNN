@@ -308,6 +308,10 @@ if __name__ == "__main__":
                         default=False,
                         dest='run_baselines',
                         help='Whether to run the baselines.')
+    parser.add_argument('--no_ibp', action='store_true',
+                        default=False,
+                        dest='no_ibp',
+                        help='Whether not to run ibp.')
     parser.add_argument('--h', nargs='+',
                         dest='h_list',
                         type=int,
@@ -352,6 +356,7 @@ if __name__ == "__main__":
     print('tag                  = {!r}'.format(args.tag))
     print('beta_hack            = {!r}'.format(args.beta_hack))
     print('alpha                = {!r}'.format(args.alpha))
+    print('no_ibp               = {!r}'.format(args.no_ibp))
 
     seeds = list(range(1, 1 + args.runs))
     num_tasks = 5
@@ -400,23 +405,24 @@ if __name__ == "__main__":
         np.random.seed(1)
 
         coreset_size = 0
-        data_gen = get_datagen()
-        name = "split_{0}_run{1}_{2}".format(args.dataset, i + 1, args.tag)
-        # Z matrix for each task is output
-        # This is overwritten for each run
-        ibp_acc, Zs, uncerts = run_vcl_ibp(hidden_size=hidden_size, alphas=[alpha]*len(hidden_size),
-                                           no_epochs= [int(no_epochs*1.2)] + [no_epochs]*(num_tasks-1), data_gen=data_gen,
-                                           name=name, val=val, batch_size=batch_size, single_head=args.single_head,
-                                           prior_mean=prior_mean, prior_var=prior_var, alpha0=alpha0,
-                                           beta0=beta0, lambda_1=lambda_1, lambda_2=lambda_2,
-                                           learning_rate=[0.001]*num_tasks,
-                                           no_pred_samples=no_pred_samples, ibp_samples=ibp_samples, log_dir=args.log_dir,
-                                           use_local_reparam=args.use_local_reparam,
-                                           implicit_beta=args.implicit_beta, hibp=args.hibp, beta_1=args.beta_hack)
+        if not args.no_ibp:
+            data_gen = get_datagen()
+            name = "split_{0}_run{1}_{2}".format(args.dataset, i + 1, args.tag)
+            # Z matrix for each task is output
+            # This is overwritten for each run
+            ibp_acc, Zs, uncerts = run_vcl_ibp(hidden_size=hidden_size, alphas=[alpha]*len(hidden_size),
+                                               no_epochs= [int(no_epochs*1.2)] + [no_epochs]*(num_tasks-1), data_gen=data_gen,
+                                               name=name, val=val, batch_size=batch_size, single_head=args.single_head,
+                                               prior_mean=prior_mean, prior_var=prior_var, alpha0=alpha0,
+                                               beta0=beta0, lambda_1=lambda_1, lambda_2=lambda_2,
+                                               learning_rate=[0.001]*num_tasks,
+                                               no_pred_samples=no_pred_samples, ibp_samples=ibp_samples, log_dir=args.log_dir,
+                                               use_local_reparam=args.use_local_reparam,
+                                               implicit_beta=args.implicit_beta, hibp=args.hibp, beta_1=args.beta_hack)
 
-        all_Zs.append(Zs)
-        vcl_ibp_accs[i, :, :] = ibp_acc
-        all_ibp_uncerts[i, :, :] = uncerts
+            all_Zs.append(Zs)
+            vcl_ibp_accs[i, :, :] = ibp_acc
+            all_ibp_uncerts[i, :, :] = uncerts
 
         if args.run_baselines:
             # Run Vanilla VCL
