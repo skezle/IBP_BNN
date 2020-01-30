@@ -204,9 +204,6 @@ if __name__ == "__main__":
     fig.savefig('permuted_mnist_accs_{}.png'.format(args.tag), bbox_inches='tight')
     plt.close()
 
-    print("Prop of neurons which are active for each task (and layer):",
-          [np.mean(Zs[i]) for i in range(num_tasks * args.num_layers)])
-
     # Uncertainties
     # TODO: make plotting function cleaner
     if len(args.h_list) == 3:
