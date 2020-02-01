@@ -272,7 +272,7 @@ class SplitCIFAR10MNIST(SplitMnistGenerator):
             train_label_mnist = train_set[1]
             val_label_mnist = valid_set[1]
         else:
-            X_train_mnist = np.vstack((train_set[0], valid_set[0]))
+            X_train_mnist = np.vstack((train_set[0], valid_set[0])).reshape((-1, 28, 28))
             train_label_mnist = np.hstack((train_set[1], valid_set[1]))
 
         X_test_mnist = test_set[0].reshape((-1, 28, 28))
@@ -280,14 +280,16 @@ class SplitCIFAR10MNIST(SplitMnistGenerator):
 
         # zero padding
         _X_train_mnist = np.zeros((X_train_mnist.shape[0], 32, 32))
-        _X_val_mnist = np.zeros((X_test_mnist.shape[0], 32, 32))
         _X_test_mnist = np.zeros((X_test_mnist.shape[0], 32, 32))
         _X_train_mnist[:, 2:30, 2:30] = X_train_mnist
-        _X_val_mnist[:, 2:30, 2:30] = X_val_mnist
         _X_test_mnist[:, 2:30, 2:30] = X_test_mnist
         _X_train_mnist = _X_train_mnist.reshape(-1, 32*32)
-        _X_val_mnist = _X_val_mnist.reshape(-1, 32*32)
         _X_test_mnist = _X_test_mnist.reshape(-1, 32*32)
+
+        if self.val:
+            _X_val_mnist = np.zeros((X_val_mnist.shape[0], 32, 32))
+            _X_val_mnist[:, 2:30, 2:30] = X_val_mnist
+            _X_val_mnist = _X_val_mnist.reshape(-1, 32 * 32)
 
         # Get CIFAR data and transform to grey scale
         offset = 10
@@ -314,8 +316,10 @@ class SplitCIFAR10MNIST(SplitMnistGenerator):
         self.train_label = np.hstack((train_label_mnist, train_label_cifar))
         self.X_test = np.vstack((_X_test_mnist, X_test_cifar))
         self.test_label = np.hstack((test_label_mnist, test_label_cifar))
-        self.X_val = np.vstack((_X_val_mnist, X_val_cifar))
-        self.val_label = np.hstack((val_label_mnist, val_label_cifar))
+
+        if self.val:
+            self.X_val = np.vstack((_X_val_mnist, X_val_cifar))
+            self.val_label = np.hstack((val_label_mnist, val_label_cifar))
 
         self.sets_0 = [0, 4, 8, 10, 14, 16]
         self.sets_1 = [1, 5, 9, 11, 15, 17]
@@ -478,7 +482,6 @@ if __name__ == "__main__":
         tf.set_random_seed(s)
         np.random.seed(1)
 
-        coreset_size = 0
         if not args.no_ibp:
             data_gen = get_datagen()
             name = "split_{0}_run{1}_{2}".format(args.dataset, i + 1, args.tag)
@@ -505,6 +508,7 @@ if __name__ == "__main__":
                 tf.reset_default_graph()
                 hidden_size = [h] * args.num_layers
                 data_gen = get_datagen()
+                coreset_size = 0
                 vcl_result, uncerts = run_vcl(hidden_size, no_epochs, data_gen,
                                               lambda a: a, coreset_size, batch_size, args.single_head, val=val,
                                               name='vcl_h{0}_{1}_run{2}_{3}'.format(h, args.dataset, i+1, args.tag),
