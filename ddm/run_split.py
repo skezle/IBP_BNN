@@ -12,6 +12,8 @@ from utils import concatenate_results, get_scores
 from visualise import plot_uncertainties, plot_Zs
 from copy import deepcopy
 
+from skimage.color import rgb2gray
+
 import matplotlib
 matplotlib.use('agg')
 import matplotlib.pyplot as plt
@@ -87,7 +89,7 @@ class SplitMnistGenerator:
                 assert next_y_test.shape[1] == 2 * (self.cur_iter + 1)
             else:
                 next_y_test = np.hstack((next_y_test, 1-next_y_test))
-
+            #pdb.set_trace()
             if self.val:
                 val_0_id = np.where(self.val_label == self.sets_0[self.cur_iter])[0]
                 val_1_id = np.where(self.val_label == self.sets_1[self.cur_iter])[0]
@@ -253,6 +255,76 @@ class SplitCIFAR10Generator:
 
     def reset_cur_iter(self):
         self.cur_iter = 0
+
+class SplitCIFAR10MNIST(SplitMnistGenerator):
+    def __init__(self, val=False, cl3=False):
+
+        super(SplitCIFAR10MNIST, self).__init__(val=val, cl3=cl3)
+        self.val = val
+
+        # Get MNIST data and pad to make 32x32
+        with gzip.open('data/mnist.pkl.gz', 'rb') as f:
+            train_set, valid_set, test_set = pickle.load(f, encoding='latin1')  # train, val, test (50000, 784) (10000, 784) (10000, 784)
+
+        if self.val:
+            X_train_mnist = train_set[0].reshape((-1, 28, 28))
+            X_val_mnist = valid_set[0].reshape((-1, 28, 28))
+            train_label_mnist = train_set[1]
+            val_label_mnist = valid_set[1]
+        else:
+            X_train_mnist = np.vstack((train_set[0], valid_set[0]))
+            train_label_mnist = np.hstack((train_set[1], valid_set[1]))
+
+        X_test_mnist = test_set[0].reshape((-1, 28, 28))
+        test_label_mnist = test_set[1]
+
+        # zero padding
+        _X_train_mnist = np.zeros((X_train_mnist.shape[0], 32, 32))
+        _X_val_mnist = np.zeros((X_test_mnist.shape[0], 32, 32))
+        _X_test_mnist = np.zeros((X_test_mnist.shape[0], 32, 32))
+        _X_train_mnist[:, 2:30, 2:30] = X_train_mnist
+        _X_val_mnist[:, 2:30, 2:30] = X_val_mnist
+        _X_test_mnist[:, 2:30, 2:30] = X_test_mnist
+        _X_train_mnist = _X_train_mnist.reshape(-1, 32*32)
+        _X_val_mnist = _X_val_mnist.reshape(-1, 32*32)
+        _X_test_mnist = _X_test_mnist.reshape(-1, 32*32)
+
+        # Get CIFAR data and transform to grey scale
+        offset = 10
+        train, test = tf.compat.v1.keras.datasets.cifar10.load_data()  # (50000, 32, 32, 3), (50000, 1), (10000, 32, 32, 3), (10000, 1)
+        train_labels = train[1].reshape(-1) + offset
+        train = rgb2gray(train[0]).reshape(-1, 32 * 32)
+        test_labels = test[1].reshape(-1) + offset
+        test = rgb2gray(test[0]).reshape(-1, 32 * 32)
+
+        if self.val:
+            idx = np.random.permutation(train.shape[0])
+            X_train_cifar = train[idx[10000:], :]
+            X_val_cifar = train[idx[:10000], :]
+            train_label_cifar = train_labels[idx[10000:]]
+            val_label_cifar = train_labels[idx[:10000]]
+        else:
+            X_train_cifar = train
+            train_label_cifar = train_labels
+
+        X_test_cifar = test
+        test_label_cifar = test_labels
+        # merge
+        self.X_train = np.vstack((_X_train_mnist, X_train_cifar))
+        self.train_label = np.hstack((train_label_mnist, train_label_cifar))
+        self.X_test = np.vstack((_X_test_mnist, X_test_cifar))
+        self.test_label = np.hstack((test_label_mnist, test_label_cifar))
+        self.X_val = np.vstack((_X_val_mnist, X_val_cifar))
+        self.val_label = np.hstack((val_label_mnist, val_label_cifar))
+
+        self.sets_0 = [0, 4, 8, 10, 14, 16]
+        self.sets_1 = [1, 5, 9, 11, 15, 17]
+
+        self.max_iter = len(self.sets_0)
+        self.cur_iter = 0
+
+    def set_cur_iter(self, x):
+        self.cur_iter = x
 
 
 if __name__ == "__main__":
