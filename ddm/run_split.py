@@ -355,7 +355,7 @@ if __name__ == "__main__":
                         help='TB log directory.')
     parser.add_argument('--dataset', action='store',
                         dest='dataset',
-                        help='Which dataset to choose {normal, random, background, cifar10}.')
+                        help='Which dataset to choose {normal, random, background, cifar10, long_queue}.')
     parser.add_argument('--tag', action='store',
                         dest='tag',
                         help='Tag to use in naming file outputs')
@@ -451,6 +451,8 @@ if __name__ == "__main__":
             data_gen = SplitMnistBackgroundGenerator(val=val)
         elif args.dataset == 'cifar10':
             data_gen = SplitCIFAR10Generator(val=val)
+        elif args.dataset == 'long_queue':
+            data_gen = SplitCIFAR10MNIST(val=val)
         else:
             raise ValueError('Pick dataset in {normal, random, background}')
         return data_gen
