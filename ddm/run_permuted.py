@@ -19,6 +19,7 @@ class PermutedMnistGenerator():
 
         self.val = val
         with gzip.open('data/mnist.pkl.gz', 'rb') as f:
+            # train, val, test (50000, 784) (10000, 784) (10000, 784)
             train_set, valid_set, test_set = pickle.load(f, encoding='latin1')
 
         if self.val:

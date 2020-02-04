@@ -55,6 +55,8 @@ class SplitMnistGenerator:
         self.max_iter = len(self.sets_0)
         self.cur_iter = 0
 
+        pdb.set_trace()
+
     def get_dims(self):
         # Get data input and output dimensions
         if self.cl3:
@@ -117,7 +119,7 @@ class SplitMnistBackgroundGenerator(SplitMnistGenerator):
 
         super(SplitMnistBackgroundGenerator, self).__init__(val=val, cl3=cl3)
 
-        # 12000 train, 50000 test
+        # 12000 test, 52000 train
         train = np.loadtxt('data/mnist_background_images/mnist_background_images_train.amat')
         test = np.loadtxt('data/mnist_background_images/mnist_background_images_test.amat')
         all = np.vstack((train, test))
@@ -156,7 +158,7 @@ class SplitMnistRandomGenerator(SplitMnistGenerator):
 
         super(SplitMnistRandomGenerator, self).__init__(val=val, cl3=cl3)
 
-        # 12000 train, 50000 test
+        # 12000 test, 50000 train
         train = np.loadtxt('data/mnist_background_random/mnist_background_random_train.amat')
         test = np.loadtxt('data/mnist_background_random/mnist_background_random_test.amat')
         all = np.vstack((train, test))
