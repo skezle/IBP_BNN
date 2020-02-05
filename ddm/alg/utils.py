@@ -129,10 +129,10 @@ def mutual_information(model, x_test, task_idx):
     return mi
 
 def predictive_entropy(model, x_test, task_idx, bsize):
-    mc_samples = [model.prediction_prob(x_test, task_idx, bsize) for _ in range(10)]
+    mc_samples = model.prediction_prob(x_test, task_idx, bsize)
+    # each element of mc_samples is no_pred_samples x batch_size x 2
     pdb.set_trace()
     mc_samples_ar = np.concatenate(mc_samples, axis=0)
-    pdb.set_trace()
     eps = 1e-16
     expected_p = np.mean(mc_samples_ar, axis=0)
     predictive_entropy = -np.sum(expected_p * np.log(expected_p + eps), axis=-1)  # (test_set_size, )
