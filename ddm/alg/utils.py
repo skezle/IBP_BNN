@@ -132,12 +132,10 @@ def predictive_entropy(model, x_test, task_idx, bsize):
     mc_samples = [model.prediction_prob(x_test, task_idx, bsize) for _ in range(10)]
     pdb.set_trace()
     mc_samples_ar = np.concatenate(mc_samples, axis=0)
-    # pdb.set_trace()
+    pdb.set_trace()
     eps = 1e-16
     expected_p = np.mean(mc_samples_ar, axis=0)
     predictive_entropy = -np.sum(expected_p * np.log(expected_p + eps), axis=-1)  # (test_set_size, )
-    mc_entropy = np.sum(mc_samples_ar * np.log(mc_samples_ar + eps), axis=-1)
-    expected_entropy = -np.mean(mc_entropy, axis=0)  # (test_set_size, )
     return np.mean(predictive_entropy)
 
 def concatenate_results(score, all_score):
