@@ -131,12 +131,12 @@ def mutual_information(model, x_test, task_idx):
 def predictive_entropy(model, x_test, task_idx, bsize):
     mc_samples = model.prediction_prob(x_test, task_idx, bsize)
     # each element of mc_samples is no_pred_samples x batch_size x 2
-    pdb.set_trace()
+    # pdb.set_trace()
     mc_samples_ar = np.concatenate(mc_samples, axis=1) # no_pred_samples x test_size x 2
     eps = 1e-16
     expected_p = np.mean(mc_samples_ar, axis=0) # test_size x 2
     predictive_entropy = -np.sum(expected_p * np.log(expected_p + eps), axis=-1)  # (test_set_size, )
-    return predictive_entropy # test_size
+    return predictive_entropy # test_size: (n,)
 
 def concatenate_results(score, all_score):
     """New row is added to scores. Matrix: rows are the task
