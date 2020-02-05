@@ -54,7 +54,7 @@ class SplitMnistGenerator:
 
         self.max_iter = len(self.sets_0)
         self.cur_iter = 0
-    
+
     def get_dims(self):
         # Get data input and output dimensions
         if self.cl3:
