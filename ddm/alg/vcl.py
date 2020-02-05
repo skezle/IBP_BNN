@@ -185,12 +185,6 @@ def run_vcl_ibp(hidden_size, alphas, no_epochs, data_gen, name,
         #Zs.append(get_Zs(model, x_test, bsize, task_id))
         Zs.append(model.sess.run(model.Z, feed_dict={model.x: x_test, model.task_idx: task_id, model.training: False}))
 
-        # TODO: change to predictive entropy and batchify
-        # get uncertainties
-        uncert = get_uncertainties(model, all_x_testsets, all_y_testsets,
-                                   single_head, task_id)
-        all_uncerts[task_id, :] = uncert
-
         model.close_session()
 
     Zs = [item for sublist in Zs for item in sublist]
