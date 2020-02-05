@@ -80,6 +80,17 @@ def run_vcl_ibp(hidden_size, alphas, no_epochs, data_gen, name,
     x_testsets, y_testsets = [], []
     x_valsets, y_valsets = [], []
     Zs = []
+    all_x_testsets, all_y_testsets = [], []
+
+    for task_id in range(data_gen.max_iter):
+        if val:
+            _, _, x_test, y_test, _, _ = data_gen.next_task()
+        else:
+            _, _, x_test, y_test = data_gen.next_task()
+        all_x_testsets.append(x_test)
+        all_y_testsets.append(y_test)
+
+    data_gen.reset_cur_iter()
 
     for task_id in range(data_gen.max_iter):
 
@@ -175,10 +186,10 @@ def run_vcl_ibp(hidden_size, alphas, no_epochs, data_gen, name,
         Zs.append(model.sess.run(model.Z, feed_dict={model.x: x_test, model.task_idx: task_id, model.training: False}))
 
         # TODO: change to predictive entropy and batchify
-        # # get uncertainties
-        # uncert = get_uncertainties(model, all_x_testsets, all_y_testsets,
-        #                            single_head, task_id)
-        # all_uncerts[task_id, :] = uncert
+        # get uncertainties
+        uncert = get_uncertainties(model, all_x_testsets, all_y_testsets,
+                                   single_head, task_id)
+        all_uncerts[task_id, :] = uncert
 
         model.close_session()
 

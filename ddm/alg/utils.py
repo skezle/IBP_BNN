@@ -1,4 +1,5 @@
 import numpy as np
+import pdb
 import tensorflow as tf
 import tensorflow_probability as tfp
 tfd = tfp.distributions
@@ -96,15 +97,16 @@ def merge_coresets(x_coresets, y_coresets):
         merged_y = np.vstack((merged_y, y_coresets[i]))
     return merged_x, merged_y
 
-def get_uncertainties(model, x_testsets, y_testsets, single_head, task_id):
+def get_uncertainties(model, x_testsets, y_testsets, single_head, task_id, bsize):
     # uncertainties of test set like in Uncertainty in Deep Learning
     # Gal p. 53.
     uncert = []
     for i in range(len(x_testsets)):
         head = 0 if single_head else (task_id if i > task_id else i) # ensures we use the final multi-head model which is available
         x_test, ytext = x_testsets[i], y_testsets[i]
-        mi = mutual_information(model, x_test, head)
-        uncert.append(mi)
+        #mi = mutual_information(model, x_test, head)
+        pe = predictive_entropy(model, x_test, head, bsize)
+        uncert.append(pe)
     return uncert
 
 def mutual_information(model, x_test, task_idx):
@@ -125,6 +127,18 @@ def mutual_information(model, x_test, task_idx):
     expected_entropy = -np.mean(mc_entropy, axis=0) # (test_set_size, )
     mi = np.mean(predictive_entropy - expected_entropy)
     return mi
+
+def predictive_entropy(model, x_test, task_idx, bsize):
+    mc_samples = [model.prediction_prob(x_test, task_idx, bsize) for _ in range(10)]
+    pdb.set_trace()
+    mc_samples_ar = np.concatenate(mc_samples, axis=0)
+    # pdb.set_trace()
+    eps = 1e-16
+    expected_p = np.mean(mc_samples_ar, axis=0)
+    predictive_entropy = -np.sum(expected_p * np.log(expected_p + eps), axis=-1)  # (test_set_size, )
+    mc_entropy = np.sum(mc_samples_ar * np.log(mc_samples_ar + eps), axis=-1)
+    expected_entropy = -np.mean(mc_entropy, axis=0)  # (test_set_size, )
+    return np.mean(predictive_entropy)
 
 def concatenate_results(score, all_score):
     """New row is added to scores. Matrix: rows are the task

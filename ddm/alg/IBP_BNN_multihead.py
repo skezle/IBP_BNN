@@ -591,6 +591,24 @@ class IBP_BNN(Cla_NN):
                                                                     })[0]
         return prob
 
+    def prediction_prob(self, x_test, task_idx, batch_size):
+        sess = self.sess
+        N = x_test.shape[0]
+        total_batch = int(np.ceil(N * 1.0 / batch_size))
+        probs = []
+        for i in range(total_batch):
+            start_ind = i * batch_size
+            end_ind = np.min([(i + 1) * batch_size, N])
+            batch_x = x_test[start_ind:end_ind, :]
+            prob = self.sess.run([tf.nn.softmax(self.pred)], feed_dict={self.x: x_test,
+                                                                        self.task_idx: task_idx,
+                                                                        self.training: True,
+                                                                        # self.lambda_1: 0.5,
+                                                                        })[0]
+            probs.append(prob)
+        return probs
+
+
     def prediction_acc(self, x_test, y_test, batch_size, task_idx):
         sess = self.sess
         N = x_test.shape[0]
