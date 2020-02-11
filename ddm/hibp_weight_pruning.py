@@ -198,16 +198,21 @@ if __name__ == '__main__':
     parser.add_argument('--tag', action='store',
                         dest='tag',
                         help='Tag to use in naming file outputs')
+    parser.add_argument('--no_ibp', action='store_true',
+                        default=False,
+                        dest='no_ibp',
+                        help='Whether not to run ibp.')
     args = parser.parse_args()
 
     print('tag                    = {!r}'.format(args.tag))
     print('hibp                   = {!r}'.format(args.hibp))
     print('use_local_reparam      = {!r}'.format(args.use_local_reparam))
     print('run_baselines          = {!r}'.format(args.run_baselines))
+    print('no_ibp                 = {!r}'.format(args.no_ibp))
 
-    hidden_size = [200, 200]
+    hidden_size = [400, 400]
     batch_size = 128
-    no_epochs = 100
+    no_epochs = 200
     runs = 5
     seeds = [1, 2, 3, 4, 5]
     np.random.seed(1)
@@ -231,91 +236,92 @@ if __name__ == '__main__':
     ya_ibp_all = np.zeros((runs, len(xs)))
     yb_ibp_all = np.zeros((runs, len(xs)))
 
-    for i in range(runs):
-        tf.set_random_seed(seeds[i])
-        coreset_size = 0
-        data_gen = MnistGenerator()
-        single_head=True
-        in_dim, out_dim = data_gen.get_dims()
-        x_testsets, y_testsets = [], []
-        task_id=0
+    if not args.no_ibp:
+        for i in range(runs):
+            tf.set_random_seed(seeds[i])
+            coreset_size = 0
+            data_gen = MnistGenerator()
+            single_head=True
+            in_dim, out_dim = data_gen.get_dims()
+            x_testsets, y_testsets = [], []
+            task_id=0
 
-        tf.reset_default_graph()
-        if val:
-            x_train, y_train, x_test, y_test, _, _ = data_gen.task()
-        else:
-            x_train, y_train, x_test, y_test = data_gen.task()
-        x_testsets.append(x_test)
-        y_testsets.append(y_test)
+            tf.reset_default_graph()
+            if val:
+                x_train, y_train, x_test, y_test, _, _ = data_gen.task()
+            else:
+                x_train, y_train, x_test, y_test = data_gen.task()
+            x_testsets.append(x_test)
+            y_testsets.append(y_test)
 
-        # Set the readout head to train
-        head = 0 if single_head else task_id
-        bsize = x_train.shape[0] if (batch_size is None) else batch_size
+            # Set the readout head to train
+            head = 0 if single_head else task_id
+            bsize = x_train.shape[0] if (batch_size is None) else batch_size
 
-        # Train network with maximum likelihood to initialize first model
-        if task_id == 0:
-            ml_model = Vanilla_NN(in_dim, hidden_size, out_dim, x_train.shape[0])
-            ml_model.train(x_train, y_train, task_id, 100, bsize)
-            mf_weights = ml_model.get_weights()
-            mf_variances = None
-            mf_betas = None
-            ml_model.close_session()
+            # Train network with maximum likelihood to initialize first model
+            if task_id == 0:
+                ml_model = Vanilla_NN(in_dim, hidden_size, out_dim, x_train.shape[0])
+                ml_model.train(x_train, y_train, task_id, 100, bsize)
+                mf_weights = ml_model.get_weights()
+                mf_variances = None
+                mf_betas = None
+                ml_model.close_session()
 
-        # Train on non-coreset data
-        if args.hibp:
-            model = HIBP_BNN(alphas=[1.]*len(hidden_size),
-                             input_size=in_dim,
-                             hidden_size=hidden_size,
-                             output_size=out_dim,
-                             training_size=x_train.shape[0],
-                             no_pred_samples=100,
-                             num_ibp_samples=10,
-                             no_train_samples=10,
-                             prev_means=mf_weights,
-                             prev_log_variances=mf_variances,
-                             prev_betas=mf_betas,
-                             learning_rate=0.001, learning_rate_decay=0.87,
-                             prior_mean=prior_mean, prior_var=prior_var,
-                             alpha0=alpha0, beta0=beta0,
-                             lambda_1=lambda_1, lambda_2=lambda_2,
-                             tensorboard_dir='logs_wp',
-                             name='hibp_wp_{0}_run{1}'.format(args.tag, i),
-                             tb_logging=True,
-                             beta_1=1.0, beta_2=1.0,
-                             beta_3=1.0,
-                             use_local_reparam=args.use_local_reparam, implicit_beta=True)
-        else:
-            model = IBP_BNN(in_dim, hidden_size, out_dim,
-                                  x_train.shape[0],
-                                  no_pred_samples=100,
-                                  num_ibp_samples=10,
-                                  no_train_samples=10,
-                                  prev_means=mf_weights,
-                                  prev_log_variances=mf_variances,
-                                  prev_betas=mf_betas,
-                                  learning_rate=0.001, learning_rate_decay=0.87,
-                                  prior_mean=prior_mean, prior_var=prior_var,
-                                  alpha0=alpha0, beta0=beta0,
-                                  lambda_1=lambda_1, lambda_2=lambda_2,
-                                  tensorboard_dir='logs_wp',
-                                  tb_logging=True,
-                                  output_tb_gradients=False,
-                                  name='ibp_wp_{0}_run{1}'.format(args.tag, i),
-                                  use_local_reparam=args.use_local_reparam, implicit_beta=True)
-        model.create_model()
+            # Train on non-coreset data
+            if args.hibp:
+                model = HIBP_BNN(alphas=[1.]*len(hidden_size),
+                                 input_size=in_dim,
+                                 hidden_size=hidden_size,
+                                 output_size=out_dim,
+                                 training_size=x_train.shape[0],
+                                 no_pred_samples=100,
+                                 num_ibp_samples=10,
+                                 no_train_samples=10,
+                                 prev_means=mf_weights,
+                                 prev_log_variances=mf_variances,
+                                 prev_betas=mf_betas,
+                                 learning_rate=0.001, learning_rate_decay=0.87,
+                                 prior_mean=prior_mean, prior_var=prior_var,
+                                 alpha0=alpha0, beta0=beta0,
+                                 lambda_1=lambda_1, lambda_2=lambda_2,
+                                 tensorboard_dir='logs_wp',
+                                 name='hibp_wp_{0}_run{1}'.format(args.tag, i),
+                                 tb_logging=True,
+                                 beta_1=1.0, beta_2=1.0,
+                                 beta_3=1.0,
+                                 use_local_reparam=args.use_local_reparam, implicit_beta=True)
+            else:
+                model = IBP_BNN(in_dim, hidden_size, out_dim,
+                                      x_train.shape[0],
+                                      no_pred_samples=100,
+                                      num_ibp_samples=10,
+                                      no_train_samples=10,
+                                      prev_means=mf_weights,
+                                      prev_log_variances=mf_variances,
+                                      prev_betas=mf_betas,
+                                      learning_rate=0.001, learning_rate_decay=0.87,
+                                      prior_mean=prior_mean, prior_var=prior_var,
+                                      alpha0=alpha0, beta0=beta0,
+                                      lambda_1=lambda_1, lambda_2=lambda_2,
+                                      tensorboard_dir='logs_wp',
+                                      tb_logging=True,
+                                      output_tb_gradients=False,
+                                      name='ibp_wp_{0}_run{1}'.format(args.tag, i),
+                                      use_local_reparam=args.use_local_reparam, implicit_beta=True)
+            model.create_model()
 
-        if os.path.isdir(model.log_folder):
-            print("Restoring model from {}".format(model.log_folder))
-            model.restore(model.log_folder)
-        else:
-            print("New model, training")
-            model.train(x_train, y_train, head, no_epochs, bsize, verbose=False)
+            if os.path.isdir(model.log_folder):
+                print("Restoring model from {}".format(model.log_folder))
+                model.restore(model.log_folder)
+            else:
+                print("New model, training")
+                model.train(x_train, y_train, head, no_epochs, bsize, verbose=False)
 
-        xs, ya_ibp, yb_ibp = prune_weights(model, x_test, y_test, bsize, head, xs)
-        ya_ibp_all[i, :] = ya_ibp
-        yb_ibp_all[i, :] = yb_ibp
+            xs, ya_ibp, yb_ibp = prune_weights(model, x_test, y_test, bsize, head, xs)
+            ya_ibp_all[i, :] = ya_ibp
+            yb_ibp_all[i, :] = yb_ibp
 
-        model.close_session()
+            model.close_session()
 
     ##########
     ## MFVI ##
