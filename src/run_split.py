@@ -338,7 +338,7 @@ if __name__ == "__main__":
                         dest='runs',
                         default=1,
                         type=int,
-                        help='Number optmisations to perform.')
+                        help='Number runs to perform.')
     parser.add_argument('--log_dir', action='store',
                         dest='log_dir',
                         default='logs',
@@ -485,29 +485,7 @@ if __name__ == "__main__":
                 baseline_accs[h][i, :, :] = vcl_result
                 baseline_uncerts[h][i, :, :] = uncerts
 
-    _ibp_acc = np.nanmean(vcl_ibp_accs, (0, 1))
-    fig = plt.figure(figsize=(7, 4))
-    ax = plt.gca()
-    plt.plot(np.arange(len(_ibp_acc)) + 1, _ibp_acc, label='VCL + IBP', marker='o')
-    for h in args.h_list:
-        plt.plot(np.arange(len(_ibp_acc)) + 1, np.nanmean(baseline_accs[h], (0, 1)), label='VCL h{}'.format(h),
-                 marker='o')
-    ax.set_xticks(range(1, len(_ibp_acc) + 1))
-    ax.set_ylabel('Average accuracy')
-    ax.set_xlabel('\# tasks')
-    ax.set_title('Split Mnist')
-    ax.legend()
-    fig.savefig('plots/split_mnist_accs_{}.png'.format(args.tag), bbox_inches='tight')
-    plt.close()
-
-    # Uncertainties
-    # TODO: make plotting function cleaner
-    if len(args.h_list) == 3:
-        plot_uncertainties(num_tasks, all_ibp_uncerts, baseline_uncerts[args.h_list[0]],
-                           baseline_uncerts[args.h_list[1]],
-                           baseline_uncerts[args.h_list[2]], args.tag)
-
-    with open('results/split_mnist_res5_{}.pkl'.format(args.tag), 'wb') as input_file:
+    with open('results/split_mnist_{}.pkl'.format(args.tag), 'wb') as input_file:
         pickle.dump({'vcl_ibp': vcl_ibp_accs,
                      'vcl_baselines': baseline_accs,
                      'uncerts_ibp': all_ibp_uncerts,

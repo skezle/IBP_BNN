@@ -114,7 +114,7 @@ if __name__ == "__main__":
                         dest='runs',
                         default=1,
                         type=int,
-                        help='Number optmisations to perform.')
+                        help='Number runs to perform.')
     args = parser.parse_args()
 
     print('single_head          = {!r}'.format(args.single_head))
