@@ -12,9 +12,6 @@ from IBP_BNN_multihead import IBP_BNN
 from HIBP_BNN_multihead import HIBP_BNN
 from copy import deepcopy
 
-import matplotlib
-import matplotlib.pyplot as plt
-
 
 def prune_weights(model, X_test, Y_test, bsize, task_id, xs):
     """ Performs weight pruning.
@@ -228,7 +225,7 @@ if __name__ == '__main__':
     beta0 = 1.0
     lambda_1 = 0.7  # posterior
     lambda_2 = 0.7  # prior
-    alpha = 4.0
+    alpha = 1.0
     # Gaussian params
     prior_mean = 0.0
     prior_var = 0.7
@@ -269,7 +266,7 @@ if __name__ == '__main__':
 
             # Train on non-coreset data
             if args.hibp:
-                model = HIBP_BNN(alphas=[1.]*len(hidden_size),
+                model = HIBP_BNN(alphas=[alpha]*len(hidden_size),
                                  input_size=in_dim,
                                  hidden_size=hidden_size,
                                  output_size=out_dim,

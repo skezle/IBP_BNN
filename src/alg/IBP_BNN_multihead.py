@@ -160,6 +160,7 @@ class IBP_BNN(Cla_NN):
             self.log_pi = stick_breaking_probs(beta_a, beta_b, size=(no_samples_ibp, batch_size, dout), ibp=True, log=True, implicit=self.implicit_beta)
             log_pis.append(self.log_pi)
             # Concrete reparam
+            # S-IBP VAE takes a sigmoid of the samples from reparam discrete. Makes sense we require z \in [0,1].
             z_log_sample = reparameterize_discrete(self.log_pi, self.lambda_1, size=(no_samples_ibp, batch_size, dout))
             z_discrete = tf.expand_dims(tf.reduce_mean(tf.sigmoid(z_log_sample), axis=0), 0)# (no_samples_ibp, batch_size, dout) --> (1, batch_size, dout)
 
