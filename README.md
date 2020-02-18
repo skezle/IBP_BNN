@@ -20,6 +20,7 @@ MNIST is included. MNIST variants are downloaded with the setup script, please r
 To see how to run each script and which arguments may be passed, run:
 
 `cd src`
+
 `python <script_name>.py -h`
 
 The scripts below output a pickle file with the results. The notebook results.ipynb loads the pickle file for the permuted MNIST experiment below and plots the results.
@@ -40,4 +41,4 @@ To run a simple weight pruning experiment, from the `src` directory run:
 
 To run the split MNIST experiments on the background images variant, from the `src` directory run:
 
-`python run_split.py --num_layers=1 dataset=images --run_baselines --h 5 50 100 --tag=ibp > split_ibp.log`
+`python run_split.py --num_layers=1 --dataset=images --run_baselines --h 5 50 100 --tag=ibp > split_ibp.log`
