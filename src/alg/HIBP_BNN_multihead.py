@@ -67,7 +67,8 @@ class HIBP_BNN(IBP_BNN):
 
         self.saver = tf.train.Saver()
 
-        self.create_summaries()
+        if self.tb_logging:
+            self.create_summaries()
 
         self.assign_session()
 
@@ -80,7 +81,7 @@ class HIBP_BNN(IBP_BNN):
 
         optim = tf.train.AdamOptimizer(self.learning_rate)
         gradients = optim.compute_gradients(self.cost)
-        if self.output_tb_gradients:
+        if self.tb_logging and self.output_tb_gradients:
             for grad_var_tuple in gradients:
                 current_variable = grad_var_tuple[1]
                 current_gradient = grad_var_tuple[0]

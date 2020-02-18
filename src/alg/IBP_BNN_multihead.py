@@ -80,7 +80,8 @@ class IBP_BNN(Cla_NN):
 
         self.saver = tf.train.Saver()
 
-        self.create_summaries()
+        if self.tb_logging:
+            self.create_summaries()
 
         self.assign_session()
 
@@ -93,7 +94,7 @@ class IBP_BNN(Cla_NN):
         self.optim = tf.train.AdamOptimizer(self.learning_rate)
         gradients = self.optim.compute_gradients(self.cost)
         # Debug
-        if self.output_tb_gradients:
+        if self.tb_logging and self.output_tb_gradients:
             for grad_var_tuple in gradients:
                 current_variable = grad_var_tuple[1]
                 current_gradient = grad_var_tuple[0]
@@ -545,12 +546,13 @@ class IBP_BNN(Cla_NN):
 
                 # run summaries every 250 steps
                 if global_step % 250 == 0:
-                    summary = sess.run([self.summary_op],
-                                    feed_dict={self.x: batch_x, self.y: batch_y, self.task_idx: task_idx,
-                                               self.training: True,
-                                               #self.lambda_1: temp,
-                                               })[0]
-                    writer.add_summary(summary, global_step)
+                    if self.tb_logging:
+                        summary = sess.run([self.summary_op],
+                                        feed_dict={self.x: batch_x, self.y: batch_y, self.task_idx: task_idx,
+                                                   self.training: True,
+                                                   #self.lambda_1: temp,
+                                                   })[0]
+                        writer.add_summary(summary, global_step)
                 else:
                     # Run optimization op (backprop) and cost op (to get loss value)
                     _, c = sess.run(
