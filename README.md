@@ -27,7 +27,7 @@ The scripts below output a pickle file with the results. The notebook results.ip
 
 To run the permuted MNIST experiments:
 
-`python run_permuted.py --num_layers=1 --run_baselines --h 5 50 100 --K 100 --tag=ibp > ibp.log`
+`python run_permuted.py --num_layers=1 --run_baselines --h 5 50 100 --K 100 --tag=ibp > perm_ibp.log`
 
 ## Weight pruning
 
@@ -37,4 +37,6 @@ To run a simple weight pruning experiment, run:
 
 ## Split MNIST and Variants
 
-`python run_split.py <args>`
+To run the split MNIST experiments on the background images variant, run:
+
+`python run_split.py --num_layers=1 dataset=images --run_baselines --h 5 50 100 --tag=ibp > split_ibp.log`

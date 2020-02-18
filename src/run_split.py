@@ -100,12 +100,12 @@ class SplitMnistGenerator:
         self.cur_iter = 0
 
 
-class SplitMnistBackgroundGenerator(SplitMnistGenerator):
+class SplitMnistImagesGenerator(SplitMnistGenerator):
     """ Thanks https://sites.google.com/a/lisa.iro.umontreal.ca/public_static_twiki/variations-on-the-mnist-digits
     """
     def __init__(self, val=False):
 
-        super(SplitMnistBackgroundGenerator, self).__init__(val=val)
+        super(SplitMnistImagesGenerator, self).__init__(val=val)
 
         # 12000 test, 52000 train
         train = np.loadtxt('data/mnist_background_images/mnist_background_images_train.amat')
@@ -345,7 +345,7 @@ if __name__ == "__main__":
                         help='TB log directory.')
     parser.add_argument('--dataset', action='store',
                         dest='dataset',
-                        help='Which dataset to choose {normal, random, background, cifar10, long_queue}.')
+                        help='Which dataset to choose {normal, random, images, cifar10, long_queue}.')
     parser.add_argument('--tag', action='store',
                         dest='tag',
                         help='Tag to use in naming file outputs')
@@ -420,14 +420,14 @@ if __name__ == "__main__":
             data_gen = SplitMnistGenerator(val=val)
         elif args.dataset == 'random':
             data_gen = SplitMnistRandomGenerator(val=val)
-        elif args.dataset == 'background':
-            data_gen = SplitMnistBackgroundGenerator(val=val)
+        elif args.dataset == 'images':
+            data_gen = SplitMnistImagesGenerator(val=val)
         elif args.dataset == 'cifar10':
             data_gen = SplitCIFAR10Generator(val=val)
         elif args.dataset == 'long_queue':
             data_gen = SplitCIFAR10MNIST(val=val)
         else:
-            raise ValueError('Pick dataset in {normal, random, background}')
+            raise ValueError('Pick dataset in {normal, random, images, cifar10}')
         return data_gen
 
     # IBP params
