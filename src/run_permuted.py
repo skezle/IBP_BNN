@@ -76,10 +76,6 @@ if __name__ == "__main__":
                         default=False,
                         dest='single_head',
                         help='Whether to use a single head.')
-    parser.add_argument('--implicit_beta', action='store_true',
-                        default=False,
-                        dest='implicit_beta',
-                        help='Whether to use reparam for Beta dist.')
     parser.add_argument('--hibp', action='store_true',
                         default=False,
                         dest='hibp',
@@ -122,7 +118,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     print('single_head          = {!r}'.format(args.single_head))
-    print('implicit_beta        = {!r}'.format(args.implicit_beta))
     print('num_layers           = {!r}'.format(args.num_layers))
     print('hibp                 = {!r}'.format(args.hibp))
     print('log_dir              = {!r}'.format(args.log_dir))
@@ -172,7 +167,7 @@ if __name__ == "__main__":
                                                lambda_1=lambda_1, lambda_2=lambda_2,
                                                learning_rate=0.001, no_pred_samples=100, ibp_samples=ibp_samples,
                                                log_dir=args.log_dir,
-                                               implicit_beta=args.implicit_beta, hibp=args.hibp)
+                                               implicit_beta=True, hibp=args.hibp)
             all_Zs.append(Zs)
             vcl_ibp_accs[i, :, :] = ibp_acc
             all_ibp_uncerts[i, :, :] = uncerts
@@ -190,29 +185,8 @@ if __name__ == "__main__":
                 baseline_accs[h][i, :, :] = vcl_result
                 baseline_uncerts[h][i, :, :] = uncerts
 
-    _ibp_acc = np.nanmean(vcl_ibp_accs, (0, 1))
-    fig = plt.figure(figsize=(7, 4))
-    ax = plt.gca()
-    plt.plot(np.arange(len(_ibp_acc)) + 1, _ibp_acc, label='VCL + IBP', marker='o')
-    for h in args.h_list:
-        plt.plot(np.arange(len(_ibp_acc)) + 1, np.nanmean(baseline_accs[h], (0, 1)), label='VCL h{}'.format(h),
-                 marker='o')
-    ax.set_xticks(range(1, len(_ibp_acc) + 1))
-    ax.set_ylabel('Average accuracy')
-    ax.set_xlabel('\# tasks')
-    ax.set_title('Permuted MNIST')
-    ax.legend()
-    fig.savefig('permuted_mnist_accs_{}.png'.format(args.tag), bbox_inches='tight')
-    plt.close()
 
-    # Uncertainties
-    # TODO: make plotting function cleaner
-    if len(args.h_list) == 3:
-        plot_uncertainties(num_tasks, all_ibp_uncerts, baseline_uncerts[args.h_list[0]],
-                           baseline_uncerts[args.h_list[1]],
-                           baseline_uncerts[args.h_list[2]], args.tag)
-
-    with open('results/permuted_mnist_res5_{}.pkl'.format(args.tag), 'wb') as input_file:
+    with open('results/permuted_mnist_{}.pkl'.format(args.tag), 'wb') as input_file:
         pickle.dump({'vcl_ibp': vcl_ibp_accs,
                      'vcl_baselines': baseline_accs,
                      'uncerts_ibp': all_ibp_uncerts,

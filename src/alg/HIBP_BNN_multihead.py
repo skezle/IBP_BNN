@@ -17,8 +17,8 @@ class HIBP_BNN(IBP_BNN):
                  prev_betas=None, learning_rate=0.001, learning_rate_decay=0.87,
                  prior_mean=0, prior_var=1, alpha0=5., beta0=1., lambda_1=1., lambda_2=1.,
                  tensorboard_dir='logs', name='ibp', tb_logging=True, output_tb_gradients=False,
-                 beta_1=1.0, beta_2=1.0, beta_3=1.0, use_local_reparam=True, implicit_beta=False,
-                 clip_grads=False, hard_Z=False, cutoff=0.0):
+                 beta_1=1.0, beta_2=1.0, beta_3=1.0, use_local_reparam=True, implicit_beta=True,
+                 clip_grads=False):
 
         super(HIBP_BNN, self).__init__(input_size=input_size, hidden_size=hidden_size,
                                        output_size=output_size, training_size=training_size,
@@ -34,8 +34,6 @@ class HIBP_BNN(IBP_BNN):
                                        beta_2=beta_2, beta_3=beta_3, use_local_reparam=use_local_reparam,
                                        implicit_beta=implicit_beta, clip_grads=clip_grads)
         self.alphas = alphas # hyper-param for each child IBP
-        self.hard_Z = hard_Z
-        self.cutoff = cutoff
 
     def create_model(self):
         m, v, self.size = self.create_weights(self.input_size, self.hidden_size, self.output_size, self.prev_means, self.prev_log_variances)
@@ -151,13 +149,6 @@ class HIBP_BNN(IBP_BNN):
             z_log_sample = reparameterize_discrete(self.log_pi, self.lambda_1, size=(no_samples_ibp, batch_size, dout))
             z_discrete = tf.expand_dims(tf.reduce_mean(tf.sigmoid(z_log_sample), axis=0), 0)# (no_samples_ibp, batch_size, dout) --> (1, batch_size, dout)
 
-            if self.hard_Z:
-                mask = tf.greater_equal(z_discrete, self.cutoff)
-                z_discrete = tf.cond(self.training,
-                                     true_fn=lambda: z_discrete,
-                                     false_fn=lambda: tf.multiply(tf.ones(tf.shape(z_discrete), z_discrete.dtype),
-                                                                  tf.cast(mask, z_discrete.dtype)))
-
             self.Z.append(z_discrete)
             self.vars += [tf.exp(0.5 * self.W_v[i]), tf.exp(0.5 * self.b_v[i])]
             self.means += [self.W_m[i], self.b_m[i]]
@@ -184,30 +175,19 @@ class HIBP_BNN(IBP_BNN):
         Wtask_v = tf.gather(self.W_last_v, task_idx)
         btask_m = tf.gather(self.b_last_m, task_idx)
         btask_v = tf.gather(self.b_last_v, task_idx)
-        # print("self.W_last_m: {}".format(type(self.W_last_m)))
-        # print("self.W_last_v: {}".format(type(self.W_last_v)))
-        # print("self.b_last_m: {}".format(type(self.b_last_m)))
-        # print("self.b_last_v: {}".format(type(self.b_last_v)))
-        # Wtask_m = self.W_last_m[task_idx]
-        # print("self.W_last_m: {}".format(Wtask_m.get_shape()))
-        # Wtask_v = self.W_last_v[task_idx]
-        # print("self.W_last_m: {}".format(Wtask_v.get_shape()))
-        # btask_m = self.b_last_m[task_idx]
-        # print("self.W_last_m: {}".format(btask_m.get_shape()))
-        # btask_v = self.b_last_v[task_idx]
-        # print("self.W_last_m: {}".format(btask_v.get_shape()))
-        """
-        import numpy as np
-        >>> n=2
-        >>> I=3
-        >>> O=4
-        >>> b=5
-        >>> W = np.arange(I*O).reshape((I, O))
-        >>> A = np.arange(n*b*I).reshape((n, b, I))
-        >>> B = np.einsum('ijk, ko->ijo', W, A)
-        >>> B_bar = np.sum(np.multiply(A[:,:,:,np.newaxis], W[np.newaxis, np.newaxis, :, :]), 2)
-        The same!...
-        """
+
+        # Local reparam debug - can't use einsum :(
+        # this is a sanity check
+        # import numpy as np
+        # >>> n=2
+        # >>> I=3
+        # >>> O=4
+        # >>> b=5
+        # >>> W = np.arange(I*O).reshape((I, O))
+        # >>> A = np.arange(n*b*I).reshape((n, b, I))
+        # >>> B = np.einsum('ijk, ko->ijo', W, A)
+        # >>> B_bar = np.sum(np.multiply(A[:,:,:,np.newaxis], W[np.newaxis, np.newaxis, :, :]), 2)
+        # B and B_bar are the same.
 
         _weights = tf.add(tf.multiply(eps_w, tf.exp(0.5 * Wtask_v)), Wtask_m)
         _biases = tf.add(tf.multiply(eps_b, tf.exp(0.5 * btask_v)), btask_m)
@@ -236,7 +216,6 @@ class HIBP_BNN(IBP_BNN):
         """Creates summaries in TensorBoard"""
         with tf.name_scope("summaries"):
             tf.compat.v1.summary.scalar("learning_rate", self.learning_rate)
-            #tf.compat.v1.summary.scalar("temp_posterior", self.lambda_1)
             tf.compat.v1.summary.scalar("elbo", self.cost)
             tf.compat.v1.summary.scalar("loglik", self.ll)
             tf.compat.v1.summary.scalar("kl", self.kl)
@@ -290,8 +269,6 @@ class HIBP_BNN(IBP_BNN):
             # Child IBP Beta terms
             alpha = self.alphas[i]
             # pis \in [np_ibp_samples, dout]
-            #self.tmp_a = tf.cast(alpha * tf.reduce_mean(tf.exp(self.prior_global_log_pi), 0), tf.float32)
-            #self.tmp_b = tf.cast(alpha*(1-tf.reduce_mean(tf.exp(self.prior_global_log_pi), 0)), tf.float32)
             kl_beta += kl_beta_implicit(alpha * tf.reduce_mean(tf.exp(self.global_log_pi), 0),
                                         alpha*(1-tf.reduce_mean(tf.exp(self.global_log_pi), 0)),
                                         alpha * tf.reduce_mean(tf.exp(self.prior_global_log_pi), 0),

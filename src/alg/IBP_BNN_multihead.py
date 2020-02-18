@@ -512,12 +512,12 @@ class IBP_BNN(Cla_NN):
         return [W_m, b_m, W_last_m, b_last_m], [W_v, b_v, W_last_v, b_last_v], \
                [betas_a, betas_b]
 
-    def train(self, x_train, y_train, task_idx, no_epochs=1000, batch_size=100, display_epoch=5, verbose=True
-              ):
+    def train(self, x_train, y_train, task_idx, no_epochs=1000, batch_size=100, display_epoch=5, verbose=True):
         N = x_train.shape[0]
         if batch_size > N:
             batch_size = N
 
+        # TODO: try temperature annealing
         sess = self.sess
         costs = []
         global_step = 0
@@ -622,7 +622,7 @@ class IBP_BNN(Cla_NN):
                                                 self.task_idx: task_idx,
                                                 self.training: False,
                                                 #self.lambda_1: 0.5,
-                                                }) # we want to output concrete kl so make training True
+                                                }) # we want to output concrete kl so make training True, however Concrete is more stable, just use Concrete like training.
             #pdb.set_trace()
             # Compute average loss
             avg_acc += acc / total_batch

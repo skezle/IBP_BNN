@@ -90,13 +90,6 @@ def reparameterize_discrete(log_pis, temp, size):
     L = tf.log(u) - tf.log(1. - u)
     return (log_pis + L) / temp
 
-def merge_coresets(x_coresets, y_coresets):
-    merged_x, merged_y = x_coresets[0], y_coresets[0]
-    for i in range(1, len(x_coresets)):
-        merged_x = np.vstack((merged_x, x_coresets[i]))
-        merged_y = np.vstack((merged_y, y_coresets[i]))
-    return merged_x, merged_y
-
 def get_uncertainties(model, x_testsets, y_testsets, single_head, task_id, bsize):
     # uncertainties of test set like in Uncertainty in Deep Learning
     # Gal p. 53.

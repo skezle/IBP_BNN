@@ -20,12 +20,10 @@ import matplotlib.pyplot as plt
 
 
 class SplitMnistGenerator:
-    def __init__(self, val=False, num_tasks=5, difficult=False, cl3=False):
+    def __init__(self, val=False):
         # train, val, test (50000, 784) (10000, 784) (10000, 784)
         self.val = val
-        self.num_tasks = num_tasks
-        self.difficult = difficult # make the hardest task the first to see if the number of active neurons can shrink
-        self.cl3 = cl3
+        self.cl3 = False # runs CL3, not used
         with gzip.open('data/mnist.pkl.gz', 'rb') as f:
             train_set, valid_set, test_set = pickle.load(f, encoding='latin1')
 
@@ -41,16 +39,8 @@ class SplitMnistGenerator:
         self.X_test = test_set[0]
         self.test_label = test_set[1]
 
-        if self.num_tasks == 1:
-            self.sets_0 = [0]
-            self.sets_1 = [1]
-        else:
-            if self.difficult:
-                self.sets_0 = [4, 0, 2, 6, 8]
-                self.sets_1 = [5, 1, 3, 7, 9]
-            else:
-                self.sets_0 = [0, 2, 4, 6, 8]
-                self.sets_1 = [1, 3, 5, 7, 9]
+        self.sets_0 = [0, 2, 4, 6, 8]
+        self.sets_1 = [1, 3, 5, 7, 9]
 
         self.max_iter = len(self.sets_0)
         self.cur_iter = 0
@@ -113,9 +103,9 @@ class SplitMnistGenerator:
 class SplitMnistBackgroundGenerator(SplitMnistGenerator):
     """ Thanks https://sites.google.com/a/lisa.iro.umontreal.ca/public_static_twiki/variations-on-the-mnist-digits
     """
-    def __init__(self, val=False, cl3=False):
+    def __init__(self, val=False):
 
-        super(SplitMnistBackgroundGenerator, self).__init__(val=val, cl3=cl3)
+        super(SplitMnistBackgroundGenerator, self).__init__(val=val)
 
         # 12000 test, 52000 train
         train = np.loadtxt('data/mnist_background_images/mnist_background_images_train.amat')
@@ -152,9 +142,9 @@ class SplitMnistRandomGenerator(SplitMnistGenerator):
     """ Thanks https://sites.google.com/a/lisa.iro.umontreal.ca/public_static_twiki/variations-on-the-mnist-digits
 
     """
-    def __init__(self, val=False, cl3=False):
+    def __init__(self, val=False):
 
-        super(SplitMnistRandomGenerator, self).__init__(val=val, cl3=cl3)
+        super(SplitMnistRandomGenerator, self).__init__(val=val)
 
         # 12000 test, 50000 train
         train = np.loadtxt('data/mnist_background_random/mnist_background_random_train.amat')
@@ -257,9 +247,9 @@ class SplitCIFAR10Generator:
         self.cur_iter = 0
 
 class SplitCIFAR10MNIST(SplitMnistGenerator):
-    def __init__(self, val=False, cl3=False):
+    def __init__(self, val=False):
 
-        super(SplitCIFAR10MNIST, self).__init__(val=val, cl3=cl3)
+        super(SplitCIFAR10MNIST, self).__init__(val=val)
         self.val = val
 
         # Get MNIST data and pad to make 32x32
@@ -335,10 +325,6 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('--difficult', action='store_true',
-                        default=False,
-                        dest='difficult',
-                        help='Whether to start with the most difficult task.')
     parser.add_argument('--single_head', action='store_true',
                         default=False,
                         dest='single_head',
@@ -372,10 +358,6 @@ if __name__ == "__main__":
                         type=float,
                         dest='alpha0',
                         help='The prior and initialisation for the beta concentration param.')
-    parser.add_argument('--implicit_beta', action='store_true',
-                        default=False,
-                        dest='implicit_beta',
-                        help='Whether to use reparam for Beta dist.')
     parser.add_argument('--hibp', action='store_true',
                         default=False,
                         dest='hibp',
@@ -393,15 +375,6 @@ if __name__ == "__main__":
                         type=int,
                         default=[5, 50],
                         help='List of hidden states')
-    parser.add_argument('--beta_hack', nargs='+',
-                        dest='beta_hack',
-                        type=int,
-                        default=[1, 1, 1, 1, 1],
-                        help='List beta_1 coefs, like beta-VAE paper.')
-    parser.add_argument('--cl3', action='store_true',
-                        dest='cl3',
-                        default=False,
-                        help='Whether to use incremental class learning')
     parser.add_argument('--K', action='store',
                         dest='K',
                         default=100,
@@ -415,7 +388,6 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    print('difficult            = {!r}'.format(args.difficult))
     print('single_head          = {!r}'.format(args.single_head))
     print('num_layers           = {!r}'.format(args.num_layers))
     print('runs                 = {!r}'.format(args.runs))
@@ -423,14 +395,11 @@ if __name__ == "__main__":
     print('log_dir              = {!r}'.format(args.log_dir))
     print('dataset              = {!r}'.format(args.dataset))
     print('use_local_reparam    = {!r}'.format(args.use_local_reparam))
-    print('implicit_beta        = {!r}'.format(args.implicit_beta))
     print('hibp                 = {!r}'.format(args.hibp))
     print('run_baselines        = {!r}'.format(args.run_baselines))
     print('h_list               = {!r}'.format(args.h_list))
-    print('cl3                  = {!r}'.format(args.cl3))
     print('K                    = {!r}'.format(args.K))
     print('tag                  = {!r}'.format(args.tag))
-    print('beta_hack            = {!r}'.format(args.beta_hack))
     print('alpha                = {!r}'.format(args.alpha))
     print('no_ibp               = {!r}'.format(args.no_ibp))
 
@@ -448,7 +417,7 @@ if __name__ == "__main__":
 
     def get_datagen():
         if args.dataset == 'normal':
-            data_gen = SplitMnistGenerator(val=val, difficult=args.difficult)
+            data_gen = SplitMnistGenerator(val=val)
         elif args.dataset == 'random':
             data_gen = SplitMnistRandomGenerator(val=val)
         elif args.dataset == 'background':
@@ -495,7 +464,7 @@ if __name__ == "__main__":
                                                learning_rate=[0.001]*num_tasks,
                                                no_pred_samples=no_pred_samples, ibp_samples=ibp_samples, log_dir=args.log_dir,
                                                use_local_reparam=args.use_local_reparam,
-                                               implicit_beta=args.implicit_beta, hibp=args.hibp, beta_1=args.beta_hack)
+                                               implicit_beta=True, hibp=args.hibp)
 
             all_Zs.append(Zs)
             vcl_ibp_accs[i, :, :] = ibp_acc

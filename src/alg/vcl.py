@@ -57,7 +57,7 @@ def run_vcl(hidden_size, no_epochs, data_gen, coreset_method, coreset_size=0, ba
         acc = get_scores(mf_model, x_testsets, y_testsets, bsize, single_head)
         all_acc = concatenate_results(acc, all_acc)
 
-        # TODO: mutual information not a good measure of uncertainty for VCL use predictive entropy and batchify
+        # TODO: use predictive entropies and batchify
         # uncert = get_uncertainties(mf_model, all_x_testsets, all_y_testsets,
         #                            single_head, task_id)
         # all_uncerts[task_id, :] = uncert
@@ -72,7 +72,7 @@ def run_vcl_ibp(hidden_size, alphas, no_epochs, data_gen, name,
                 beta0 = 1.0, lambda_1 = 1.0, lambda_2 = 1.0, learning_rate=0.001,
                 learning_rate_decay=0.87,
                 no_pred_samples=100, ibp_samples = 10, log_dir='logs',
-                run_val_set=False, use_local_reparam=False, implicit_beta=False,
+                use_local_reparam=False, implicit_beta=True,
                 hibp=False, beta_1=1.0, beta_2=1.0, beta_3=1.0):
 
     all_acc = np.array([])
@@ -119,11 +119,6 @@ def run_vcl_ibp(hidden_size, alphas, no_epochs, data_gen, name,
         else:
             lr = learning_rate
 
-        if isinstance(beta_1, list):
-            b1 = beta_1[task_id]
-        else:
-            b1 = beta_1
-
         # Train network with maximum likelihood to initialize first model
         # lambda_1 --> temp of the variational Concrete posterior
         # lambda_2 --> temp of the relaxed prior, for task != 0 this should be lambda_1!!!
@@ -150,7 +145,7 @@ def run_vcl_ibp(hidden_size, alphas, no_epochs, data_gen, name,
                              name='{0}_task{1}'.format(name, task_id + 1),
                              use_local_reparam=use_local_reparam,
                              implicit_beta=implicit_beta,
-                             beta_1=b1, beta_2=beta_2, beta_3=beta_3)
+                             beta_1=beta_1, beta_2=beta_2, beta_3=beta_3)
         else:
             model = IBP_BNN(in_dim, hidden_size, out_dim, x_train.shape[0], num_ibp_samples=ibp_samples,
                             prev_means=mf_weights,
@@ -163,7 +158,7 @@ def run_vcl_ibp(hidden_size, alphas, no_epochs, data_gen, name,
                             name='{0}_task{1}'.format(name, task_id + 1),
                             use_local_reparam=use_local_reparam,
                             implicit_beta=implicit_beta,
-                            beta_1=b1, beta_2=beta_2, beta_3=beta_3)
+                            beta_1=beta_1, beta_2=beta_2, beta_3=beta_3)
 
         model.create_model()
         if os.path.isdir(model.log_folder):
@@ -175,14 +170,13 @@ def run_vcl_ibp(hidden_size, alphas, no_epochs, data_gen, name,
         mf_weights, mf_variances, mf_betas = model.get_weights()
 
         # get accuracies for all test sets seen so far
-        if run_val_set:
+        if val:
             acc = get_scores(model, x_valsets, y_valsets, bsize, single_head)
         else:
             acc = get_scores(model, x_testsets, y_testsets, bsize, single_head)
         all_acc = concatenate_results(acc, all_acc)
 
         # get Z matrices
-        #Zs.append(get_Zs(model, x_test, bsize, task_id))
         Zs.append(model.sess.run(model.Z, feed_dict={model.x: x_test, model.task_idx: task_id, model.training: False}))
 
         model.close_session()

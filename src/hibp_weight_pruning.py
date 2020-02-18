@@ -188,10 +188,6 @@ if __name__ == '__main__':
                         default=False,
                         dest='hibp',
                         help='Whether to use HIBP.')
-    parser.add_argument('--use_local_reparam', action='store_true',
-                        default=False,
-                        dest='use_local_reparam',
-                        help='Whether to use local reparam.')
     parser.add_argument('--tag', action='store',
                         dest='tag',
                         help='Tag to use in naming file outputs')
@@ -203,7 +199,6 @@ if __name__ == '__main__':
 
     print('tag                    = {!r}'.format(args.tag))
     print('hibp                   = {!r}'.format(args.hibp))
-    print('use_local_reparam      = {!r}'.format(args.use_local_reparam))
     print('run_baselines          = {!r}'.format(args.run_baselines))
     print('no_ibp                 = {!r}'.format(args.no_ibp))
 
@@ -236,7 +231,6 @@ if __name__ == '__main__':
     if not args.no_ibp:
         for i in range(runs):
             tf.set_random_seed(seeds[i])
-            coreset_size = 0
             data_gen = MnistGenerator()
             single_head=True
             in_dim, out_dim = data_gen.get_dims()
@@ -264,7 +258,6 @@ if __name__ == '__main__':
                 mf_betas = None
                 ml_model.close_session()
 
-            # Train on non-coreset data
             if args.hibp:
                 model = HIBP_BNN(alphas=[alpha]*len(hidden_size),
                                  input_size=in_dim,
@@ -284,27 +277,28 @@ if __name__ == '__main__':
                                  tensorboard_dir='logs_wp',
                                  name='hibp_wp_{0}_run{1}'.format(args.tag, i),
                                  tb_logging=True,
-                                 beta_1=1.0, beta_2=1.0,
-                                 beta_3=1.0,
-                                 use_local_reparam=args.use_local_reparam, implicit_beta=True)
+                                 output_tb_gradients=False,
+                                 use_local_reparam=False,
+                                 implicit_beta=True)
             else:
                 model = IBP_BNN(in_dim, hidden_size, out_dim,
-                                      x_train.shape[0],
-                                      no_pred_samples=100,
-                                      num_ibp_samples=10,
-                                      no_train_samples=10,
-                                      prev_means=mf_weights,
-                                      prev_log_variances=mf_variances,
-                                      prev_betas=mf_betas,
-                                      learning_rate=0.001, learning_rate_decay=0.87,
-                                      prior_mean=prior_mean, prior_var=prior_var,
-                                      alpha0=alpha0, beta0=beta0,
-                                      lambda_1=lambda_1, lambda_2=lambda_2,
-                                      tensorboard_dir='logs_wp',
-                                      tb_logging=True,
-                                      output_tb_gradients=False,
-                                      name='ibp_wp_{0}_run{1}'.format(args.tag, i),
-                                      use_local_reparam=args.use_local_reparam, implicit_beta=True)
+                                x_train.shape[0],
+                                no_pred_samples=100,
+                                num_ibp_samples=10,
+                                no_train_samples=10,
+                                prev_means=mf_weights,
+                                prev_log_variances=mf_variances,
+                                prev_betas=mf_betas,
+                                learning_rate=0.001, learning_rate_decay=0.87,
+                                prior_mean=prior_mean, prior_var=prior_var,
+                                alpha0=alpha0, beta0=beta0,
+                                lambda_1=lambda_1, lambda_2=lambda_2,
+                                tensorboard_dir='logs_wp',
+                                tb_logging=True,
+                                output_tb_gradients=False,
+                                name='ibp_wp_{0}_run{1}'.format(args.tag, i),
+                                use_local_reparam=False,
+                                implicit_beta=True)
             model.create_model()
 
             if os.path.isdir(model.log_folder):
@@ -330,14 +324,16 @@ if __name__ == '__main__':
         for i in range(runs):
             tf.set_random_seed(seeds[i])
             np.random.seed(1)
-            coreset_size = 0
             data_gen = MnistGenerator()
             single_head=False
             in_dim, out_dim = data_gen.get_dims()
             task_id=0
 
             tf.reset_default_graph()
-            x_train, y_train, x_test, y_test = data_gen.task()
+            if val:
+                x_train, y_train, x_test, y_test, _, _ = data_gen.task()
+            else:
+                x_train, y_train, x_test, y_test = data_gen.task()
 
             # Set the readout head to train
             head = 0 if single_head else task_id
@@ -355,8 +351,8 @@ if __name__ == '__main__':
                                x_train.shape[0], no_train_samples=10, no_pred_samples=100,
                                prev_means=mf_weights, prev_log_variances=mf_variances,
                                learning_rate=0.001, learning_rate_decay=0.50,
-                               prior_mean=0, prior_var=0.9,
-                               use_local_reparam=args.use_local_reparam)
+                               prior_mean=prior_mean, prior_var=prior_var,
+                               use_local_reparam=False)
 
             mf_model.train(x_train, y_train, head, no_epochs, bsize)
 
@@ -367,7 +363,7 @@ if __name__ == '__main__':
             mf_model.close_session()
 
 
-    with open('results/weight_pruning_runs5_{0}.pkl'.format(args.tag), 'wb') as input_file:
+    with open('results/weight_pruning_{0}.pkl'.format(args.tag), 'wb') as input_file:
         pickle.dump({'xs': xs,
                      'ya_nnvi': ya_all,
                      'yb_nnvi': yb_all,

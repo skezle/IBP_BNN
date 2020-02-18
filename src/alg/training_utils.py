@@ -13,6 +13,8 @@ def kl_beta_reparam(_a, _b, _prior_a, _prior_b):
     """ KL divergence between Beta and variational beta post.
     from https://github.com/enalisnick/stick-breaking_dgms
 
+    Unused!
+
     :param a: variational posterior alpha params \in [din, dout]
     :param b: variational posterior beta params \in [din, dout]
     :param prior_a: Beta alpha params, if task 0 scalar

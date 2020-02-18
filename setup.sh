@@ -1,5 +1,6 @@
 mkdir -p logs
 mkdir -p plots
+mkdir -p results
 mkdir -p src/data/mnist_background_images
 mkdir -p src/data/mnist_background_random
 wget http://www.iro.umontreal.ca/~lisa/icml2007data/mnist_background_images.zip -P src/data/mnist_background_images
