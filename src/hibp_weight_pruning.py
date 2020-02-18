@@ -195,20 +195,24 @@ if __name__ == '__main__':
                         default=False,
                         dest='no_ibp',
                         help='Whether not to run ibp.')
+    parser.add_argument('--runs', action='store',
+                        dest='runs',
+                        default=1,
+                        type=int,
+                        help='Number runs to perform.')
     args = parser.parse_args()
 
     print('tag                    = {!r}'.format(args.tag))
     print('hibp                   = {!r}'.format(args.hibp))
     print('run_baselines          = {!r}'.format(args.run_baselines))
     print('no_ibp                 = {!r}'.format(args.no_ibp))
+    print('runs                   = {!r}'.format(args.runs))
 
     hidden_size = [400, 400]
     batch_size = 128
     no_epochs = 200
-    runs = 5
     seeds = [1, 2, 3, 4, 5]
     np.random.seed(1)
-    #xs = np.append(0.05 * np.array(range(20)), np.array([0.98, 0.99, 0.999]))
     xs = np.append(0.1 * np.array(range(10)), [0.95, 0.96, 0.97, 0.98, 0.99, 0.992, 0.995, 0.997, 0.999])
 
     ###########
@@ -225,11 +229,11 @@ if __name__ == '__main__':
     prior_mean = 0.0
     prior_var = 0.7
     val = False
-    ya_ibp_all = np.zeros((runs, len(xs)))
-    yb_ibp_all = np.zeros((runs, len(xs)))
+    ya_ibp_all = np.zeros((args.runs, len(xs)))
+    yb_ibp_all = np.zeros((args.runs, len(xs)))
 
     if not args.no_ibp:
-        for i in range(runs):
+        for i in range(args.runs):
             tf.set_random_seed(seeds[i])
             data_gen = MnistGenerator()
             single_head=True
@@ -317,11 +321,11 @@ if __name__ == '__main__':
     ##########
     ## MFVI ##
     ##########
-    ya_all = np.zeros((runs, len(xs)))
-    yb_all = np.zeros((runs, len(xs)))
+    ya_all = np.zeros((args.runs, len(xs)))
+    yb_all = np.zeros((args.runs, len(xs)))
     #no_epochs = 200
     if args.run_baselines:
-        for i in range(runs):
+        for i in range(args.runs):
             tf.set_random_seed(seeds[i])
             np.random.seed(1)
             data_gen = MnistGenerator()
