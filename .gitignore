@@ -76,4 +76,6 @@ results/
 report/
 *.png
 *.pdf
+*.amat
+*.zip
 src/debug.ipynb
