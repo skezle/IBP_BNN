@@ -8,15 +8,9 @@ import os.path
 import argparse
 sys.path.extend(['alg/'])
 from vcl import run_vcl, run_vcl_ibp
-from utils import concatenate_results, get_scores
-from visualise import plot_uncertainties, plot_Zs
 from copy import deepcopy
 
 from skimage.color import rgb2gray
-
-import matplotlib
-matplotlib.use('agg')
-import matplotlib.pyplot as plt
 
 
 class SplitMnistGenerator:

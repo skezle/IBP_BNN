@@ -5,14 +5,8 @@ import sys
 import argparse
 sys.path.extend(['alg/'])
 from vcl import run_vcl, run_vcl_ibp
-from utils import get_scores, concatenate_results
-from visualise import plot_uncertainties, plot_Zs
 import pickle
 from copy import deepcopy
-
-import matplotlib
-matplotlib.use('agg')
-import matplotlib.pyplot as plt
 
 class PermutedMnistGenerator():
     def __init__(self, max_iter=5, val=False):
