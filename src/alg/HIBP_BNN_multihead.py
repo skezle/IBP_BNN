@@ -8,9 +8,7 @@ from training_utils import kl_beta_reparam, kl_beta_implicit, kl_discrete, kl_co
 from utils import child_stick_breaking_probs, global_stick_breaking_probs, reparameterize_discrete, implicit_beta
 from IBP_BNN_multihead import IBP_BNN
 
-# TODO: hidden state sizes and variational truncation params are a bit awkwardly defined
-
-""" Bayesian Neural Network with VI approximation + IBP """
+"""MFVI BNN + H-IBP for CL"""
 class HIBP_BNN(IBP_BNN):
     def __init__(self, alphas, input_size, hidden_size, output_size, training_size,
                  no_train_samples=10, no_pred_samples=100, num_ibp_samples=10, prev_means=None, prev_log_variances=None,

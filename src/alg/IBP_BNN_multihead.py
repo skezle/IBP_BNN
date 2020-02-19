@@ -8,7 +8,7 @@ from training_utils import kl_beta_reparam, kl_beta_implicit, kl_discrete, kl_co
 from utils import stick_breaking_probs, reparameterize_discrete, implicit_beta
 from cla_models_multihead import Cla_NN
 
-""" Bayesian Neural Network with VI approximation + IBP """
+"""MFVI BNN + IBP for CL"""
 class IBP_BNN(Cla_NN):
     def __init__(self, input_size, hidden_size, output_size, training_size,
                  no_train_samples=10, no_pred_samples=100, num_ibp_samples=10, prev_means=None, prev_log_variances=None,

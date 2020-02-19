@@ -9,6 +9,8 @@ config.gpu_options.allow_growth = True
 
 eps = 1e-16
 
+"""MFVI BNN + CL"""
+
 # variable initialization functions
 def weight_variable(shape, init_weights=None):
     if init_weights is not None:
