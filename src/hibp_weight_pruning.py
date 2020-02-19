@@ -213,7 +213,7 @@ if __name__ == '__main__':
     print('runs                   = {!r}'.format(args.runs))
     print('log_dir                = {!r}'.format(args.log_dir))
 
-    hidden_size = [200, 200]
+    hidden_size = [400, 400]
     batch_size = 128
     no_epochs = 200
     seeds = [1, 2, 3, 4, 5]
