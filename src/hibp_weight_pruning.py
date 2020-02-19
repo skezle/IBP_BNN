@@ -200,6 +200,10 @@ if __name__ == '__main__':
                         default=1,
                         type=int,
                         help='Number runs to perform.')
+    parser.add_argument('--log_dir', action='store',
+                        dest='log_dir',
+                        default='logs',
+                        help='TB log directory.')
     args = parser.parse_args()
 
     print('tag                    = {!r}'.format(args.tag))
@@ -207,8 +211,9 @@ if __name__ == '__main__':
     print('run_baselines          = {!r}'.format(args.run_baselines))
     print('no_ibp                 = {!r}'.format(args.no_ibp))
     print('runs                   = {!r}'.format(args.runs))
+    print('log_dir                = {!r}'.format(args.log_dir))
 
-    hidden_size = [400, 400]
+    hidden_size = [200, 200]
     batch_size = 128
     no_epochs = 200
     seeds = [1, 2, 3, 4, 5]
@@ -278,7 +283,7 @@ if __name__ == '__main__':
                                  prior_mean=prior_mean, prior_var=prior_var,
                                  alpha0=alpha0, beta0=beta0,
                                  lambda_1=lambda_1, lambda_2=lambda_2,
-                                 tensorboard_dir='logs_wp',
+                                 tensorboard_dir=args.log_dir,
                                  name='hibp_wp_{0}_run{1}'.format(args.tag, i),
                                  tb_logging=False,
                                  output_tb_gradients=False,
@@ -297,7 +302,7 @@ if __name__ == '__main__':
                                 prior_mean=prior_mean, prior_var=prior_var,
                                 alpha0=alpha0, beta0=beta0,
                                 lambda_1=lambda_1, lambda_2=lambda_2,
-                                tensorboard_dir='logs_wp',
+                                tensorboard_dir=args.log_dir,
                                 tb_logging=False,
                                 output_tb_gradients=False,
                                 name='ibp_wp_{0}_run{1}'.format(args.tag, i),
@@ -358,7 +363,12 @@ if __name__ == '__main__':
                                prior_mean=prior_mean, prior_var=prior_var,
                                use_local_reparam=False)
 
-            mf_model.train(x_train, y_train, head, no_epochs, bsize)
+            if os.path.isdir(mf_model.log_folder):
+                print("Restoring model from {}".format(mf_model.log_folder))
+                mf_model.restore(mf_model.log_folder)
+            else:
+                print("New model, training")
+                mf_model.train(x_train, y_train, head, no_epochs, bsize)
 
             xs, ya, yb = prune_weights(mf_model, x_test, y_test, bsize, head, xs)
             ya_all[i, :] = ya
