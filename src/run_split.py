@@ -18,6 +18,7 @@ class SplitMnistGenerator:
         # train, val, test (50000, 784) (10000, 784) (10000, 784)
         self.val = val
         self.cl3 = False # runs CL3, not used
+        # data already shuffled
         with gzip.open('data/mnist.pkl.gz', 'rb') as f:
             train_set, valid_set, test_set = pickle.load(f, encoding='latin1')
 
@@ -102,6 +103,7 @@ class SplitMnistImagesGenerator(SplitMnistGenerator):
         super(SplitMnistImagesGenerator, self).__init__(val=val)
 
         # 12000 test, 52000 train
+        # datasets already shuffled
         train = np.loadtxt('data/mnist_background_images/mnist_background_images_train.amat')
         test = np.loadtxt('data/mnist_background_images/mnist_background_images_test.amat')
         all = np.vstack((train, test))
@@ -141,6 +143,7 @@ class SplitMnistRandomGenerator(SplitMnistGenerator):
         super(SplitMnistRandomGenerator, self).__init__(val=val)
 
         # 12000 test, 50000 train
+        # datasets already shuffled
         train = np.loadtxt('data/mnist_background_random/mnist_background_random_train.amat')
         test = np.loadtxt('data/mnist_background_random/mnist_background_random_test.amat')
         all = np.vstack((train, test))

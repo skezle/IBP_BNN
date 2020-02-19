@@ -74,6 +74,7 @@ logs_wp/
 *.pickle
 results/
 report/
+src/data_new/
 *.png
 *.pdf
 *.amat
