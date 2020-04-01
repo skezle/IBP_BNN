@@ -184,6 +184,9 @@ class SplitCIFAR10Generator:
         test_labels = test[1].reshape(-1)
         test = test[0].reshape(-1, 32*32*3)
 
+        train = train.astype('float32') / 255.0
+        test = test.astype('float32') / 255.0
+
         if self.val:
             idx = np.random.permutation(train.shape[0])
             self.X_train = train[idx[10000:], :]
