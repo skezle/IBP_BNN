@@ -77,9 +77,9 @@ def get_scores(model, x_testsets, y_testsets, batch_size, single_head):
     return accs
 
 def get_scores_entropy(model, x_testsets, y_testsets, batch_size, num_tasks):
-    uncerts = []
     accs = []
     for i in range(len(x_testsets)):
+        uncerts = []
         x_test, y_test = x_testsets[i], y_testsets[i]
         for j in range(num_tasks):
             pe = predictive_entropy(model, x_test, j, batch_size)
