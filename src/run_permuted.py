@@ -66,10 +66,14 @@ class PermutedMnistGenerator():
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--single_head', action='store_true',
+    parser.add_argument('--cl2', action='store_true',
                         default=False,
-                        dest='single_head',
-                        help='Whether to use a single head.')
+                        dest='cl2',
+                        help='Whether to use a perform CL2: domain incremental learning.')
+    parser.add_argument('--cl3', action='store_true',
+                        default=False,
+                        dest='cl3',
+                        help='Whether to use a perform CL3: class incremental learning.')
     parser.add_argument('--hibp', action='store_true',
                         default=False,
                         dest='hibp',
@@ -111,7 +115,8 @@ if __name__ == "__main__":
                         help='Number runs to perform.')
     args = parser.parse_args()
 
-    print('single_head          = {!r}'.format(args.single_head))
+    print('cl2                  = {!r}'.format(args.cl2))
+    print('cl3                  = {!r}'.format(args.cl3))
     print('num_layers           = {!r}'.format(args.num_layers))
     print('hibp                 = {!r}'.format(args.hibp))
     print('log_dir              = {!r}'.format(args.log_dir))
@@ -124,6 +129,7 @@ if __name__ == "__main__":
 
     seeds = list(range(1, 1 + args.runs))
     num_tasks = 5
+    single_head = args.cl2
 
     vcl_ibp_accs = np.zeros((len(seeds), num_tasks, num_tasks))
     baseline_accs = {h: np.zeros((len(seeds), num_tasks, num_tasks)) for h in args.h_list}
@@ -157,7 +163,8 @@ if __name__ == "__main__":
             ibp_acc, Zs, uncerts = run_vcl_ibp(hidden_size=hidden_size, alphas=[alpha]*len(hidden_size),
                                                no_epochs=[no_epochs]*num_tasks,
                                                data_gen=data_gen, name=name, val=val, batch_size=batch_size,
-                                               single_head=args.single_head, alpha0=alpha0, beta0=beta0,
+                                               single_head=single_head, cl3=args.cl3,
+                                               alpha0=alpha0, beta0=beta0,
                                                lambda_1=lambda_1, lambda_2=lambda_2,
                                                learning_rate=0.001, no_pred_samples=100, ibp_samples=ibp_samples,
                                                log_dir=args.log_dir,
@@ -173,9 +180,10 @@ if __name__ == "__main__":
                 hidden_size = [h] * args.num_layers
                 data_gen = PermutedMnistGenerator(num_tasks, val=val)
                 vcl_result, uncerts = run_vcl(hidden_size, no_epochs, data_gen,
-                                              lambda a: a, coreset_size, batch_size, args.single_head, val=val,
-                                               name='vcl_perm_h{0}_{1}_run{2}'.format(h, args.tag, i + 1),
-                                               log_dir=args.log_dir)
+                                              lambda a: a, coreset_size, batch_size, single_head,
+                                              args.cl3, val=val,
+                                              name='vcl_perm_h{0}_{1}_run{2}'.format(h, args.tag, i + 1),
+                                              log_dir=args.log_dir)
                 baseline_accs[h][i, :, :] = vcl_result
                 baseline_uncerts[h][i, :, :] = uncerts
 

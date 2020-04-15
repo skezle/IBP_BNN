@@ -2,14 +2,14 @@ import pdb
 import os.path
 import numpy as np
 import tensorflow as tf
-from utils import get_scores, get_uncertainties, concatenate_results, get_Zs
+from utils import get_scores, get_scores_entropy, get_uncertainties, concatenate_results, get_Zs
 from cla_models_multihead import Vanilla_NN, MFVI_NN
 from IBP_BNN_multihead import IBP_BNN
 from HIBP_BNN_multihead import HIBP_BNN
 
-def run_vcl(hidden_size, no_epochs, data_gen, coreset_method, coreset_size=0, batch_size=None, single_head=True, val=False,
-            verbose=True, name='vcl', log_dir='logs', use_local_reparam=False):
-
+def run_vcl(hidden_size, no_epochs, data_gen, coreset_method, coreset_size=0, batch_size=None, single_head=True, cl3=False,
+            val=False, verbose=True, name='vcl', log_dir='logs', use_local_reparam=False):
+    assert not (single_head and cl3), "Can't have both single head and class incremental learning."
     x_testsets, y_testsets = [], []
 
     all_acc = np.array([])
@@ -54,20 +54,18 @@ def run_vcl(hidden_size, no_epochs, data_gen, coreset_method, coreset_size=0, ba
         mf_weights, mf_variances = mf_model.get_weights()
 
         # Incorporate coreset data and make prediction
-        acc = get_scores(mf_model, x_testsets, y_testsets, bsize, single_head)
+        if cl3:
+            acc = get_scores_entropy(mf_model, x_testsets, y_testsets, bsize)
+        else:
+            acc = get_scores(mf_model, x_testsets, y_testsets, bsize, single_head)
         all_acc = concatenate_results(acc, all_acc)
-
-        # TODO: use predictive entropies and batchify
-        # uncert = get_uncertainties(mf_model, all_x_testsets, all_y_testsets,
-        #                            single_head, task_id)
-        # all_uncerts[task_id, :] = uncert
 
         mf_model.close_session()
 
     return all_acc, all_uncerts
 
 def run_vcl_ibp(hidden_size, alphas, no_epochs, data_gen, name,
-                val, batch_size=None, single_head=False,
+                val, batch_size=None, single_head=False, cl3=False,
                 prior_mean=0.0, prior_var=1.0, alpha0=5.0,
                 beta0 = 1.0, lambda_1 = 1.0, lambda_2 = 1.0, learning_rate=0.001,
                 learning_rate_decay=0.87,
@@ -76,6 +74,7 @@ def run_vcl_ibp(hidden_size, alphas, no_epochs, data_gen, name,
                 use_local_reparam=False, implicit_beta=True,
                 hibp=False, beta_1=1.0, beta_2=1.0, beta_3=1.0):
 
+    assert not (single_head and cl3), "Can't have both single head and class incremental learning."
     all_acc = np.array([])
     all_uncerts = np.zeros((data_gen.max_iter, data_gen.max_iter))
     x_testsets, y_testsets = [], []
@@ -173,10 +172,16 @@ def run_vcl_ibp(hidden_size, alphas, no_epochs, data_gen, name,
         mf_weights, mf_variances, mf_betas = model.get_weights()
 
         # get accuracies for all test sets seen so far
-        if val:
-            acc = get_scores(model, x_valsets, y_valsets, bsize, single_head)
+        if cl3:
+            if val:
+                acc = get_scores_entropy(model, x_valsets, y_valsets, bsize)
+            else:
+                acc = get_scores_entropy(model, x_testsets, y_testsets, bsize)
         else:
-            acc = get_scores(model, x_testsets, y_testsets, bsize, single_head)
+            if val:
+                acc = get_scores(model, x_valsets, y_valsets, bsize, single_head)
+            else:
+                acc = get_scores(model, x_testsets, y_testsets, bsize, single_head)
         all_acc = concatenate_results(acc, all_acc)
 
         # get Z matrices

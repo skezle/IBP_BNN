@@ -4,8 +4,8 @@ import tensorflow as tf
 import numpy as np
 from copy import deepcopy
 
-from training_utils import kl_beta_reparam, kl_beta_implicit, kl_discrete, kl_concrete
-from utils import child_stick_breaking_probs, global_stick_breaking_probs, reparameterize_discrete, implicit_beta
+from training_utils import kl_beta_reparam, kl_beta_implicit, kl_discrete, kl_concrete, child_stick_breaking_probs, global_stick_breaking_probs, reparameterize_discrete, implicit_beta
+
 from IBP_BNN_multihead import IBP_BNN
 
 """MFVI BNN + H-IBP for CL"""

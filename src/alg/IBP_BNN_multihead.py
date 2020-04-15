@@ -4,8 +4,8 @@ import tensorflow as tf
 import numpy as np
 from copy import deepcopy
 
-from training_utils import kl_beta_reparam, kl_beta_implicit, kl_discrete, kl_concrete
-from utils import stick_breaking_probs, reparameterize_discrete, implicit_beta
+from training_utils import kl_beta_reparam, kl_beta_implicit, kl_discrete, kl_concrete, stick_breaking_probs, reparameterize_discrete, implicit_beta
+
 from cla_models_multihead import Cla_NN
 
 """MFVI BNN + IBP for CL"""
@@ -603,7 +603,6 @@ class IBP_BNN(Cla_NN):
                                                                         })[0]
             probs.append(prob)
         return probs
-
 
     def prediction_acc(self, x_test, y_test, batch_size, task_idx):
         sess = self.sess
