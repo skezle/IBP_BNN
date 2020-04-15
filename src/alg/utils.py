@@ -76,13 +76,13 @@ def get_scores(model, x_testsets, y_testsets, batch_size, single_head):
         accs.append(acc)
     return accs
 
-def get_scores_entropy(model, x_testsets, y_testsets, batch_size):
+def get_scores_entropy(model, x_testsets, y_testsets, batch_size, num_tasks):
     uncerts = []
     accs = []
     for i in range(len(x_testsets)):
         x_test, y_test = x_testsets[i], y_testsets[i]
-        for j in range(len(x_testsets)):
-            pe = predictive_entropy(model, x_test, i, batch_size)
+        for j in range(num_tasks):
+            pe = predictive_entropy(model, x_test, j, batch_size)
             uncerts.append(np.mean(pe))
         head = np.argmin(uncerts)
         acc, _ = model.prediction_acc(x_test, y_test, batch_size, head)

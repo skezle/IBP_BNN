@@ -55,7 +55,7 @@ def run_vcl(hidden_size, no_epochs, data_gen, coreset_method, coreset_size=0, ba
 
         # Incorporate coreset data and make prediction
         if cl3:
-            acc = get_scores_entropy(mf_model, x_testsets, y_testsets, bsize)
+            acc = get_scores_entropy(mf_model, x_testsets, y_testsets, bsize, data_gen.max_iter)
         else:
             acc = get_scores(mf_model, x_testsets, y_testsets, bsize, single_head)
         all_acc = concatenate_results(acc, all_acc)
@@ -174,9 +174,9 @@ def run_vcl_ibp(hidden_size, alphas, no_epochs, data_gen, name,
         # get accuracies for all test sets seen so far
         if cl3:
             if val:
-                acc = get_scores_entropy(model, x_valsets, y_valsets, bsize)
+                acc = get_scores_entropy(model, x_valsets, y_valsets, bsize, data_gen.max_iter)
             else:
-                acc = get_scores_entropy(model, x_testsets, y_testsets, bsize)
+                acc = get_scores_entropy(model, x_testsets, y_testsets, bsize, data_gen.max_iter)
         else:
             if val:
                 acc = get_scores(model, x_valsets, y_valsets, bsize, single_head)
