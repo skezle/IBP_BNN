@@ -601,6 +601,21 @@ class MFVI_NN(Cla_NN):
             avg_neg_elbo += neg_elbo / total_batch
         return avg_acc, avg_neg_elbo
 
+    def prediction_prob(self, x_test, task_idx, batch_size):
+        sess = self.sess
+        N = x_test.shape[0]
+        total_batch = int(np.ceil(N * 1.0 / batch_size))
+        probs = []
+        for i in range(total_batch):
+            start_ind = i * batch_size
+            end_ind = np.min([(i + 1) * batch_size, N])
+            batch_x = x_test[start_ind:end_ind, :]
+            prob = sess.run([tf.nn.softmax(self.pred)], feed_dict={self.x: batch_x,
+                                                                   self.task_idx: task_idx,
+                                                                   })[0]
+            probs.append(prob)
+        return probs
+
     def get_graph_ops(self):
         """ Useful for debugging
         :return: None
