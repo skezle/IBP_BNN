@@ -130,6 +130,7 @@ if __name__ == "__main__":
     seeds = list(range(1, 1 + args.runs))
     num_tasks = 5
     single_head = args.cl2
+    task_inf = args.cl3
 
     vcl_ibp_accs = np.zeros((len(seeds), num_tasks, num_tasks))
     baseline_accs = {h: np.zeros((len(seeds), num_tasks, num_tasks)) for h in args.h_list}
@@ -163,7 +164,7 @@ if __name__ == "__main__":
             ibp_acc, Zs, uncerts = run_vcl_ibp(hidden_size=hidden_size, alphas=[alpha]*len(hidden_size),
                                                no_epochs=[no_epochs]*num_tasks,
                                                data_gen=data_gen, name=name, val=val, batch_size=batch_size,
-                                               single_head=single_head, cl3=args.cl3,
+                                               single_head=single_head, task_inf=task_inf,
                                                alpha0=alpha0, beta0=beta0,
                                                lambda_1=lambda_1, lambda_2=lambda_2,
                                                learning_rate=0.001, no_pred_samples=100, ibp_samples=ibp_samples,
@@ -181,7 +182,7 @@ if __name__ == "__main__":
                 data_gen = PermutedMnistGenerator(num_tasks, val=val)
                 vcl_result, uncerts = run_vcl(hidden_size, no_epochs, data_gen,
                                               lambda a: a, coreset_size, batch_size, single_head,
-                                              args.cl3, val=val,
+                                              task_inf, val=val,
                                               name='vcl_perm_h{0}_{1}_run{2}'.format(h, args.tag, i + 1),
                                               log_dir=args.log_dir)
                 baseline_accs[h][i, :, :] = vcl_result
