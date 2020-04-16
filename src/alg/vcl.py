@@ -7,9 +7,9 @@ from cla_models_multihead import Vanilla_NN, MFVI_NN
 from IBP_BNN_multihead import IBP_BNN
 from HIBP_BNN_multihead import HIBP_BNN
 
-def run_vcl(hidden_size, no_epochs, data_gen, coreset_method, coreset_size=0, batch_size=None, single_head=True, cl3=False,
+def run_vcl(hidden_size, no_epochs, data_gen, coreset_method, coreset_size=0, batch_size=None, single_head=True, task_inf=False,
             val=False, verbose=True, name='vcl', log_dir='logs', use_local_reparam=False):
-    assert not (single_head and cl3), "Can't have both single head and class incremental learning."
+    assert not (single_head and task_inf), "Can't have both single head and task inference."
     x_testsets, y_testsets = [], []
 
     all_acc = np.array([])
@@ -54,7 +54,7 @@ def run_vcl(hidden_size, no_epochs, data_gen, coreset_method, coreset_size=0, ba
         mf_weights, mf_variances = mf_model.get_weights()
 
         # Incorporate coreset data and make prediction
-        if cl3:
+        if task_inf:
             acc = get_scores_entropy(mf_model, x_testsets, y_testsets, bsize, data_gen.max_iter)
         else:
             acc = get_scores(mf_model, x_testsets, y_testsets, bsize, single_head)
@@ -65,7 +65,7 @@ def run_vcl(hidden_size, no_epochs, data_gen, coreset_method, coreset_size=0, ba
     return all_acc, all_uncerts
 
 def run_vcl_ibp(hidden_size, alphas, no_epochs, data_gen, name,
-                val, batch_size=None, single_head=False, cl3=False,
+                val, batch_size=None, single_head=False, task_inf=False,
                 prior_mean=0.0, prior_var=1.0, alpha0=5.0,
                 beta0 = 1.0, lambda_1 = 1.0, lambda_2 = 1.0, learning_rate=0.001,
                 learning_rate_decay=0.87,
@@ -74,7 +74,7 @@ def run_vcl_ibp(hidden_size, alphas, no_epochs, data_gen, name,
                 use_local_reparam=False, implicit_beta=True,
                 hibp=False, beta_1=1.0, beta_2=1.0, beta_3=1.0):
 
-    assert not (single_head and cl3), "Can't have both single head and class incremental learning."
+    assert not (single_head and task_inf), "Can't have both single head and task inference at the same time."
     all_acc = np.array([])
     all_uncerts = np.zeros((data_gen.max_iter, data_gen.max_iter))
     x_testsets, y_testsets = [], []
@@ -172,7 +172,7 @@ def run_vcl_ibp(hidden_size, alphas, no_epochs, data_gen, name,
         mf_weights, mf_variances, mf_betas = model.get_weights()
 
         # get accuracies for all test sets seen so far
-        if cl3:
+        if task_inf:
             if val:
                 acc = get_scores_entropy(model, x_valsets, y_valsets, bsize, data_gen.max_iter)
             else:

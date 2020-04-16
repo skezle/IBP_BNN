@@ -110,9 +110,9 @@ class SplitMnistGenerator:
 class SplitMnistImagesGenerator(SplitMnistGenerator):
     """ Thanks https://sites.google.com/a/lisa.iro.umontreal.ca/public_static_twiki/variations-on-the-mnist-digits
     """
-    def __init__(self, val=False):
+    def __init__(self, val=False, cl3=False):
 
-        super(SplitMnistImagesGenerator, self).__init__(val=val)
+        super(SplitMnistImagesGenerator, self).__init__(val=val, cl3=cl3)
 
         # 12000 test, 52000 train
         # datasets already shuffled
@@ -150,9 +150,9 @@ class SplitMnistRandomGenerator(SplitMnistGenerator):
     """ Thanks https://sites.google.com/a/lisa.iro.umontreal.ca/public_static_twiki/variations-on-the-mnist-digits
 
     """
-    def __init__(self, val=False):
+    def __init__(self, val=False, cl3=False):
 
-        super(SplitMnistRandomGenerator, self).__init__(val=val)
+        super(SplitMnistRandomGenerator, self).__init__(val=val, cl3=cl3)
 
         # 12000 test, 50000 train
         # datasets already shuffled
@@ -185,10 +185,13 @@ class SplitMnistRandomGenerator(SplitMnistGenerator):
         self.max_iter = len(self.sets_0)
         self.cur_iter = 0
 
-class SplitCIFAR10Generator:
-    def __init__(self, val=False):
+class SplitCIFAR10Generator(SplitMnistGenerator):
+    def __init__(self, val=False, cl3=False):
+
+        super(SplitCIFAR10Generator, self).__init__(val=val, cl3=cl3)
         # train, val, test (40000, 3072) (10000, 3072) (10000, 3072)
         self.val = val
+        self.cl3 = cl3
 
         train, test = tf.compat.v1.keras.datasets.cifar10.load_data() # (50000, 32, 32, 3), (50000, 1), (10000, 32, 32, 3), (10000, 1)
         train_labels = train[1].reshape(-1)
@@ -218,51 +221,9 @@ class SplitCIFAR10Generator:
         self.max_iter = len(self.sets_0)
         self.cur_iter = 0
 
-    def get_dims(self):
-        # Get data input and output dimensions
-        return self.X_train.shape[1], 2
-
-    def next_task(self):
-        if self.cur_iter >= self.max_iter:
-            raise Exception('Number of tasks exceeded!')
-        else:
-            # Retrieve train data
-            train_0_id = np.where(self.train_label == self.sets_0[self.cur_iter])[0]
-            train_1_id = np.where(self.train_label == self.sets_1[self.cur_iter])[0]
-            next_x_train = np.vstack((self.X_train[train_0_id], self.X_train[train_1_id]))
-
-            next_y_train = np.vstack((np.ones((train_0_id.shape[0], 1)), np.zeros((train_1_id.shape[0], 1))))
-            next_y_train = np.hstack((next_y_train, 1 - next_y_train))
-
-            # Retrieve test data
-            test_0_id = np.where(self.test_label == self.sets_0[self.cur_iter])[0]
-            test_1_id = np.where(self.test_label == self.sets_1[self.cur_iter])[0]
-            next_x_test = np.vstack((self.X_test[test_0_id], self.X_test[test_1_id]))
-
-            next_y_test = np.vstack((np.ones((test_0_id.shape[0], 1)), np.zeros((test_1_id.shape[0], 1))))
-            next_y_test = np.hstack((next_y_test, 1 - next_y_test))
-            #pdb.set_trace()
-            if self.val:
-                val_0_id = np.where(self.val_label == self.sets_0[self.cur_iter])[0]
-                val_1_id = np.where(self.val_label == self.sets_1[self.cur_iter])[0]
-                next_x_val = np.vstack((self.X_val[val_0_id], self.X_val[val_1_id]))
-
-                next_y_val = np.vstack((np.ones((val_0_id.shape[0], 1)), np.zeros((val_1_id.shape[0], 1))))
-                next_y_val = np.hstack((next_y_val, 1 - next_y_val))
-                self.cur_iter += 1
-                return next_x_train, next_y_train, next_x_test, next_y_test, next_x_val, next_y_val
-            else:
-                self.cur_iter += 1
-                return next_x_train, next_y_train, next_x_test, next_y_test
-
-    def reset_cur_iter(self):
-        self.cur_iter = 0
-
 class SplitCIFAR10MNIST(SplitMnistGenerator):
-    def __init__(self, val=False):
-
-        super(SplitCIFAR10MNIST, self).__init__(val=val)
-        self.val = val
+    def __init__(self, val=False, cl3=False):
+        super(SplitCIFAR10MNIST, self).__init__(val=val, cl3=cl3)
 
         # Get MNIST data and pad to make 32x32
         with gzip.open('data/mnist.pkl.gz', 'rb') as f:
@@ -328,9 +289,6 @@ class SplitCIFAR10MNIST(SplitMnistGenerator):
 
         self.max_iter = len(self.sets_0)
         self.cur_iter = 0
-
-    def set_cur_iter(self, x):
-        self.cur_iter = x
 
 
 if __name__ == "__main__":
@@ -437,6 +395,7 @@ if __name__ == "__main__":
     val = False
     single_head = False
     task_inf = True if args.cl3 or args.cl2 else False
+    assert not (args.cl3 and args.cl2), "Can't have both cl2 and cl3."
 
     def get_datagen():
         if args.dataset == 'normal':
