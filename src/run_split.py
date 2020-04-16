@@ -395,6 +395,7 @@ if __name__ == "__main__":
     val = False
     single_head = False
     task_inf = True if args.cl3 or args.cl2 else False
+    assert not (args.cl3 and args.cl2), "Can't have both cl2 and cl3."
 
     def get_datagen():
         if args.dataset == 'normal':
