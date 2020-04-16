@@ -14,10 +14,10 @@ from skimage.color import rgb2gray
 
 
 class SplitMnistGenerator:
-    def __init__(self, val=False):
+    def __init__(self, val=False, cl3=False):
         # train, val, test (50000, 784) (10000, 784) (10000, 784)
         self.val = val
-        self.cl3 = False # runs CL3, not used
+        self.cl3 = cl3
         # data already shuffled
         with gzip.open('data/mnist.pkl.gz', 'rb') as f:
             train_set, valid_set, test_set = pickle.load(f, encoding='latin1')
@@ -43,7 +43,7 @@ class SplitMnistGenerator:
     def get_dims(self):
         # Get data input and output dimensions
         if self.cl3:
-            return self.X_train.shape[1], 2 * (self.cur_iter + 1)
+            return self.X_train.shape[1], 10
         else:
             return self.X_train.shape[1], 2
 
@@ -57,9 +57,12 @@ class SplitMnistGenerator:
             next_x_train = np.vstack((self.X_train[train_0_id], self.X_train[train_1_id]))
 
             next_y_train = np.vstack((np.ones((train_0_id.shape[0], 1)), np.zeros((train_1_id.shape[0], 1))))
-            if self.cl3 and self.cur_iter > 0:
-                next_y_train = np.hstack((np.zeros((next_y_train.shape[0], 2 * self.cur_iter)), next_y_train, 1 - next_y_train))
-                assert next_y_train.shape[1] == 2 * (self.cur_iter + 1)
+            if self.cl3:
+                next_y_train_1d = np.copy(next_y_train)
+                next_y_train = np.zeros((next_y_train_1d.shape[0], 10))
+                next_y_train[:, self.cur_iter * 2] = next_y_train_1d.reshape(-1)
+                next_y_train[:, self.cur_iter * 2 + 1] = 1 - next_y_train_1d.reshape(-1)
+                assert next_y_train.shape[1] == 10
             else:
                 next_y_train = np.hstack((next_y_train, 1-next_y_train))
 
@@ -68,12 +71,15 @@ class SplitMnistGenerator:
             test_1_id = np.where(self.test_label == self.sets_1[self.cur_iter])[0]
             next_x_test = np.vstack((self.X_test[test_0_id], self.X_test[test_1_id]))
 
-            next_y_test = np.vstack((np.ones((test_0_id.shape[0], 1)), np.zeros((test_1_id.shape[0], 1))))
-            if self.cl3 and self.cur_iter > 0:
-                next_y_test = np.hstack((np.zeros((next_y_test.shape[0], 2 * self.cur_iter)), next_y_test, 1 - next_y_test))
-                assert next_y_test.shape[1] == 2 * (self.cur_iter + 1)
+            next_y_test = np.vstack((np.ones((test_0_id.shape[0], 1)), np.zeros((test_1_id.shape[0], 1)))) # N x 1
+            if self.cl3:
+                next_y_test_1d = np.copy(next_y_test)
+                next_y_test = np.zeros((next_y_test_1d.shape[0], 10))
+                next_y_test[:, self.cur_iter * 2] = next_y_test_1d.reshape(-1)
+                next_y_test[:, self.cur_iter * 2 + 1] = 1 - next_y_test_1d.reshape(-1)
             else:
-                next_y_test = np.hstack((next_y_test, 1-next_y_test))
+                next_y_test = np.hstack((next_y_test, 1 - next_y_test))
+
             #pdb.set_trace()
             if self.val:
                 val_0_id = np.where(self.val_label == self.sets_0[self.cur_iter])[0]
@@ -81,8 +87,11 @@ class SplitMnistGenerator:
                 next_x_val = np.vstack((self.X_val[val_0_id], self.X_val[val_1_id]))
 
                 next_y_val = np.vstack((np.ones((val_0_id.shape[0], 1)), np.zeros((val_1_id.shape[0], 1))))
-                if self.cl3 and self.cur_iter > 0:
-                    next_y_val = np.hstack((np.zeros((next_y_val.shape[0], 2 * self.cur_iter)), next_y_val, 1 - next_y_val))
+                if self.cl3:
+                    next_y_val_1d = np.copy(next_y_val)
+                    next_y_val = np.zeros((next_y_val_1d.shape[0], 10))
+                    next_y_val[:, self.cur_iter * 2] = next_y_val_1d.reshape(-1)
+                    next_y_val[:, self.cur_iter * 2 + 1] = 1 - next_y_val_1d.reshape(-1)
                 else:
                     next_y_val = np.hstack((next_y_val, 1 - next_y_val))
                 self.cur_iter += 1
@@ -93,6 +102,9 @@ class SplitMnistGenerator:
 
     def reset_cur_iter(self):
         self.cur_iter = 0
+
+    def set_cur_iter(self, ind):
+        self.cur_iter = ind
 
 
 class SplitMnistImagesGenerator(SplitMnistGenerator):
@@ -329,6 +341,14 @@ if __name__ == "__main__":
                         default=False,
                         dest='single_head',
                         help='Whether to use a single head.')
+    parser.add_argument('--cl2', action='store_true',
+                        default=False,
+                        dest='cl2',
+                        help='Whether to use a perform CL2: domain incremental learning.')
+    parser.add_argument('--cl3', action='store_true',
+                        default=False,
+                        dest='cl3',
+                        help='Whether to use a perform CL3: class incremental learning.')
     parser.add_argument('--num_layers', action='store',
                         dest='num_layers',
                         default=1,
@@ -388,7 +408,8 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    print('single_head          = {!r}'.format(args.single_head))
+    print('cl2                  = {!r}'.format(args.cl2))
+    print('cl3                  = {!r}'.format(args.cl3))
     print('num_layers           = {!r}'.format(args.num_layers))
     print('runs                 = {!r}'.format(args.runs))
     print('alpha0               = {!r}'.format(args.alpha0))
@@ -414,18 +435,20 @@ if __name__ == "__main__":
 
     # We don't need a validation set
     val = False
+    single_head = False
+    task_inf = True if args.cl3 or args.cl2 else False
 
     def get_datagen():
         if args.dataset == 'normal':
-            data_gen = SplitMnistGenerator(val=val)
+            data_gen = SplitMnistGenerator(val=val, cl3=args.cl3)
         elif args.dataset == 'random':
-            data_gen = SplitMnistRandomGenerator(val=val)
+            data_gen = SplitMnistRandomGenerator(val=val, cl3=args.cl3)
         elif args.dataset == 'images':
-            data_gen = SplitMnistImagesGenerator(val=val)
+            data_gen = SplitMnistImagesGenerator(val=val, cl3=args.cl3)
         elif args.dataset == 'cifar10':
-            data_gen = SplitCIFAR10Generator(val=val)
+            data_gen = SplitCIFAR10Generator(val=val, cl3=args.cl3)
         elif args.dataset == 'long_queue':
-            data_gen = SplitCIFAR10MNIST(val=val)
+            data_gen = SplitCIFAR10MNIST(val=val, cl3=args.cl3)
         else:
             raise ValueError('Pick dataset in {normal, random, images, cifar10}')
         return data_gen
@@ -458,7 +481,8 @@ if __name__ == "__main__":
             # This is overwritten for each run
             ibp_acc, Zs, uncerts = run_vcl_ibp(hidden_size=hidden_size, alphas=[alpha]*len(hidden_size),
                                                no_epochs= [int(no_epochs*1.2)] + [no_epochs]*(num_tasks-1), data_gen=data_gen,
-                                               name=name, val=val, batch_size=batch_size, single_head=args.single_head,
+                                               name=name, val=val, batch_size=batch_size,
+                                               single_head=args.single_head, task_inf=task_inf,
                                                prior_mean=prior_mean, prior_var=prior_var, alpha0=alpha0,
                                                beta0=beta0, lambda_1=lambda_1, lambda_2=lambda_2,
                                                learning_rate=[0.001]*num_tasks,
@@ -479,7 +503,8 @@ if __name__ == "__main__":
                 data_gen = get_datagen()
                 coreset_size = 0
                 vcl_result, uncerts = run_vcl(hidden_size, no_epochs, data_gen,
-                                              lambda a: a, coreset_size, batch_size, args.single_head, val=val,
+                                              lambda a: a, coreset_size, batch_size,
+                                              single_head, task_inf, val=val,
                                               name='vcl_h{0}_{1}_run{2}_{3}'.format(h, args.dataset, i+1, args.tag),
                                               log_dir=args.log_dir, use_local_reparam=args.use_local_reparam)
                 baseline_accs[h][i, :, :] = vcl_result
