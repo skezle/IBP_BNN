@@ -12,7 +12,7 @@ def run_vcl(hidden_size, no_epochs, data_gen, coreset_method, coreset_size=0, ba
     assert not (single_head and task_inf), "Can't have both single head and task inference."
     x_testsets, y_testsets = [], []
 
-    all_acc = np.array([])
+    all_acc, all_acc_ent = np.array([]), np.array([])
     all_uncerts = np.zeros((data_gen.max_iter, data_gen.max_iter))
 
     for task_id in range(data_gen.max_iter):
@@ -53,16 +53,15 @@ def run_vcl(hidden_size, no_epochs, data_gen, coreset_method, coreset_size=0, ba
 
         mf_weights, mf_variances = mf_model.get_weights()
 
-        # Incorporate coreset data and make prediction
-        if task_inf:
-            acc = get_scores_entropy(mf_model, x_testsets, y_testsets, bsize, data_gen.max_iter)
-        else:
-            acc = get_scores(mf_model, x_testsets, y_testsets, bsize, single_head)
+        # get accuracies for all test sets seen so far
+        acc_ent = get_scores_entropy(mf_model, x_testsets, y_testsets, bsize, data_gen.max_iter)
+        acc = get_scores(mf_model, x_testsets, y_testsets, bsize, single_head)
         all_acc = concatenate_results(acc, all_acc)
+        all_acc_ent = concatenate_results(acc_ent, all_acc_ent)
 
         mf_model.close_session()
 
-    return all_acc, all_uncerts
+    return [all_acc, all_acc_ent], all_uncerts
 
 def run_vcl_ibp(hidden_size, alphas, no_epochs, data_gen, name,
                 val, batch_size=None, single_head=False, task_inf=False,
@@ -75,7 +74,7 @@ def run_vcl_ibp(hidden_size, alphas, no_epochs, data_gen, name,
                 hibp=False, beta_1=1.0, beta_2=1.0, beta_3=1.0):
 
     assert not (single_head and task_inf), "Can't have both single head and task inference at the same time."
-    all_acc = np.array([])
+    all_acc, all_acc_ent = np.array([]), np.array([])
     all_uncerts = np.zeros((data_gen.max_iter, data_gen.max_iter))
     x_testsets, y_testsets = [], []
     x_valsets, y_valsets = [], []
@@ -172,17 +171,14 @@ def run_vcl_ibp(hidden_size, alphas, no_epochs, data_gen, name,
         mf_weights, mf_variances, mf_betas = model.get_weights()
 
         # get accuracies for all test sets seen so far
-        if task_inf:
-            if val:
-                acc = get_scores_entropy(model, x_valsets, y_valsets, bsize, data_gen.max_iter)
-            else:
-                acc = get_scores_entropy(model, x_testsets, y_testsets, bsize, data_gen.max_iter)
+        if val:
+            acc_ent = get_scores_entropy(model, x_valsets, y_valsets, bsize, data_gen.max_iter)
+            acc = get_scores(model, x_valsets, y_valsets, bsize, single_head)
         else:
-            if val:
-                acc = get_scores(model, x_valsets, y_valsets, bsize, single_head)
-            else:
-                acc = get_scores(model, x_testsets, y_testsets, bsize, single_head)
+            acc_ent = get_scores_entropy(model, x_testsets, y_testsets, bsize, data_gen.max_iter)
+            acc = get_scores(model, x_testsets, y_testsets, bsize, single_head)
         all_acc = concatenate_results(acc, all_acc)
+        all_acc_ent = concatenate_results(acc_ent, all_acc_ent)
 
         # get Z matrices
         Zs.append(model.sess.run(model.Z, feed_dict={model.x: x_test, model.task_idx: task_id, model.training: False}))
@@ -190,4 +186,4 @@ def run_vcl_ibp(hidden_size, alphas, no_epochs, data_gen, name,
         model.close_session()
 
     Zs = [item for sublist in Zs for item in sublist]
-    return all_acc, Zs, all_uncerts
+    return [all_acc, all_acc_ent], Zs, all_uncerts

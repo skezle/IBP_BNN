@@ -430,8 +430,12 @@ if __name__ == "__main__":
     seeds = list(range(1, 1 + args.runs))
     num_tasks = 5
 
-    vcl_ibp_accs = np.zeros((len(seeds), num_tasks, num_tasks))
-    baseline_accs = {h: np.zeros((len(seeds), num_tasks, num_tasks)) for h in args.h_list}
+    if args.cl3:
+        vcl_ibp_accs = np.zeros((len(seeds), num_tasks, num_tasks))
+        baseline_accs = {h: np.zeros((len(seeds), num_tasks, num_tasks)) for h in args.h_list}
+    else:
+        vcl_ibp_accs = np.zeros((2, len(seeds), num_tasks, num_tasks)) # 2 for cl1 and cl2 results
+        baseline_accs = {h: np.zeros((2, len(seeds), num_tasks, num_tasks)) for h in args.h_list}
     all_ibp_uncerts = np.zeros((len(seeds), num_tasks, num_tasks))
     baseline_uncerts = {h: np.zeros((len(seeds), num_tasks, num_tasks)) for h in args.h_list}
     all_Zs = []
@@ -483,7 +487,7 @@ if __name__ == "__main__":
             name = "split_{0}_run{1}_{2}".format(args.dataset, i + 1, args.tag)
             # Z matrix for each task is output
             # This is overwritten for each run
-            ibp_acc, Zs, uncerts = run_vcl_ibp(hidden_size=hidden_size, alphas=[alpha]*len(hidden_size),
+            ibp_acc, Zs, _ = run_vcl_ibp(hidden_size=hidden_size, alphas=[alpha]*len(hidden_size),
                                                no_epochs= [int(no_epochs*1.2)] + [no_epochs]*(num_tasks-1), data_gen=data_gen,
                                                name=name, val=val, batch_size=batch_size,
                                                single_head=args.single_head, task_inf=task_inf,
@@ -495,7 +499,11 @@ if __name__ == "__main__":
                                                implicit_beta=True, hibp=args.hibp)
 
             all_Zs.append(Zs)
-            vcl_ibp_accs[i, :, :] = ibp_acc
+            if args.cl3:
+                vcl_ibp_accs[i, :, :] = ibp_acc[1]
+            else:
+                vcl_ibp_accs[0, i, :, :] = ibp_acc[0]
+                vcl_ibp_accs[1, i, :, :] = ibp_acc[1]
             all_ibp_uncerts[i, :, :] = uncerts
 
         if args.run_baselines:
@@ -512,6 +520,11 @@ if __name__ == "__main__":
                                               name='vcl_h{0}_{1}_run{2}_{3}'.format(h, args.dataset, i+1, args.tag),
                                               log_dir=args.log_dir, use_local_reparam=args.use_local_reparam)
                 baseline_accs[h][i, :, :] = vcl_result
+                if args.cl3:
+                    baseline_accs[h][i, :, :] = vcl_result[1]
+                else:
+                    baseline_accs[h][0, i, :, :] = vcl_result[0]
+                    baseline_accs[h][1, i, :, :] = vcl_result[1]
                 baseline_uncerts[h][i, :, :] = uncerts
 
     with open('results/split_mnist_{}.pkl'.format(args.tag), 'wb') as input_file:
