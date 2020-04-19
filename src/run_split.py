@@ -505,7 +505,6 @@ if __name__ == "__main__":
             else:
                 vcl_ibp_accs[0, i, :, :] = ibp_acc[0]
                 vcl_ibp_accs[1, i, :, :] = ibp_acc[1]
-            all_ibp_uncerts[i, :, :] = uncerts
 
         if args.run_baselines:
             # Run Vanilla VCL
@@ -515,7 +514,7 @@ if __name__ == "__main__":
                 hidden_size = [h] * args.num_layers
                 data_gen = get_datagen()
                 coreset_size = 0
-                vcl_result, uncerts = run_vcl(hidden_size, no_epochs, data_gen,
+                vcl_result, _ = run_vcl(hidden_size, no_epochs, data_gen,
                                               lambda a: a, coreset_size, batch_size,
                                               single_head, task_inf, val=val,
                                               name='vcl_h{0}_{1}_run{2}_{3}'.format(h, args.dataset, i+1, args.tag),
@@ -526,7 +525,6 @@ if __name__ == "__main__":
                 else:
                     baseline_accs[h][0, i, :, :] = vcl_result[0]
                     baseline_accs[h][1, i, :, :] = vcl_result[1]
-                baseline_uncerts[h][i, :, :] = uncerts
 
     with open('results/split_mnist_{}.pkl'.format(args.tag), 'wb') as input_file:
         pickle.dump({'vcl_ibp': vcl_ibp_accs,
