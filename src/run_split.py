@@ -519,7 +519,6 @@ if __name__ == "__main__":
                                               single_head, task_inf, val=val,
                                               name='vcl_h{0}_{1}_run{2}_{3}'.format(h, args.dataset, i+1, args.tag),
                                               log_dir=args.log_dir, use_local_reparam=args.use_local_reparam)
-                baseline_accs[h][i, :, :] = vcl_result
                 if args.cl3:
                     baseline_accs[h][i, :, :] = vcl_result[1]
                 else:
