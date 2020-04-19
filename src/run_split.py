@@ -428,17 +428,6 @@ if __name__ == "__main__":
     print('no_ibp               = {!r}'.format(args.no_ibp))
 
     seeds = list(range(1, 1 + args.runs))
-    num_tasks = 5
-
-    if args.cl3:
-        vcl_ibp_accs = np.zeros((len(seeds), num_tasks, num_tasks))
-        baseline_accs = {h: np.zeros((len(seeds), num_tasks, num_tasks)) for h in args.h_list}
-    else:
-        vcl_ibp_accs = np.zeros((2, len(seeds), num_tasks, num_tasks)) # 2 for cl1 and cl2 results
-        baseline_accs = {h: np.zeros((2, len(seeds), num_tasks, num_tasks)) for h in args.h_list}
-    all_ibp_uncerts = np.zeros((len(seeds), num_tasks, num_tasks))
-    baseline_uncerts = {h: np.zeros((len(seeds), num_tasks, num_tasks)) for h in args.h_list}
-    all_Zs = []
 
     # We don't need a validation set
     val = False
@@ -460,6 +449,18 @@ if __name__ == "__main__":
         else:
             raise ValueError('Pick dataset in {normal, random, images, cifar10}')
         return data_gen
+
+    num_tasks = get_datagen().max_iter
+
+    if args.cl3:
+        vcl_ibp_accs = np.zeros((len(seeds), num_tasks, num_tasks))
+        baseline_accs = {h: np.zeros((len(seeds), num_tasks, num_tasks)) for h in args.h_list}
+    else:
+        vcl_ibp_accs = np.zeros((2, len(seeds), num_tasks, num_tasks))  # 2 for cl1 and cl2 results
+        baseline_accs = {h: np.zeros((2, len(seeds), num_tasks, num_tasks)) for h in args.h_list}
+    all_ibp_uncerts = np.zeros((len(seeds), num_tasks, num_tasks))
+    baseline_uncerts = {h: np.zeros((len(seeds), num_tasks, num_tasks)) for h in args.h_list}
+    all_Zs = []
 
     # IBP params
     alpha0 = args.alpha0
