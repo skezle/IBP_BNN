@@ -10,7 +10,7 @@ from IBP_BNN_multihead import IBP_BNN
 
 """MFVI BNN + H-IBP for CL"""
 class HIBP_BNN(IBP_BNN):
-    def __init__(self, alphas, input_size, hidden_size, output_size, training_size,
+    def __init__(self, alpha, input_size, hidden_size, output_size, training_size,
                  no_train_samples=10, no_pred_samples=100, num_ibp_samples=10, prev_means=None, prev_log_variances=None,
                  prev_betas=None, learning_rate=0.001, learning_rate_decay=0.87,
                  prior_mean=0, prior_var=1, alpha0=5., beta0=1., lambda_1=1., lambda_2=1.,
@@ -31,7 +31,7 @@ class HIBP_BNN(IBP_BNN):
                                        output_tb_gradients=output_tb_gradients, beta_1=beta_1,
                                        beta_2=beta_2, beta_3=beta_3, use_local_reparam=use_local_reparam,
                                        implicit_beta=implicit_beta, clip_grads=clip_grads)
-        self.alphas = alphas # hyper-param for each child IBP
+        self.alpha = alpha # hyper-param for each child IBP
 
     def create_model(self):
         m, v, self.size = self.create_weights(self.input_size, self.hidden_size, self.output_size, self.prev_means, self.prev_log_variances)
@@ -127,7 +127,7 @@ class HIBP_BNN(IBP_BNN):
         self.prior_global_log_pi = global_stick_breaking_probs(prior_gbeta_a, prior_gbeta_b,
                                                                size=(no_samples_ibp,), implicit=self.implicit_beta) # no_samples, dout
         for i in range(self.no_layers - 1):
-            alpha = self.alphas[i]
+            alpha = self.alpha
             din = self.size[i]
             dout = self.size[i + 1]
             eps_w = tf.random_normal((no_samples, din, dout), 0, 1, dtype=tf.float32)
@@ -266,7 +266,7 @@ class HIBP_BNN(IBP_BNN):
             kl += const_term + log_std_diff + mu_diff_term
 
             # Child IBP Beta terms
-            alpha = self.alphas[i]
+            alpha = self.alpha
             # pis \in [np_ibp_samples, dout]
             kl_beta += kl_beta_implicit(alpha * tf.reduce_mean(tf.exp(self.global_log_pi), 0),
                                         alpha*(1-tf.reduce_mean(tf.exp(self.global_log_pi), 0)),

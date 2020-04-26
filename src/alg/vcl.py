@@ -63,7 +63,7 @@ def run_vcl(hidden_size, no_epochs, data_gen, coreset_method, coreset_size=0, ba
 
     return [all_acc, all_acc_ent], all_uncerts
 
-def run_vcl_ibp(hidden_size, alphas, no_epochs, data_gen, name,
+def run_vcl_ibp(hidden_size, alpha, no_epochs, data_gen, name,
                 val, batch_size=None, single_head=False, task_inf=False,
                 prior_mean=0.0, prior_var=1.0, alpha0=5.0,
                 beta0 = 1.0, lambda_1 = 1.0, lambda_2 = 1.0, learning_rate=0.001,
@@ -118,6 +118,11 @@ def run_vcl_ibp(hidden_size, alphas, no_epochs, data_gen, name,
         else:
             lr = learning_rate
 
+        if len(alpha) == 1:
+            alpha = alpha[0]
+        else:
+            alpha = alpha[task_id]
+
         # Train network with maximum likelihood to initialize first model
         # lambda_1 --> temp of the variational Concrete posterior
         # lambda_2 --> temp of the relaxed prior, for task != 0 this should be lambda_1!!!
@@ -130,7 +135,7 @@ def run_vcl_ibp(hidden_size, alphas, no_epochs, data_gen, name,
             ml_model.close_session()
 
         if hibp and len(hidden_size) > 1:
-            model = HIBP_BNN(alphas, input_size=in_dim, hidden_size=hidden_size,
+            model = HIBP_BNN(alpha, input_size=in_dim, hidden_size=hidden_size,
                              output_size=out_dim,
                              training_size=x_train.shape[0], num_ibp_samples=ibp_samples,
                              prev_means=mf_weights,

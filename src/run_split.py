@@ -403,10 +403,10 @@ if __name__ == "__main__":
                         default=100,
                         type=int,
                         help='Variational truncation param for IBP.')
-    parser.add_argument('--alpha', action='store',
+    parser.add_argument('--alpha',  nargs='+',
                         dest='alpha',
-                        default=4.0,
                         type=int,
+                        default=[4],
                         help='H-IBP hyperparam.')
 
     args = parser.parse_args()
@@ -488,7 +488,7 @@ if __name__ == "__main__":
             name = "split_{0}_run{1}_{2}".format(args.dataset, i + 1, args.tag)
             # Z matrix for each task is output
             # This is overwritten for each run
-            ibp_acc, Zs, _ = run_vcl_ibp(hidden_size=hidden_size, alphas=[alpha]*len(hidden_size),
+            ibp_acc, Zs, _ = run_vcl_ibp(hidden_size=hidden_size, alpha=alpha,
                                                no_epochs= [int(no_epochs*1.2)] + [no_epochs]*(num_tasks-1), data_gen=data_gen,
                                                name=name, val=val, batch_size=batch_size,
                                                single_head=args.single_head, task_inf=task_inf,
