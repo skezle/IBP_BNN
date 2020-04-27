@@ -35,7 +35,7 @@ def run_vcl(hidden_size, no_epochs, data_gen, coreset_method, coreset_size=0, ba
         # Train network with maximum likelihood to initialize first model
         if task_id == 0:
             ml_model = Vanilla_NN(in_dim, hidden_size, out_dim, x_train.shape[0])
-            ml_model.train(x_train, y_train, task_id, no_epochs, bsize)
+            ml_model.train(x_train, y_train, task_id, 200, bsize)
             mf_weights = ml_model.get_weights()
             mf_variances = None
             ml_model.close_session()
@@ -119,23 +119,23 @@ def run_vcl_ibp(hidden_size, alpha, no_epochs, data_gen, name,
             lr = learning_rate
 
         if len(alpha) == 1:
-            alpha = alpha[0]
+            a = alpha[0]
         else:
-            alpha = alpha[task_id]
+            a = alpha[task_id]
 
         # Train network with maximum likelihood to initialize first model
         # lambda_1 --> temp of the variational Concrete posterior
         # lambda_2 --> temp of the relaxed prior, for task != 0 this should be lambda_1!!!
         if task_id == 0:
             ml_model = Vanilla_NN(in_dim, hidden_size, out_dim, x_train.shape[0])
-            ml_model.train(x_train, y_train, task_id, n, bsize)
+            ml_model.train(x_train, y_train, task_id, 200, bsize)
             mf_weights = ml_model.get_weights()
             mf_variances = None
             mf_betas = None
             ml_model.close_session()
 
         if hibp and len(hidden_size) > 1:
-            model = HIBP_BNN(alpha, input_size=in_dim, hidden_size=hidden_size,
+            model = HIBP_BNN(a, input_size=in_dim, hidden_size=hidden_size,
                              output_size=out_dim,
                              training_size=x_train.shape[0], num_ibp_samples=ibp_samples,
                              prev_means=mf_weights,
