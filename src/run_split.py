@@ -329,8 +329,8 @@ class SplitMix(SplitMnistGenerator):
             self.X_val = np.vstack((_X_val_mnist, _X_val_fmnist, X_val_cifar))
             self.val_label = np.hstack((val_label_mnist, val_label_fmnist, val_label_cifar))
 
-        self.sets_0 = [0, 4, 10, 16, 22, 26]
-        self.sets_1 = [1, 5, 11, 17, 23, 27]
+        self.sets_0 = [0, 2, 10, 16, 20, 22]
+        self.sets_1 = [1, 3, 11, 17, 21, 23]
 
         self.max_iter = len(self.sets_0)
         self.cur_iter = 0
