@@ -82,7 +82,7 @@ def get_scores_entropy(model, x_testsets, y_testsets, batch_size, num_tasks):
         uncerts, accs_task = [], []
         x_test, y_test = x_testsets[i], y_testsets[i]
         N = x_test.shape[0]
-        num_batches = N / batch_size
+        num_batches = int(np.ceil(N * 1.0 / batch_size))
         for k in range(num_batches):
             start_ind = k * batch_size
             end_ind = np.min([(k + 1) * batch_size, N])
