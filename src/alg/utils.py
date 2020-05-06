@@ -90,8 +90,8 @@ def get_scores_entropy(model, x_testsets, y_testsets, batch_size, num_tasks):
             y_test_batch = y_test[start_ind:end_ind, :]
             for j in range(num_tasks):
                 pe = predictive_entropy(model, x_test_batch, j, batch_size)
-                uncerts.append(-np.mean(pe) / np.std(pe)) # negative Sharpe
-            head = np.argmax(uncerts)
+                uncerts.append(np.mean(pe) - np.std(pe)) # Optimism
+            head = np.argmin(uncerts)
             acc, _ = model.prediction_acc(x_test_batch, y_test_batch, batch_size, head)
             accs_task.append(acc)
         accs.append(np.mean(accs_task))
