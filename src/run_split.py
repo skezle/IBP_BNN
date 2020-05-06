@@ -398,6 +398,11 @@ if __name__ == "__main__":
                         type=int,
                         default=[5, 50],
                         help='List of hidden states')
+    parser.add_argument('--beta_1', nargs='+',
+                        dest='beta_1',
+                        type=int,
+                        default=1,
+                        help='List KL gauss coefficients.')
     parser.add_argument('--K', action='store',
                         dest='K',
                         default=100,
@@ -426,6 +431,7 @@ if __name__ == "__main__":
     print('tag                  = {!r}'.format(args.tag))
     print('alpha                = {!r}'.format(args.alpha))
     print('no_ibp               = {!r}'.format(args.no_ibp))
+    print('beta_1               = {!r}'.format(args.beta_1))
 
     seeds = list(range(1, 1 + args.runs))
 
@@ -489,15 +495,15 @@ if __name__ == "__main__":
             # Z matrix for each task is output
             # This is overwritten for each run
             ibp_acc, Zs, _ = run_vcl_ibp(hidden_size=hidden_size, alpha=alpha,
-                                               no_epochs= [int(no_epochs*1.2)] + [no_epochs]*(num_tasks-1), data_gen=data_gen,
-                                               name=name, val=val, batch_size=batch_size,
-                                               single_head=args.single_head, task_inf=task_inf,
-                                               prior_mean=prior_mean, prior_var=prior_var, alpha0=alpha0,
-                                               beta0=beta0, lambda_1=lambda_1, lambda_2=lambda_2,
-                                               learning_rate=[0.001]*num_tasks,
-                                               no_pred_samples=no_pred_samples, ibp_samples=ibp_samples, log_dir=args.log_dir,
-                                               use_local_reparam=args.use_local_reparam,
-                                               implicit_beta=True, hibp=args.hibp)
+                                         no_epochs= [int(no_epochs*1.2)] + [no_epochs]*(num_tasks-1), data_gen=data_gen,
+                                         name=name, val=val, batch_size=batch_size,
+                                         single_head=args.single_head, task_inf=task_inf,
+                                         prior_mean=prior_mean, prior_var=prior_var, alpha0=alpha0,
+                                         beta0=beta0, lambda_1=lambda_1, lambda_2=lambda_2,
+                                         learning_rate=[0.001]*num_tasks,
+                                         no_pred_samples=no_pred_samples, ibp_samples=ibp_samples, log_dir=args.log_dir,
+                                         use_local_reparam=args.use_local_reparam,
+                                         implicit_beta=True, hibp=args.hibp, beta_1=args.beta_1)
 
             all_Zs.append(Zs)
             if args.cl3:
