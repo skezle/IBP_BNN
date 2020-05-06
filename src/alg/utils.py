@@ -79,22 +79,14 @@ def get_scores(model, x_testsets, y_testsets, batch_size, single_head):
 def get_scores_entropy(model, x_testsets, y_testsets, batch_size, num_tasks):
     accs = []
     for i in range(len(x_testsets)):
-        uncerts, accs_task = [], []
+        uncerts = []
         x_test, y_test = x_testsets[i], y_testsets[i]
-        N = x_test.shape[0]
-        num_batches = int(np.ceil(N * 1.0 / batch_size))
-        for k in range(num_batches):
-            start_ind = k * batch_size
-            end_ind = np.min([(k + 1) * batch_size, N])
-            x_test_batch = x_test[start_ind:end_ind, :]
-            y_test_batch = y_test[start_ind:end_ind, :]
-            for j in range(num_tasks):
-                pe = predictive_entropy(model, x_test_batch, j, batch_size)
-                uncerts.append(np.mean(pe) - np.std(pe)) # Optimism
-            head = np.argmin(uncerts)
-            acc, _ = model.prediction_acc(x_test_batch, y_test_batch, batch_size, head)
-            accs_task.append(acc)
-        accs.append(np.mean(accs_task))
+        for j in range(num_tasks):
+            pe = predictive_entropy(model, x_test, j, batch_size)
+            uncerts.append(np.mean(pe) - np.std(pe)) # Optimism
+        head = np.argmin(uncerts)
+        acc, _ = model.prediction_acc(x_test, y_test, batch_size, head)
+        accs.append(acc)
     return accs
 
 def get_Zs(model, x_test, batch_size, task_id):
