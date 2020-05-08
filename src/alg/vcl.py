@@ -183,10 +183,10 @@ def run_vcl_ibp(hidden_size, alpha, no_epochs, data_gen, name,
 
         # get accuracies for all test sets seen so far
         if val:
-            acc_ent = get_scores_entropy(model, x_valsets, y_valsets, bsize, data_gen.max_iter)
+            acc_ent = get_scores_entropy(model, x_valsets, y_valsets, 600, data_gen.max_iter)
             acc = get_scores(model, x_valsets, y_valsets, bsize, single_head)
         else:
-            acc_ent = get_scores_entropy(model, x_testsets, y_testsets, bsize, data_gen.max_iter)
+            acc_ent = get_scores_entropy(model, x_testsets, y_testsets, 600, data_gen.max_iter)
             acc = get_scores(model, x_testsets, y_testsets, bsize, single_head)
         all_acc = concatenate_results(acc, all_acc)
         all_acc_ent = concatenate_results(acc_ent, all_acc_ent)
