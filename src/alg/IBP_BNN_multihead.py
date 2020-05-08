@@ -597,10 +597,10 @@ class IBP_BNN(Cla_NN):
             end_ind = np.min([(i + 1) * batch_size, N])
             batch_x = x_test[start_ind:end_ind, :]
             prob = sess.run([tf.nn.softmax(self.pred)], feed_dict={self.x: batch_x,
-                                                                        self.task_idx: task_idx,
-                                                                        self.training: False,
-                                                                        # self.lambda_1: 0.5,
-                                                                        })[0]
+                                                                   self.task_idx: task_idx,
+                                                                   self.training: False,
+                                                                   # self.lambda_1: 0.5,
+                                                                   })[0]
             probs.append(prob)
         return probs
 
