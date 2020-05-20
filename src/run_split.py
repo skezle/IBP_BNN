@@ -413,6 +413,18 @@ if __name__ == "__main__":
                         type=int,
                         default=[4],
                         help='H-IBP hyperparam.')
+    parser.add_argument('--optimism', action='store_true',
+                        default=False,
+                        dest='optimism',
+                        help='Whether to use optimism in the face of uncertainty when infering task head for CL2 and CL3.')
+    parser.add_argument('--pred_ent', action='store_false',
+                        default=True,
+                        dest='pred_ent',
+                        help='Whether to use predictive entropy or mutual information as a measure of uncertainty for task inference in CL2 and CL3.')
+    parser.add_argument('--use_uncert', action='store_true',
+                        default=False,
+                        dest='use_uncert',
+                        help='Whether the uncertainties of the uncertainties to help make choices for inferring CL2 and CL3.')
 
     args = parser.parse_args()
 
@@ -432,6 +444,9 @@ if __name__ == "__main__":
     print('alpha                = {!r}'.format(args.alpha))
     print('no_ibp               = {!r}'.format(args.no_ibp))
     print('beta_1               = {!r}'.format(args.beta_1))
+    print('optimism             = {!r}'.format(args.optimism))
+    print('pred_ent             = {!r}'.format(args.pred_ent))
+    print('use_uncert           = {!r}'.format(args.use_uncert))
 
     seeds = list(range(1, 1 + args.runs))
 
@@ -503,7 +518,8 @@ if __name__ == "__main__":
                                          learning_rate=[0.001]*num_tasks,
                                          no_pred_samples=no_pred_samples, ibp_samples=ibp_samples, log_dir=args.log_dir,
                                          use_local_reparam=args.use_local_reparam,
-                                         implicit_beta=True, hibp=args.hibp, beta_1=args.beta_1)
+                                         implicit_beta=True, hibp=args.hibp, beta_1=args.beta_1,
+                                         optimism=args.optimism, pred_ent=args.pred_ent, use_uncert=args.use_uncert)
 
             all_Zs.append(Zs)
             if args.cl3:
@@ -521,10 +537,11 @@ if __name__ == "__main__":
                 data_gen = get_datagen()
                 coreset_size = 0
                 vcl_result, _ = run_vcl(hidden_size, no_epochs, data_gen,
-                                              lambda a: a, coreset_size, batch_size,
-                                              single_head, task_inf, val=val,
-                                              name='vcl_h{0}_{1}_run{2}_{3}'.format(h, args.dataset, i+1, args.tag),
-                                              log_dir=args.log_dir, use_local_reparam=args.use_local_reparam)
+                                        lambda a: a, coreset_size, batch_size,
+                                        single_head, task_inf, val=val,
+                                        name='vcl_h{0}_{1}_run{2}_{3}'.format(h, args.dataset, i+1, args.tag),
+                                        log_dir=args.log_dir, use_local_reparam=args.use_local_reparam,
+                                        optimism=args.optimism, pred_ent=args.pred_ent, use_uncert=args.use_uncert)
                 if args.cl3:
                     baseline_accs[h][i, :, :] = vcl_result[1]
                 else:
