@@ -372,6 +372,10 @@ if __name__ == "__main__":
     parser.add_argument('--tag', action='store',
                         dest='tag',
                         help='Tag to use in naming file outputs')
+    parser.add_argument('--new_tag', action='store',
+                        dest='new_tag',
+                        default='',
+                        help='New tag to use to store pickle file if we are reloading a chackpoint with the tag arg.')
     parser.add_argument('--use_local_reparam', action='store_true',
                         default=False,
                         dest='use_local_reparam',
@@ -441,6 +445,7 @@ if __name__ == "__main__":
     print('h_list               = {!r}'.format(args.h_list))
     print('K                    = {!r}'.format(args.K))
     print('tag                  = {!r}'.format(args.tag))
+    print('new_tag              = {!r}'.format(args.new_tag))
     print('alpha                = {!r}'.format(args.alpha))
     print('no_ibp               = {!r}'.format(args.no_ibp))
     print('beta_1               = {!r}'.format(args.beta_1))
@@ -548,7 +553,7 @@ if __name__ == "__main__":
                     baseline_accs[h][0, i, :, :] = vcl_result[0]
                     baseline_accs[h][1, i, :, :] = vcl_result[1]
 
-    with open('results/split_mnist_{}.pkl'.format(args.tag), 'wb') as input_file:
+    with open('results/split_mnist_{0}_{1}.pkl'.format(args.tag, args.new_tag), 'wb') as input_file:
         pickle.dump({'vcl_ibp': vcl_ibp_accs,
                      'vcl_baselines': baseline_accs,
                      'uncerts_ibp': all_ibp_uncerts,
