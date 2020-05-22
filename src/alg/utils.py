@@ -41,13 +41,13 @@ def mutual_information(model, x_test, task_idx, bsize):
     return mi
 
 def predictive_entropy(model, x_test, task_idx, bsize):
-    mc_samples = [model.prediction_prob(x_test, task_idx, bsize) for _ in range(10)]
-    mc_samples = np.mean(np.concatenate(mc_samples, axis=0), axis=0)
-    # each element of mc_samples is no_pred_samples x batch_size x 2
     # pdb.set_trace()
-    mc_samples_ar = np.concatenate(mc_samples, axis=1) # no_pred_samples x test_size x 2
-    eps = 1e-16
-    expected_p = np.mean(mc_samples_ar, axis=0) # test_size x 2
+    mc_samples = [model.prediction_prob(x_test, task_idx, bsize) for _ in range(10)] # each item is a list of [no_preds, None, n_out]
+    mc_samples_ = [np.concatenate(item, axis=1) for item in mc_samples] # each item is a list of [no_preds, N_test, n_out]
+    mc_samples__ = np.concatenate(mc_samples_, axis=0) # ar of size 10xno_preds, N_test, n_out
+    # pdb.set_trace()
+    expected_p = mc_samples__.reshape(-1, mc_samples__.shape[-1]) # 10xno_predxtest_size, n_out
+    eps = 1e-10
     predictive_entropy = -np.sum(expected_p * np.log(expected_p + eps), axis=-1)  # (test_set_size, )
     return predictive_entropy # test_size: (n,)
 
@@ -77,9 +77,9 @@ def get_scores(model, x_testsets, y_testsets, batch_size, single_head):
         accs.append(acc)
     return accs
 
-def get_scores_entropy(model, x_testsets, y_testsets, batch_size, num_tasks, optimism=True, pred_ent=True, use_uncert=True):
+def get_scores_entropy(model, x_testsets, y_testsets, batch_size, optimism=True, pred_ent=True, use_uncert=True):
     accs = []
-    for i in range(len(x_testsets)):
+    for i in range(len(x_testsets)): # iterating over the test datasets
         uncerts, accs_task = [], []
         x_test, y_test = x_testsets[i], y_testsets[i]
         N = x_test.shape[0]
@@ -92,12 +92,12 @@ def get_scores_entropy(model, x_testsets, y_testsets, batch_size, num_tasks, opt
             end_ind = np.min([(k + 1) * bsize, N])
             x_test_batch = x_test[start_ind:end_ind, :]
             y_test_batch = y_test[start_ind:end_ind, :]
-            for j in range(num_tasks):
+            for j in range(len(x_testsets)): # iterating over the heads seen so far
                 if pred_ent:
                     u = predictive_entropy(model, x_test_batch, j, 128) # differnet batch size
                 else:
                     u = mutual_information(model, x_test_batch, j, 128)
-                obj = np.mean(u) - alpha*np.std(u) if optimism else np.mean(u) / np.std(u) # Optimism or Sharpe
+                obj = np.mean(u) - alpha*np.std(u) if optimism else -np.mean(u) / np.std(u) # Optimism or Sharpe
                 uncerts.append(obj)
             head = np.argmin(uncerts) if optimism else np.argmax(uncerts)
             acc, _ = model.prediction_acc(x_test_batch, y_test_batch, bsize, head)

@@ -55,7 +55,7 @@ def run_vcl(hidden_size, no_epochs, data_gen, coreset_method, coreset_size=0, ba
         mf_weights, mf_variances = mf_model.get_weights()
 
         # get accuracies for all test sets seen so far
-        acc_ent = get_scores_entropy(mf_model, x_testsets, y_testsets, bsize, data_gen.max_iter, optimism, pred_ent, use_uncert)
+        acc_ent = get_scores_entropy(mf_model, x_testsets, y_testsets, bsize, optimism, pred_ent, use_uncert)
         acc = get_scores(mf_model, x_testsets, y_testsets, bsize, single_head)
         all_acc = concatenate_results(acc, all_acc)
         all_acc_ent = concatenate_results(acc_ent, all_acc_ent)
@@ -185,10 +185,10 @@ def run_vcl_ibp(hidden_size, alpha, no_epochs, data_gen, name,
 
         # get accuracies for all test sets seen so far
         if val:
-            acc_ent = get_scores_entropy(model, x_valsets, y_valsets, None, data_gen.max_iter, optimism, pred_ent, use_uncert)
+            acc_ent = get_scores_entropy(model, x_valsets, y_valsets, None, optimism, pred_ent, use_uncert)
             acc = get_scores(model, x_valsets, y_valsets, bsize, single_head)
         else:
-            acc_ent = get_scores_entropy(model, x_testsets, y_testsets, None, data_gen.max_iter, optimism, pred_ent, use_uncert)
+            acc_ent = get_scores_entropy(model, x_testsets, y_testsets, None, optimism, pred_ent, use_uncert)
             acc = get_scores(model, x_testsets, y_testsets, bsize, single_head)
         all_acc = concatenate_results(acc, all_acc)
         all_acc_ent = concatenate_results(acc_ent, all_acc_ent)
