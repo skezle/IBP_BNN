@@ -7,11 +7,13 @@ from cla_models_multihead import Vanilla_NN, MFVI_NN
 from IBP_BNN_multihead import IBP_BNN
 from HIBP_BNN_multihead import HIBP_BNN
 
-def run_vcl(hidden_size, no_epochs, data_gen, coreset_method, coreset_size=0, batch_size=None, single_head=True, task_inf=False,
-            val=False, verbose=True, name='vcl', log_dir='logs', use_local_reparam=False,
-            optimism=False, pred_ent=True, use_uncert=False):
+def run_vcl(hidden_size, no_epochs, data_gen, coreset_method, coreset_size=0, batch_size=None,
+            single_head=True, task_inf=False, val=False, verbose=True, name='vcl', log_dir='logs',
+            use_local_reparam=False, optimism=False, pred_ent=True, use_uncert=False,
+            batch_size_entropy=None):
     assert not (single_head and task_inf), "Can't have both single head and task inference."
     x_testsets, y_testsets = [], []
+    x_coresets, y_coresets = [], []
 
     all_acc, all_acc_ent = np.array([]), np.array([])
     all_uncerts = np.zeros((data_gen.max_iter, data_gen.max_iter))
@@ -28,6 +30,14 @@ def run_vcl(hidden_size, no_epochs, data_gen, coreset_method, coreset_size=0, ba
             x_train, y_train, x_test, y_test = data_gen.next_task()
         x_testsets.append(x_test)
         y_testsets.append(y_test)
+
+        # Select coreset if needed
+        if coreset_size > 0:
+            x_coresets, y_coresets, x_train, y_train = coreset_method(x_coresets, y_coresets, x_train, y_train, coreset_size)
+            x_coresets_arr = np.concatenate(x_coresets, axis=0)
+            y_coresets_arr = np.concatenate(y_coresets, axis=0)
+            x_train = np.vstack(x_train, x_coresets_arr)
+            y_train = np.vstack(y_train, y_coresets_arr) # shuffling occurs down stream.
 
         # Set the readout head to train
         head = 0 if single_head else task_id
@@ -55,7 +65,7 @@ def run_vcl(hidden_size, no_epochs, data_gen, coreset_method, coreset_size=0, ba
         mf_weights, mf_variances = mf_model.get_weights()
 
         # get accuracies for all test sets seen so far
-        acc_ent = get_scores_entropy(mf_model, x_testsets, y_testsets, bsize, optimism, pred_ent, use_uncert)
+        acc_ent = get_scores_entropy(mf_model, x_testsets, y_testsets, batch_size_entropy, optimism, pred_ent, use_uncert)
         acc = get_scores(mf_model, x_testsets, y_testsets, bsize, single_head)
         all_acc = concatenate_results(acc, all_acc)
         all_acc_ent = concatenate_results(acc_ent, all_acc_ent)
@@ -64,7 +74,8 @@ def run_vcl(hidden_size, no_epochs, data_gen, coreset_method, coreset_size=0, ba
 
     return [all_acc, all_acc_ent], all_uncerts
 
-def run_vcl_ibp(hidden_size, alpha, no_epochs, data_gen, name,
+def run_vcl_ibp(hidden_size, alpha, no_epochs, data_gen,
+                coreset_method, coreset_size, name,
                 val, batch_size=None, single_head=False, task_inf=False,
                 prior_mean=0.0, prior_var=1.0, alpha0=5.0,
                 beta0 = 1.0, lambda_1 = 1.0, lambda_2 = 1.0, learning_rate=0.001,
@@ -73,13 +84,14 @@ def run_vcl_ibp(hidden_size, alpha, no_epochs, data_gen, name,
                 log_dir='logs', tb_logging=True,
                 use_local_reparam=False, implicit_beta=True,
                 hibp=False, beta_1=1.0, beta_2=1.0, beta_3=1.0,
-                optimism=False, pred_ent=True, use_uncert=False):
+                optimism=False, pred_ent=True, use_uncert=False, batch_size_entropy=None):
 
     assert not (single_head and task_inf), "Can't have both single head and task inference at the same time."
     all_acc, all_acc_ent = np.array([]), np.array([])
     all_uncerts = np.zeros((data_gen.max_iter, data_gen.max_iter))
     x_testsets, y_testsets = [], []
     x_valsets, y_valsets = [], []
+    x_coresets, y_coresets = [], []
     Zs = []
     all_x_testsets, all_y_testsets = [], []
 
@@ -106,6 +118,14 @@ def run_vcl_ibp(hidden_size, alpha, no_epochs, data_gen, name,
             x_train, y_train, x_test, y_test = data_gen.next_task()
         x_testsets.append(x_test)
         y_testsets.append(y_test)
+
+        # Select coreset if needed
+        if coreset_size > 0:
+            x_coresets, y_coresets, x_train, y_train = coreset_method(x_coresets, y_coresets, x_train, y_train, coreset_size)
+            x_coresets_arr = np.concatenate(x_coresets, axis=0)
+            y_coresets_arr = np.concatenate(y_coresets, axis=0)
+            x_train = np.vstack((x_train, x_coresets_arr))
+            y_train = np.vstack((y_train, y_coresets_arr))  # shuffling occurs down stream.
 
         # Set the readout head to train
         head = 0 if single_head else task_id
@@ -185,10 +205,10 @@ def run_vcl_ibp(hidden_size, alpha, no_epochs, data_gen, name,
 
         # get accuracies for all test sets seen so far
         if val:
-            acc_ent = get_scores_entropy(model, x_valsets, y_valsets, None, optimism, pred_ent, use_uncert)
+            acc_ent = get_scores_entropy(model, x_valsets, y_valsets, batch_size_entropy, optimism, pred_ent, use_uncert)
             acc = get_scores(model, x_valsets, y_valsets, bsize, single_head)
         else:
-            acc_ent = get_scores_entropy(model, x_testsets, y_testsets, None, optimism, pred_ent, use_uncert)
+            acc_ent = get_scores_entropy(model, x_testsets, y_testsets, batch_size_entropy, optimism, pred_ent, use_uncert)
             acc = get_scores(model, x_testsets, y_testsets, bsize, single_head)
         all_acc = concatenate_results(acc, all_acc)
         all_acc_ent = concatenate_results(acc_ent, all_acc_ent)

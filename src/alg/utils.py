@@ -7,7 +7,7 @@ import matplotlib
 matplotlib.use('agg')
 import matplotlib.pyplot as plt
 
-eps = 1e-16
+eps = 1e-10
 
 def get_uncertainties(model, x_testsets, y_testsets, single_head, task_id, bsize):
     # uncertainties of test set like in Uncertainty in Deep Learning
@@ -21,35 +21,34 @@ def get_uncertainties(model, x_testsets, y_testsets, single_head, task_id, bsize
         uncert.append(pe)
     return uncert
 
-def mutual_information(model, x_test, task_idx, bsize):
-    """ Based off of Yarin's thesis.
+def predictive_entropy(model, x_test, task_idx, bsize, reps=1):
+    # pdb.set_trace()
+    mc_samples = [model.prediction_prob(x_test, task_idx, bsize) for _ in range(reps)] # each item is a list of [no_preds, None, n_out]
+    mc_samples_ = [np.concatenate(item, axis=1) for item in mc_samples] # each item is a list of [no_preds, N_test, n_out]
+    mc_samples__ = np.concatenate(mc_samples_, axis=0) # ar of size 10xno_preds, N_test, n_out
+    # pdb.set_trace()
+    mc_arr = mc_samples__.reshape(-1, mc_samples__.shape[-1]) # 10xno_predxtest_size, n_out
+    predictive_entropy = -np.sum(mc_arr * np.log(mc_arr + eps), axis=-1)  # (test_set_size, )
+    return predictive_entropy # test_size: (n,)
 
+def mutual_information(model, x_test, task_idx, bsize, reps=1):
+    """
     :param model: BNN model object
     :param x_test: test data (n, d)
     :param task_idx: int
     :return:
     """
-    mc_samples = [model.prediction_prob(x_test, task_idx, bsize) for _ in range(10)]
-    mc_samples_ar = np.concatenate(mc_samples, axis=0)
-    #pdb.set_trace()
-    eps = 1e-16
-    expected_p = np.mean(mc_samples_ar, axis=0)
-    predictive_entropy = -np.sum(expected_p * np.log(expected_p+eps), axis=-1) # (test_set_size, )
-    mc_entropy = np.sum(mc_samples_ar * np.log(mc_samples_ar+eps), axis=-1)
-    expected_entropy = -np.mean(mc_entropy, axis=0) # (test_set_size, )
-    mi = np.mean(predictive_entropy - expected_entropy)
+    # expected entropy part
+    pe = predictive_entropy(model, x_test, task_idx, bsize) # (test_size,)
+    # expected entropy part
+    mc_samples = [model.prediction_prob(x_test, task_idx, bsize) for _ in range(reps)]
+    mc_samples_ = [np.concatenate(item, axis=1) for item in mc_samples]  # each item is a list of [no_preds, N_test, n_out]
+    mc_samples__ = np.concatenate(mc_samples_, axis=0)  # ar of size 10xno_preds, N_test, n_out
+    mc_arr = mc_samples__.reshape(-1, mc_samples__.shape[-1])  # 10xno_predxtest_size, n_out
+    mc_entropy = np.sum(mc_arr * np.log(mc_arr+eps), axis=-1) # (test_set_size, )
+    expected_entropy = -np.mean(mc_entropy, axis=0) # (1, )
+    mi = pe - expected_entropy
     return mi
-
-def predictive_entropy(model, x_test, task_idx, bsize):
-    # pdb.set_trace()
-    mc_samples = [model.prediction_prob(x_test, task_idx, bsize) for _ in range(10)] # each item is a list of [no_preds, None, n_out]
-    mc_samples_ = [np.concatenate(item, axis=1) for item in mc_samples] # each item is a list of [no_preds, N_test, n_out]
-    mc_samples__ = np.concatenate(mc_samples_, axis=0) # ar of size 10xno_preds, N_test, n_out
-    # pdb.set_trace()
-    expected_p = mc_samples__.reshape(-1, mc_samples__.shape[-1]) # 10xno_predxtest_size, n_out
-    eps = 1e-10
-    predictive_entropy = -np.sum(expected_p * np.log(expected_p + eps), axis=-1)  # (test_set_size, )
-    return predictive_entropy # test_size: (n,)
 
 def concatenate_results(score, all_score):
     """New row is added to scores. Matrix: rows are the task

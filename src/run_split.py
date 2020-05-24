@@ -8,6 +8,7 @@ import os.path
 import argparse
 sys.path.extend(['alg/'])
 from vcl import run_vcl, run_vcl_ibp
+import coreset
 from copy import deepcopy
 
 from skimage.color import rgb2gray
@@ -421,14 +422,18 @@ if __name__ == "__main__":
                         default=False,
                         dest='optimism',
                         help='Whether to use optimism in the face of uncertainty when infering task head for CL2 and CL3.')
-    parser.add_argument('--pred_ent', action='store_false',
-                        default=True,
-                        dest='pred_ent',
+    parser.add_argument('--mutual_info', action='store_true',
+                        default=False,
+                        dest='mutual_info',
                         help='Whether to use predictive entropy or mutual information as a measure of uncertainty for task inference in CL2 and CL3.')
     parser.add_argument('--use_uncert', action='store_true',
                         default=False,
                         dest='use_uncert',
                         help='Whether the uncertainties of the uncertainties to help make choices for inferring CL2 and CL3.')
+    parser.add_argument('--rand_coreset', action='store_true',
+                        default=False,
+                        dest='rand_coreset',
+                        help='Whether to use a random coreset.')
 
     args = parser.parse_args()
 
@@ -450,8 +455,9 @@ if __name__ == "__main__":
     print('no_ibp               = {!r}'.format(args.no_ibp))
     print('beta_1               = {!r}'.format(args.beta_1))
     print('optimism             = {!r}'.format(args.optimism))
-    print('pred_ent             = {!r}'.format(args.pred_ent))
+    print('mutual_info          = {!r}'.format(args.mutual_info))
     print('use_uncert           = {!r}'.format(args.use_uncert))
+    print('rand_coreset         = {!r}'.format(args.rand_coreset))
 
     seeds = list(range(1, 1 + args.runs))
 
@@ -494,18 +500,22 @@ if __name__ == "__main__":
     lambda_1 = 0.7 # posterior
     lambda_2 = 0.7 # prior
     alpha = args.alpha
-    # Gaussian params
+    # Gaussian prior params
     prior_mean = 0.0
     prior_var = 0.7
+    # Other params
+    batch_size = 512
+    batch_size_entropy = 2000
+    no_epochs = 600
+    ibp_samples = 10
+    no_pred_samples = 100
+    hidden_size = [args.K] * args.num_layers
+    # Coreset params
+    coreset_size = 500 if args.rand_coreset else 0
+    coreset_method = coreset.rand_from_batch if args.rand_coreset else lambda a: a
 
     for i in range(len(seeds)):
         s = seeds[i]
-        hidden_size = [args.K] * args.num_layers
-        batch_size = 128
-        no_epochs = 600
-        ibp_samples = 10
-        no_pred_samples = 100
-
         tf.set_random_seed(s)
         np.random.seed(1)
 
@@ -515,7 +525,9 @@ if __name__ == "__main__":
             # Z matrix for each task is output
             # This is overwritten for each run
             ibp_acc, Zs, _ = run_vcl_ibp(hidden_size=hidden_size, alpha=alpha,
-                                         no_epochs= [int(no_epochs*1.2)] + [no_epochs]*(num_tasks-1), data_gen=data_gen,
+                                         no_epochs= [int(no_epochs*1.2)] + [no_epochs]*(num_tasks-1),
+                                         data_gen=data_gen, coreset_method=coreset_method,
+                                         coreset_size=coreset_size,
                                          name=name, val=val, batch_size=batch_size,
                                          single_head=args.single_head, task_inf=task_inf,
                                          prior_mean=prior_mean, prior_var=prior_var, alpha0=alpha0,
@@ -524,7 +536,8 @@ if __name__ == "__main__":
                                          no_pred_samples=no_pred_samples, ibp_samples=ibp_samples, log_dir=args.log_dir,
                                          use_local_reparam=args.use_local_reparam,
                                          implicit_beta=True, hibp=args.hibp, beta_1=args.beta_1,
-                                         optimism=args.optimism, pred_ent=args.pred_ent, use_uncert=args.use_uncert)
+                                         optimism=args.optimism, pred_ent=False if args.mutual_info else True,
+                                         use_uncert=args.use_uncert, batch_size_entropy=batch_size_entropy)
 
             all_Zs.append(Zs)
             if args.cl3:
@@ -540,13 +553,13 @@ if __name__ == "__main__":
                 tf.reset_default_graph()
                 hidden_size = [h] * args.num_layers
                 data_gen = get_datagen()
-                coreset_size = 0
                 vcl_result, _ = run_vcl(hidden_size, no_epochs, data_gen,
-                                        lambda a: a, coreset_size, batch_size,
+                                        coreset_method, coreset_size, batch_size,
                                         single_head, task_inf, val=val,
                                         name='vcl_h{0}_{1}_run{2}_{3}'.format(h, args.dataset, i+1, args.tag),
                                         log_dir=args.log_dir, use_local_reparam=args.use_local_reparam,
-                                        optimism=args.optimism, pred_ent=args.pred_ent, use_uncert=args.use_uncert)
+                                        optimism=args.optimism, pred_ent=False if args.mutual_info else True,
+                                        use_uncert=args.use_uncert, batch_size_entropy=batch_size_entropy)
                 if args.cl3:
                     baseline_accs[h][i, :, :] = vcl_result[1]
                 else:
