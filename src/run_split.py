@@ -544,11 +544,8 @@ if __name__ == "__main__":
                                          use_uncert=args.use_uncert, batch_size_entropy=batch_size_entropy)
 
             all_Zs.append(Zs)
-            if args.cl3:
-                vcl_ibp_accs[i, :, :] = ibp_acc[1]
-            else:
-                vcl_ibp_accs[0, i, :, :] = ibp_acc[0]
-                vcl_ibp_accs[1, i, :, :] = ibp_acc[1]
+            vcl_ibp_accs[0, i, :, :] = ibp_acc[0]
+            vcl_ibp_accs[1, i, :, :] = ibp_acc[1]
 
         if args.run_baselines:
             # Run Vanilla VCL
@@ -564,11 +561,9 @@ if __name__ == "__main__":
                                         log_dir=args.log_dir, use_local_reparam=args.use_local_reparam,
                                         optimism=args.optimism, pred_ent=False if args.mutual_info else True,
                                         use_uncert=args.use_uncert, batch_size_entropy=batch_size_entropy)
-                if args.cl3:
-                    baseline_accs[h][i, :, :] = vcl_result[1]
-                else:
-                    baseline_accs[h][0, i, :, :] = vcl_result[0]
-                    baseline_accs[h][1, i, :, :] = vcl_result[1]
+
+                baseline_accs[h][0, i, :, :] = vcl_result[0]
+                baseline_accs[h][1, i, :, :] = vcl_result[1]
 
     with open('results/split_mnist_{0}_{1}.pkl'.format(args.tag, args.new_tag), 'wb') as input_file:
         pickle.dump({'vcl_ibp': vcl_ibp_accs,

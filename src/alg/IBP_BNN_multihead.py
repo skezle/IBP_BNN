@@ -34,6 +34,7 @@ class IBP_BNN(Cla_NN):
         self.beta_2 = beta_2
         self.beta_3 = beta_3
         self.log_folder = os.path.join(self.tensorboard_dir, "graph_{}".format(self.name))
+        print(self.log_folder)
         self.use_local_reparam = use_local_reparam
         self.implicit_beta = implicit_beta
         self.no_train_samples = no_train_samples

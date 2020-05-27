@@ -67,8 +67,16 @@ def concatenate_results(score, all_score):
         all_score = np.vstack((new_arr, score))
     return all_score
 
-def get_scores(model, x_testsets, y_testsets, batch_size, single_head):
+def get_scores(model, x_testsets, y_testsets, x_coresets, y_coresets, batch_size, single_head):
     accs = []
+    if len(x_coresets) > 0:
+        if single_head:
+            raise ValueError
+        else:
+            for i in range(len(x_coresets)):
+                x_train, y_train = x_coresets[i], y_coresets[i]
+                model.train(x_train, y_train, i, 500, 100)
+
     for i in range(len(x_testsets)):
         head = 0 if single_head else i
         x_test, y_test = x_testsets[i], y_testsets[i]
