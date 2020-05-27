@@ -434,6 +434,10 @@ if __name__ == "__main__":
                         default=False,
                         dest='rand_coreset',
                         help='Whether to use a random coreset.')
+    parser.add_argument('--batch_entropy', action='store_true',
+                        default=False,
+                        dest='batch_entropy',
+                        help='Whether to use batches when calculating uncertainties for cl2 and cl3.')
 
     args = parser.parse_args()
 
@@ -505,11 +509,10 @@ if __name__ == "__main__":
     prior_var = 0.7
     # Other params
     batch_size = 512
-    batch_size_entropy = 2000
+    batch_size_entropy = 1500 if args.batch_entropy else None
     no_epochs = 600
     ibp_samples = 10
     no_pred_samples = 100
-    hidden_size = [args.K] * args.num_layers
     # Coreset params
     coreset_size = 500 if args.rand_coreset else 0
     coreset_method = coreset.rand_from_batch if args.rand_coreset else lambda a: a
@@ -522,6 +525,7 @@ if __name__ == "__main__":
         if not args.no_ibp:
             data_gen = get_datagen()
             name = "split_{0}_run{1}_{2}".format(args.dataset, i + 1, args.tag)
+            hidden_size = [args.K] * args.num_layers
             # Z matrix for each task is output
             # This is overwritten for each run
             ibp_acc, Zs, _ = run_vcl_ibp(hidden_size=hidden_size, alpha=alpha,

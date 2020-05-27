@@ -36,8 +36,8 @@ def run_vcl(hidden_size, no_epochs, data_gen, coreset_method, coreset_size=0, ba
             x_coresets, y_coresets, x_train, y_train = coreset_method(x_coresets, y_coresets, x_train, y_train, coreset_size)
             x_coresets_arr = np.concatenate(x_coresets, axis=0)
             y_coresets_arr = np.concatenate(y_coresets, axis=0)
-            x_train = np.vstack(x_train, x_coresets_arr)
-            y_train = np.vstack(y_train, y_coresets_arr) # shuffling occurs down stream.
+            x_train = np.vstack((x_train, x_coresets_arr))
+            y_train = np.vstack((y_train, y_coresets_arr)) # shuffling occurs down stream.
 
         # Set the readout head to train
         head = 0 if single_head else task_id
@@ -110,6 +110,7 @@ def run_vcl_ibp(hidden_size, alpha, no_epochs, data_gen,
         in_dim, out_dim = data_gen.get_dims()
 
         tf.reset_default_graph()
+
         if val:
             x_train, y_train, x_test, y_test, x_val, y_val = data_gen.next_task()
             x_valsets.append(x_val)
