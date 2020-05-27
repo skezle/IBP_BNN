@@ -113,6 +113,11 @@ if __name__ == "__main__":
                         default=1,
                         type=int,
                         help='Number runs to perform.')
+    parser.add_argument('--num_tasks', action='store',
+                        dest='num_tasks',
+                        default=5,
+                        type=int,
+                        help='Number permutations/tasks to perform.')
     args = parser.parse_args()
 
     print('cl2                  = {!r}'.format(args.cl2))
@@ -126,9 +131,10 @@ if __name__ == "__main__":
     print('K                    = {!r}'.format(args.K))
     print('no_ibp               = {!r}'.format(args.no_ibp))
     print('runs                 = {!r}'.format(args.runs))
+    print('num_tasks            = {!r}'.format(args.num_tasks))
 
     seeds = list(range(1, 1 + args.runs))
-    num_tasks = 5
+    num_tasks = args.num_tasks
     single_head = args.cl2
     task_inf = args.cl3
 
@@ -149,21 +155,25 @@ if __name__ == "__main__":
     no_epochs = 200
     ibp_samples = 10
 
+    # Coreset params
+    coreset_size = 0
+    coreset_method = lambda a: a
+
     val = True
     for i in range(len(seeds)):
         s = seeds[i]
         tf.set_random_seed(s)
         np.random.seed(1)
 
-        coreset_size = 0
         if not args.no_ibp:
             data_gen = PermutedMnistGenerator(num_tasks, val=val)
             name = "ibp_{0}_run{1}_{2}".format("perm", i + 1, args.tag)
             # Z matrix for each task is output
             # This is overwritten for each run
-            ibp_acc, Zs, uncerts = run_vcl_ibp(hidden_size=hidden_size, alphas=[alpha]*len(hidden_size),
+            ibp_acc, Zs, uncerts = run_vcl_ibp(hidden_size=hidden_size, alpha=[alpha]*len(hidden_size),
                                                no_epochs=[no_epochs]*num_tasks,
-                                               data_gen=data_gen, name=name, val=val, batch_size=batch_size,
+                                               data_gen=data_gen, coreset_method=coreset_method,
+                                               coreset_size=coreset_size, name=name, val=val, batch_size=batch_size,
                                                single_head=single_head, task_inf=task_inf,
                                                alpha0=alpha0, beta0=beta0,
                                                lambda_1=lambda_1, lambda_2=lambda_2,
@@ -181,7 +191,7 @@ if __name__ == "__main__":
                 hidden_size = [h] * args.num_layers
                 data_gen = PermutedMnistGenerator(num_tasks, val=val)
                 vcl_result, uncerts = run_vcl(hidden_size, no_epochs, data_gen,
-                                              lambda a: a, coreset_size, batch_size, single_head,
+                                              coreset_method, coreset_size, batch_size, single_head,
                                               task_inf, val=val,
                                               name='vcl_perm_h{0}_{1}_run{2}'.format(h, args.tag, i + 1),
                                               log_dir=args.log_dir)

@@ -86,8 +86,6 @@ def get_scores(model, x_testsets, y_testsets, x_coresets, y_coresets, batch_size
 
 def get_scores_entropy(model, x_testsets, y_testsets, batch_size, optimism=True, pred_ent=True, use_uncert=True):
     accs = []
-    if len(x_testsets) > 1:
-        pdb.set_trace()
     for i in range(len(x_testsets)): # iterating over the test datasets
         uncerts, accs_task = [], []
         x_test, y_test = x_testsets[i], y_testsets[i]

@@ -488,12 +488,8 @@ if __name__ == "__main__":
 
     num_tasks = get_datagen().max_iter
 
-    if args.cl3:
-        vcl_ibp_accs = np.zeros((len(seeds), num_tasks, num_tasks))
-        baseline_accs = {h: np.zeros((len(seeds), num_tasks, num_tasks)) for h in args.h_list}
-    else:
-        vcl_ibp_accs = np.zeros((2, len(seeds), num_tasks, num_tasks))  # 2 for cl1 and cl2 results
-        baseline_accs = {h: np.zeros((2, len(seeds), num_tasks, num_tasks)) for h in args.h_list}
+    vcl_ibp_accs = np.zeros((2, len(seeds), num_tasks, num_tasks))  # 2 for cl1 and cl2 results
+    baseline_accs = {h: np.zeros((2, len(seeds), num_tasks, num_tasks)) for h in args.h_list}
     all_ibp_uncerts = np.zeros((len(seeds), num_tasks, num_tasks))
     baseline_uncerts = {h: np.zeros((len(seeds), num_tasks, num_tasks)) for h in args.h_list}
     all_Zs = []
@@ -544,8 +540,8 @@ if __name__ == "__main__":
                                          use_uncert=args.use_uncert, batch_size_entropy=batch_size_entropy)
 
             all_Zs.append(Zs)
-            vcl_ibp_accs[0, i, :, :] = ibp_acc[0]
-            vcl_ibp_accs[1, i, :, :] = ibp_acc[1]
+            vcl_ibp_accs[0, i, :, :] = ibp_acc[0] # task known
+            vcl_ibp_accs[1, i, :, :] = ibp_acc[1] # task infered
 
         if args.run_baselines:
             # Run Vanilla VCL

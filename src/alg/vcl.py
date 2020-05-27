@@ -34,10 +34,6 @@ def run_vcl(hidden_size, no_epochs, data_gen, coreset_method, coreset_size=0, ba
         # Select coreset if needed
         if coreset_size > 0:
             x_coresets, y_coresets, x_train, y_train = coreset_method(x_coresets, y_coresets, x_train, y_train, coreset_size)
-            x_coresets_arr = np.concatenate(x_coresets, axis=0)
-            y_coresets_arr = np.concatenate(y_coresets, axis=0)
-            x_train = np.vstack((x_train, x_coresets_arr))
-            y_train = np.vstack((y_train, y_coresets_arr)) # shuffling occurs down stream.
 
         # Set the readout head to train
         head = 0 if single_head else task_id
@@ -65,8 +61,8 @@ def run_vcl(hidden_size, no_epochs, data_gen, coreset_method, coreset_size=0, ba
         mf_weights, mf_variances = mf_model.get_weights()
 
         # get accuracies for all test sets seen so far
+        acc = get_scores(mf_model, x_testsets, y_testsets, x_coresets, y_coresets, bsize, single_head)
         acc_ent = get_scores_entropy(mf_model, x_testsets, y_testsets, batch_size_entropy, optimism, pred_ent, use_uncert)
-        acc = get_scores(mf_model, x_testsets, y_testsets, bsize, single_head)
         all_acc = concatenate_results(acc, all_acc)
         all_acc_ent = concatenate_results(acc_ent, all_acc_ent)
 
