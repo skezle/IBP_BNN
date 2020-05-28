@@ -9,7 +9,7 @@ from HIBP_BNN_multihead import HIBP_BNN
 
 def run_vcl(hidden_size, no_epochs, data_gen, coreset_method, coreset_size=0, batch_size=None,
             single_head=True, task_inf=False, val=False, verbose=True, name='vcl', log_dir='logs',
-            use_local_reparam=False, optimism=False, pred_ent=True, use_uncert=False,
+            use_local_reparam=False, optimism=True, pred_ent=True, use_uncert=False,
             batch_size_entropy=None):
     assert not (single_head and task_inf), "Can't have both single head and task inference."
     x_testsets, y_testsets = [], []
@@ -80,7 +80,7 @@ def run_vcl_ibp(hidden_size, alpha, no_epochs, data_gen,
                 log_dir='logs', tb_logging=True,
                 use_local_reparam=False, implicit_beta=True,
                 hibp=False, beta_1=1.0, beta_2=1.0, beta_3=1.0,
-                optimism=False, pred_ent=True, use_uncert=False, batch_size_entropy=None):
+                optimism=True, pred_ent=True, use_uncert=False, batch_size_entropy=None):
 
     assert not (single_head and task_inf), "Can't have both single head and task inference at the same time."
     all_acc, all_acc_ent = np.array([]), np.array([])

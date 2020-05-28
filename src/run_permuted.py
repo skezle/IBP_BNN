@@ -138,8 +138,8 @@ if __name__ == "__main__":
     single_head = args.cl2
     task_inf = args.cl3
 
-    vcl_ibp_accs = np.zeros((len(seeds), num_tasks, num_tasks))
-    baseline_accs = {h: np.zeros((len(seeds), num_tasks, num_tasks)) for h in args.h_list}
+    vcl_ibp_accs = np.zeros((2, len(seeds), num_tasks, num_tasks))
+    baseline_accs = {h: np.zeros((2, len(seeds), num_tasks, num_tasks)) for h in args.h_list}
     all_ibp_uncerts = np.zeros((len(seeds), num_tasks, num_tasks))
     baseline_uncerts = {h: np.zeros((len(seeds), num_tasks, num_tasks)) for h in args.h_list}
     all_Zs = []
@@ -181,7 +181,8 @@ if __name__ == "__main__":
                                                log_dir=args.log_dir,
                                                implicit_beta=True, hibp=args.hibp)
             all_Zs.append(Zs)
-            vcl_ibp_accs[i, :, :] = ibp_acc
+            vcl_ibp_accs[0, i, :, :] = ibp_acc[0]
+            vcl_ibp_accs[1, i, :, :] = ibp_acc[1]
             all_ibp_uncerts[i, :, :] = uncerts
 
         # Run Vanilla VCL
@@ -195,7 +196,8 @@ if __name__ == "__main__":
                                               task_inf, val=val,
                                               name='vcl_perm_h{0}_{1}_run{2}'.format(h, args.tag, i + 1),
                                               log_dir=args.log_dir)
-                baseline_accs[h][i, :, :] = vcl_result
+                baseline_accs[h][0, i, :, :] = vcl_result[0]
+                baseline_accs[h][1, i, :, :] = vcl_result[1]
                 baseline_uncerts[h][i, :, :] = uncerts
 
 
