@@ -51,6 +51,9 @@ def run_vcl(hidden_size, no_epochs, data_gen, coreset_method, coreset_size=0, ba
         mf_model = MFVI_NN(in_dim, hidden_size, out_dim, x_train.shape[0], prev_means=mf_weights, prev_log_variances=mf_variances,
                            name="{0}_task{1}".format(name, task_id+1), tensorboard_dir=log_dir, use_local_reparam=use_local_reparam)
 
+        # for coresets
+        hparams = tf.contrib.training.HParams(name="{0}_task{1}".format(name, task_id+1), tensorboard_dir=log_dir, use_local_reparam=use_local_reparam)
+
         if os.path.isdir(mf_model.log_folder):
             print("Restoring model from {}".format(mf_model.log_folder))
             mf_model.restore(mf_model.log_folder)
@@ -61,8 +64,11 @@ def run_vcl(hidden_size, no_epochs, data_gen, coreset_method, coreset_size=0, ba
         mf_weights, mf_variances = mf_model.get_weights()
 
         # get accuracies for all test sets seen so far
-        acc = get_scores(mf_model, x_testsets, y_testsets, x_coresets, y_coresets, bsize, single_head)
-        acc_ent = get_scores_entropy(mf_model, x_testsets, y_testsets, batch_size_entropy, optimism, pred_ent, use_uncert)
+        acc = get_scores(mf_model, x_testsets, y_testsets, x_coresets, y_coresets, bsize, single_head,
+                         hparams, ibp=False, hibp=False)
+        acc_ent = get_scores_entropy(mf_model, x_testsets, y_testsets, x_coresets, y_coresets, single_head,
+                                     hparams, ibp=False, hibp=False, batch_size=batch_size_entropy,
+                                     optimism=optimism, pred_ent=pred_ent, use_uncert=use_uncert)
         all_acc = concatenate_results(acc, all_acc)
         all_acc_ent = concatenate_results(acc_ent, all_acc_ent)
 
@@ -187,6 +193,14 @@ def run_vcl_ibp(hidden_size, alpha, no_epochs, data_gen,
                             implicit_beta=implicit_beta,
                             beta_1=b1, beta_2=beta_2, beta_3=beta_3)
 
+        # for coresets
+        hparams = tf.contrib.training.HParams(a=a, num_ibp_samples=ibp_samples,
+                 alpha0=alpha0, beta0=beta0, learning_rate=lr, learning_rate_decay=learning_rate_decay,
+                 prior_mean=prior_mean, prior_var=prior_var, lambda_1=lambda_1, lambda_2=lambda_2 if task_id == 0 else lambda_1,
+                 no_pred_samples=no_pred_samples, tensorboard_dir=log_dir, tb_logging=tb_logging,
+                 name='{0}_task{1}'.format(name, task_id + 1), use_local_reparam=use_local_reparam,
+                 implicit_beta=implicit_beta, beta_1=b1, beta_2=beta_2, beta_3=beta_3)
+
         model.create_model()
         if os.path.isdir(model.log_folder):
             print("Restoring model: {}".format(model.log_folder))
@@ -198,11 +212,19 @@ def run_vcl_ibp(hidden_size, alpha, no_epochs, data_gen,
 
         # get accuracies for all test sets seen so far
         if val:
-            acc = get_scores(model, x_valsets, y_valsets, x_coresets, y_coresets, bsize, single_head)
-            acc_ent = get_scores_entropy(model, x_valsets, y_valsets, batch_size_entropy, optimism, pred_ent, use_uncert)
+            acc = get_scores(model, x_valsets, y_valsets, x_coresets, y_coresets, bsize, single_head,
+                             hparams, ibp=False if hibp else True, hibp=True if hibp else False)
+            acc_ent = get_scores_entropy(model, x_valsets, y_valsets, x_coresets, y_coresets, single_head,
+                                         hparams, ibp=False if hibp else True, hibp=True if hibp else False,
+                                         batch_size=batch_size_entropy, optimism=optimism, pred_ent=pred_ent,
+                                         use_uncert=use_uncert)
         else:
-            acc = get_scores(model, x_testsets, y_testsets, x_coresets, y_coresets, bsize, single_head)
-            acc_ent = get_scores_entropy(model, x_testsets, y_testsets, batch_size_entropy, optimism, pred_ent, use_uncert)
+            acc = get_scores(model, x_testsets, y_testsets, x_coresets, y_coresets, bsize, single_head,
+                             hparams, ibp=False if hibp else True, hibp=True if hibp else False)
+            acc_ent = get_scores_entropy(model, x_testsets, y_testsets, x_coresets, y_coresets, single_head,
+                                         hparams, ibp=False if hibp else True, hibp=True if hibp else False,
+                                         batch_size=batch_size_entropy, optimism=optimism, pred_ent=pred_ent,
+                                         use_uncert=use_uncert)
         all_acc = concatenate_results(acc, all_acc)
         all_acc_ent = concatenate_results(acc_ent, all_acc_ent)
 

@@ -7,6 +7,10 @@ import matplotlib
 matplotlib.use('agg')
 import matplotlib.pyplot as plt
 
+from cla_models_multihead import MFVI_NN
+from IBP_BNN_multihead import IBP_BNN
+from HIBP_BNN_multihead import HIBP_BNN
+
 eps = 1e-10
 
 def get_uncertainties(model, x_testsets, y_testsets, single_head, task_id, bsize):
@@ -67,25 +71,117 @@ def concatenate_results(score, all_score):
         all_score = np.vstack((new_arr, score))
     return all_score
 
-def get_scores(model, x_testsets, y_testsets, x_coresets, y_coresets, batch_size, single_head):
+def get_scores(model, x_testsets, y_testsets, x_coresets, y_coresets, batch_size, single_head,
+               hparams, ibp, hibp):
     accs = []
+    if ibp or hibp:
+        mf_weights, mf_variances, betas = model.get_weights()
+    else:
+        mf_weights, mf_variances = model.get_weights()
+
     if len(x_coresets) > 0:
         if single_head:
             raise ValueError
         else:
             for i in range(len(x_coresets)):
                 x_train, y_train = x_coresets[i], y_coresets[i]
-                model.train(x_train, y_train, i, 500, 100)
+                if ibp:
+                    final_model = IBP_BNN(x_train.shape[1], hparams.hidden_size, y_train.shape[0], x_train.shape[0],
+                                    num_ibp_samples=hparams.ibp_samples, prev_means=mf_weights,
+                                    prev_log_variances=mf_variances, prev_betas=betas, alpha0=hparams.alpha0,
+                                    beta0=hparams.beta0, learning_rate=hparams.lr, prior_mean=hparams.prior_mean,
+                                    prior_var=hparams.prior_var, lambda_1=hparams.lambda_1,
+                                    lambda_2=hparams.lambda_2 if i == 0 else hparams.lambda_1,
+                                    no_pred_samples=hparams.no_pred_samples,
+                                    tensorboard_dir=hparams.log_dir, tb_logging=hparams.tb_logging,
+                                    name='{0}_coreset{1}'.format(hparams.name, i + 1),
+                                    use_local_reparam=hparams.use_local_reparam,
+                                    implicit_beta=hparams.implicit_beta,
+                                    beta_1=hparams.b1, beta_2=hparams.beta_2, beta_3=hparams.beta_3)
+                elif hibp:
+                    final_model = HIBP_BNN(hparams.a, x_train.shape[1], hparams.hidden_size, y_train.shape[0],
+                                     x_train.shape[0], num_ibp_samples=hparams.ibp_samples, prev_means=mf_weights,
+                                     prev_log_variances=mf_variances, prev_betas=betas,
+                                     alpha0=hparams.alpha0, beta0=hparams.beta0, learning_rate=hparams.lr,
+                                     learning_rate_decay=hparams.learning_rate_decay,
+                                     prior_mean=hparams.prior_mean, prior_var=hparams.prior_var, lambda_1=hparams.lambda_1,
+                                     lambda_2=hparams.lambda_2 if i == 0 else hparams.lambda_1,
+                                     no_pred_samples=hparams.no_pred_samples,
+                                     tensorboard_dir=hparams.log_dir,
+                                     tb_logging=hparams.tb_logging, name='{0}_coreset{1}'.format(hparams.name, i + 1),
+                                     use_local_reparam=hparams.use_local_reparam, implicit_beta=hparams.implicit_beta,
+                                     beta_1=hparams.b1, beta_2=hparams.beta_2, beta_3=hparams.beta_3)
+                else:
+                    final_model = MFVI_NN(x_train.shape[1], hparams.hidden_size, y_train.shape[0], x_train.shape[0],
+                                 prev_means=mf_weights, prev_log_variances=mf_variances,
+                                 name="{0}_coreset{1}".format(hparams.name, i+1), tensorboard_dir=hparams.log_dir,
+                                 use_local_reparam=hparams.use_local_reparam)
+
+                final_model.train(x_train, y_train, task_idx=i, no_epochs=500, batch_size=100)
+    else:
+        final_model = model
 
     for i in range(len(x_testsets)):
         head = 0 if single_head else i
         x_test, y_test = x_testsets[i], y_testsets[i]
-        acc, _ = model.prediction_acc(x_test, y_test, batch_size, head)
+        acc, _ = final_model.prediction_acc(x_test, y_test, batch_size, head)
         accs.append(acc)
+
+    if len(x_coresets) > 0:
+        final_model.close_session()
+
     return accs
 
-def get_scores_entropy(model, x_testsets, y_testsets, batch_size, optimism=True, pred_ent=True, use_uncert=True):
+def get_scores_entropy(model, x_testsets, y_testsets, x_coresets, y_coresets, single_head,
+                       hparams, ibp, hibp, batch_size, optimism=True, pred_ent=True, use_uncert=True):
     accs = []
+    if ibp or hibp:
+        mf_weights, mf_variances, betas = model.get_weights()
+    else:
+        mf_weights, mf_variances = model.get_weights()
+
+    if len(x_coresets) > 0:
+        if single_head:
+            raise ValueError
+        else:
+            for i in range(len(x_coresets)):
+                x_train, y_train = x_coresets[i], y_coresets[i]
+                if ibp:
+                    final_model = IBP_BNN(x_train.shape[1], hparams.hidden_size, y_train.shape[0], x_train.shape[0],
+                                    num_ibp_samples=hparams.ibp_samples, prev_means=mf_weights,
+                                    prev_log_variances=mf_variances, prev_betas=betas, alpha0=hparams.alpha0,
+                                    beta0=hparams.beta0, learning_rate=hparams.lr, prior_mean=hparams.prior_mean,
+                                    prior_var=hparams.prior_var, lambda_1=hparams.lambda_1,
+                                    lambda_2=hparams.lambda_2 if i == 0 else hparams.lambda_1,
+                                    no_pred_samples=hparams.no_pred_samples,
+                                    tensorboard_dir=hparams.log_dir, tb_logging=hparams.tb_logging,
+                                    name='{0}_coreset{1}'.format(hparams.name, i + 1),
+                                    use_local_reparam=hparams.use_local_reparam,
+                                    implicit_beta=hparams.implicit_beta,
+                                    beta_1=hparams.b1, beta_2=hparams.beta_2, beta_3=hparams.beta_3)
+                elif hibp:
+                    final_model = HIBP_BNN(hparams.a, x_train.shape[1], hparams.hidden_size, y_train.shape[0],
+                                     x_train.shape[0], num_ibp_samples=hparams.ibp_samples, prev_means=mf_weights,
+                                     prev_log_variances=mf_variances, prev_betas=betas,
+                                     alpha0=hparams.alpha0, beta0=hparams.beta0, learning_rate=hparams.lr,
+                                     learning_rate_decay=hparams.learning_rate_decay,
+                                     prior_mean=hparams.prior_mean, prior_var=hparams.prior_var, lambda_1=hparams.lambda_1,
+                                     lambda_2=hparams.lambda_2 if i == 0 else hparams.lambda_1,
+                                     no_pred_samples=hparams.no_pred_samples,
+                                     tensorboard_dir=hparams.log_dir,
+                                     tb_logging=hparams.tb_logging, name='{0}_coreset{1}'.format(hparams.name, i + 1),
+                                     use_local_reparam=hparams.use_local_reparam, implicit_beta=hparams.implicit_beta,
+                                     beta_1=hparams.b1, beta_2=hparams.beta_2, beta_3=hparams.beta_3)
+                else:
+                    final_model = MFVI_NN(x_train.shape[1], hparams.hidden_size, y_train.shape[0], x_train.shape[0],
+                                 prev_means=mf_weights, prev_log_variances=mf_variances,
+                                 name="{0}_coreset{1}".format(hparams.name, i+1), tensorboard_dir=hparams.log_dir,
+                                 use_local_reparam=hparams.use_local_reparam)
+
+                final_model.train(x_train, y_train, task_idx=i, no_epochs=500, batch_size=100)
+    else:
+        final_model = model
+
     for i in range(len(x_testsets)): # iterating over the test datasets
         uncerts, accs_task = [], []
         x_test, y_test = x_testsets[i], y_testsets[i]
@@ -101,15 +197,19 @@ def get_scores_entropy(model, x_testsets, y_testsets, batch_size, optimism=True,
             y_test_batch = y_test[start_ind:end_ind, :]
             for j in range(len(x_testsets)): # iterating over the heads seen so far
                 if pred_ent:
-                    u = predictive_entropy(model, x_test_batch, j, 128) # differnet batch size
+                    u = predictive_entropy(final_model, x_test_batch, j, 128) # differnet batch size
                 else:
-                    u = mutual_information(model, x_test_batch, j, 128)
+                    u = mutual_information(final_model, x_test_batch, j, 128)
                 obj = np.mean(u) - alpha*np.std(u) if optimism else -np.mean(u) / np.std(u) # Optimism or Sharpe
                 uncerts.append(obj)
             head = np.argmin(uncerts) if optimism else np.argmax(uncerts)
-            acc, _ = model.prediction_acc(x_test_batch, y_test_batch, bsize, head)
+            acc, _ = final_model.prediction_acc(x_test_batch, y_test_batch, bsize, head)
             accs_task.append(acc)
         accs.append(np.mean(accs_task))
+
+    if len(x_coresets) > 0:
+        final_model.close_session()
+
     return accs
 
 def get_Zs(model, x_test, batch_size, task_id):
