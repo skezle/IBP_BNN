@@ -59,8 +59,9 @@ class SplitMnistGenerator:
 
             next_y_train = np.vstack((np.ones((train_0_id.shape[0], 1)), np.zeros((train_1_id.shape[0], 1))))
             if self.cl3:
+                n, d = self.get_dims()
                 next_y_train_1d = np.copy(next_y_train)
-                next_y_train = np.zeros((next_y_train_1d.shape[0], 10))
+                next_y_train = np.zeros((next_y_train_1d.shape[0], d))
                 next_y_train[:, self.cur_iter * 2] = next_y_train_1d.reshape(-1)
                 next_y_train[:, self.cur_iter * 2 + 1] = 1 - next_y_train_1d.reshape(-1)
                 assert next_y_train.shape[1] == 10
@@ -75,13 +76,13 @@ class SplitMnistGenerator:
             next_y_test = np.vstack((np.ones((test_0_id.shape[0], 1)), np.zeros((test_1_id.shape[0], 1)))) # N x 1
             if self.cl3:
                 next_y_test_1d = np.copy(next_y_test)
-                next_y_test = np.zeros((next_y_test_1d.shape[0], 10))
+                next_y_test = np.zeros((next_y_test_1d.shape[0], d))
                 next_y_test[:, self.cur_iter * 2] = next_y_test_1d.reshape(-1)
                 next_y_test[:, self.cur_iter * 2 + 1] = 1 - next_y_test_1d.reshape(-1)
             else:
                 next_y_test = np.hstack((next_y_test, 1 - next_y_test))
 
-            #pdb.set_trace()
+            pdb.set_trace()
             if self.val:
                 val_0_id = np.where(self.val_label == self.sets_0[self.cur_iter])[0]
                 val_1_id = np.where(self.val_label == self.sets_1[self.cur_iter])[0]
@@ -90,7 +91,7 @@ class SplitMnistGenerator:
                 next_y_val = np.vstack((np.ones((val_0_id.shape[0], 1)), np.zeros((val_1_id.shape[0], 1))))
                 if self.cl3:
                     next_y_val_1d = np.copy(next_y_val)
-                    next_y_val = np.zeros((next_y_val_1d.shape[0], 10))
+                    next_y_val = np.zeros((next_y_val_1d.shape[0], d))
                     next_y_val[:, self.cur_iter * 2] = next_y_val_1d.reshape(-1)
                     next_y_val[:, self.cur_iter * 2 + 1] = 1 - next_y_val_1d.reshape(-1)
                 else:
@@ -335,6 +336,14 @@ class SplitMix(SplitMnistGenerator):
 
         self.max_iter = len(self.sets_0)
         self.cur_iter = 0
+
+    def get_dims(self):
+        # Get data input and output dimensions
+        if self.cl3:
+            return self.X_train.shape[1], 12
+        else:
+            return self.X_train.shape[1], 2
+
 
 
 if __name__ == "__main__":
