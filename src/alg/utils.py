@@ -220,7 +220,8 @@ def get_scores_entropy(model, x_testsets, y_testsets, x_coresets, y_coresets, si
         uncerts, accs_task = [], []
         x_test, y_test = x_testsets[i], y_testsets[i]
         N = x_test.shape[0]
-        bsize = N if (batch_size is None) else batch_size
+        b = 128 # batch size to pass to graph to make things efficient, passing the entire test set can lead to OOM issues.
+        bsize = N if (batch_size is None) else batch_size # size of the dataset to aggregate over for the uncertainty measure
         alpha = 1 if use_uncert else 0
         assert optimism or use_uncert, "Sharpe ratio uses uncertainty."
         num_batches = int(np.ceil(N * 1.0 / bsize))
@@ -231,13 +232,13 @@ def get_scores_entropy(model, x_testsets, y_testsets, x_coresets, y_coresets, si
             y_test_batch = y_test[start_ind:end_ind, :]
             for j in range(len(x_testsets)): # iterating over the heads seen so far
                 if pred_ent:
-                    u = predictive_entropy(final_model, x_test_batch, j, 128) # differnet batch size
+                    u = predictive_entropy(final_model, x_test_batch, j, b) # differnet batch size
                 else:
-                    u = mutual_information(final_model, x_test_batch, j, 128)
+                    u = mutual_information(final_model, x_test_batch, j, b)
                 obj = np.mean(u) - alpha*np.std(u) if optimism else -np.mean(u) / np.std(u) # Optimism or Sharpe
                 uncerts.append(obj)
             head = np.argmin(uncerts) if optimism else np.argmax(uncerts)
-            acc, _ = final_model.prediction_acc(x_test_batch, y_test_batch, bsize, head)
+            acc, _ = final_model.prediction_acc(x_test_batch, y_test_batch, b, head)
             accs_task.append(acc)
         accs.append(np.mean(accs_task))
 
