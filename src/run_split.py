@@ -64,7 +64,7 @@ class SplitMnistGenerator:
                 next_y_train = np.zeros((next_y_train_1d.shape[0], d))
                 next_y_train[:, self.cur_iter * 2] = next_y_train_1d.reshape(-1)
                 next_y_train[:, self.cur_iter * 2 + 1] = 1 - next_y_train_1d.reshape(-1)
-                assert next_y_train.shape[1] == 10
+                assert next_y_train.shape[1] == d
             else:
                 next_y_train = np.hstack((next_y_train, 1-next_y_train))
 
@@ -82,7 +82,6 @@ class SplitMnistGenerator:
             else:
                 next_y_test = np.hstack((next_y_test, 1 - next_y_test))
 
-            pdb.set_trace()
             if self.val:
                 val_0_id = np.where(self.val_label == self.sets_0[self.cur_iter])[0]
                 val_1_id = np.where(self.val_label == self.sets_1[self.cur_iter])[0]
