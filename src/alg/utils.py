@@ -80,11 +80,14 @@ def get_scores(model, x_testsets, y_testsets, x_coresets, y_coresets, batch_size
         mf_weights, mf_variances = model.get_weights()
 
     if len(x_coresets) > 0:
+
         if single_head:
             raise ValueError
         else:
             for i in range(len(x_coresets)):
+
                 tf.reset_default_graph()
+
                 x_train, y_train = x_coresets[i], y_coresets[i]
                 if ibp:
                     final_model = IBP_BNN(x_train.shape[1], hparams.hidden_size, y_train.shape[1], x_train.shape[0],
@@ -119,8 +122,17 @@ def get_scores(model, x_testsets, y_testsets, x_coresets, y_coresets, batch_size
                                  prev_means=mf_weights, prev_log_variances=mf_variances,
                                  name="{0}_coreset{1}".format(hparams.name, i+1), tensorboard_dir=hparams.log_dir,
                                  use_local_reparam=hparams.use_local_reparam)
+                print("Training model with coreset: {0}".format(i))
+                final_model.train(x_train, y_train, task_idx=int(i), no_epochs=2000, batch_size=100)
 
-                final_model.train(x_train, y_train, task_idx=int(i), no_epochs=1000, batch_size=100)
+                if ibp or hibp:
+                    mf_weights, mf_variances, betas = final_model.get_weights()
+                else:
+                    mf_weights, mf_variances = final_model.get_weights()
+
+                if len(x_coresets) - 1 > i:
+                    print("Closing session")
+                    final_model.close_session()
     else:
         final_model = model
 
@@ -144,13 +156,17 @@ def get_scores_entropy(model, x_testsets, y_testsets, x_coresets, y_coresets, si
         mf_weights, mf_variances = model.get_weights()
 
     if len(x_coresets) > 0:
+
         if single_head:
             raise ValueError
         else:
             for i in range(len(x_coresets)):
+
+                tf.reset_default_graph()
+
                 x_train, y_train = x_coresets[i], y_coresets[i]
                 if ibp:
-                    final_model = IBP_BNN(x_train.shape[1], hparams.hidden_size, y_train.shape[0], x_train.shape[0],
+                    final_model = IBP_BNN(x_train.shape[1], hparams.hidden_size, y_train.shape[1], x_train.shape[0],
                                     num_ibp_samples=hparams.ibp_samples, prev_means=mf_weights,
                                     prev_log_variances=mf_variances, prev_betas=betas, alpha0=hparams.alpha0,
                                     beta0=hparams.beta0, learning_rate=hparams.lr, prior_mean=hparams.prior_mean,
@@ -158,12 +174,14 @@ def get_scores_entropy(model, x_testsets, y_testsets, x_coresets, y_coresets, si
                                     lambda_2=hparams.lambda_2 if i == 0 else hparams.lambda_1,
                                     no_pred_samples=hparams.no_pred_samples,
                                     tensorboard_dir=hparams.log_dir, tb_logging=hparams.tb_logging,
-                                    name='{0}_coreset{1}'.format(hparams.name, i + 1),
+                                    name='{0}_coreset_pe{1}'.format(hparams.name, i + 1),
                                     use_local_reparam=hparams.use_local_reparam,
                                     implicit_beta=hparams.implicit_beta,
                                     beta_1=hparams.b1, beta_2=hparams.beta_2, beta_3=hparams.beta_3)
+
+                    final_model.create_model()
                 elif hibp:
-                    final_model = HIBP_BNN(hparams.a, x_train.shape[1], hparams.hidden_size, y_train.shape[0],
+                    final_model = HIBP_BNN(hparams.a, x_train.shape[1], hparams.hidden_size, y_train.shape[1],
                                      x_train.shape[0], num_ibp_samples=hparams.ibp_samples, prev_means=mf_weights,
                                      prev_log_variances=mf_variances, prev_betas=betas,
                                      alpha0=hparams.alpha0, beta0=hparams.beta0, learning_rate=hparams.lr,
@@ -172,16 +190,29 @@ def get_scores_entropy(model, x_testsets, y_testsets, x_coresets, y_coresets, si
                                      lambda_2=hparams.lambda_2 if i == 0 else hparams.lambda_1,
                                      no_pred_samples=hparams.no_pred_samples,
                                      tensorboard_dir=hparams.log_dir,
-                                     tb_logging=hparams.tb_logging, name='{0}_coreset{1}'.format(hparams.name, i + 1),
+                                     tb_logging=hparams.tb_logging, name='{0}_coreset_pe{1}'.format(hparams.name, i + 1),
                                      use_local_reparam=hparams.use_local_reparam, implicit_beta=hparams.implicit_beta,
                                      beta_1=hparams.b1, beta_2=hparams.beta_2, beta_3=hparams.beta_3)
+
+                    final_model.create_model()
                 else:
                     final_model = MFVI_NN(x_train.shape[1], hparams.hidden_size, y_train.shape[0], x_train.shape[0],
                                  prev_means=mf_weights, prev_log_variances=mf_variances,
-                                 name="{0}_coreset{1}".format(hparams.name, i+1), tensorboard_dir=hparams.log_dir,
+                                 name="{0}_coreset_pe{1}".format(hparams.name, i+1), tensorboard_dir=hparams.log_dir,
                                  use_local_reparam=hparams.use_local_reparam)
 
-                final_model.train(x_train, y_train, task_idx=i, no_epochs=500, batch_size=100)
+                print("Training model with coreset: {0}".format(i))
+                final_model.train(x_train, y_train, task_idx=int(i), no_epochs=2000, batch_size=100)
+
+                if ibp or hibp:
+                    mf_weights, mf_variances, betas = final_model.get_weights()
+                else:
+                    mf_weights, mf_variances = final_model.get_weights()
+
+                if len(x_coresets) - 1 > i:
+                    print("Closing session")
+                    final_model.close_session()
+
     else:
         final_model = model
 
