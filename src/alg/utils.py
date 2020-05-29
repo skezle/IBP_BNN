@@ -118,7 +118,7 @@ def get_scores(model, x_testsets, y_testsets, x_coresets, y_coresets, batch_size
                                      beta_1=hparams.b1, beta_2=hparams.beta_2, beta_3=hparams.beta_3)
                     final_model.create_model()
                 else:
-                    final_model = MFVI_NN(x_train.shape[1], hparams.hidden_size, y_train.shape[0], x_train.shape[0],
+                    final_model = MFVI_NN(x_train.shape[1], hparams.hidden_size, y_train.shape[1], x_train.shape[0],
                                  prev_means=mf_weights, prev_log_variances=mf_variances,
                                  name="{0}_coreset{1}".format(hparams.name, i+1), tensorboard_dir=hparams.log_dir,
                                  use_local_reparam=hparams.use_local_reparam)
@@ -196,7 +196,7 @@ def get_scores_entropy(model, x_testsets, y_testsets, x_coresets, y_coresets, si
 
                     final_model.create_model()
                 else:
-                    final_model = MFVI_NN(x_train.shape[1], hparams.hidden_size, y_train.shape[0], x_train.shape[0],
+                    final_model = MFVI_NN(x_train.shape[1], hparams.hidden_size, y_train.shape[1], x_train.shape[0],
                                  prev_means=mf_weights, prev_log_variances=mf_variances,
                                  name="{0}_coreset_pe{1}".format(hparams.name, i+1), tensorboard_dir=hparams.log_dir,
                                  use_local_reparam=hparams.use_local_reparam)
