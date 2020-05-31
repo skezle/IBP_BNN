@@ -14,7 +14,7 @@ class IBP_BNN(Cla_NN):
                  no_train_samples=10, no_pred_samples=100, num_ibp_samples=10, prev_means=None, prev_log_variances=None,
                  prev_betas=None, learning_rate=0.001, learning_rate_decay=0.87,
                  prior_mean=0, prior_var=1, alpha0=5., beta0=1., lambda_1=1., lambda_2=1.,
-                 tensorboard_dir='logs', name='ibp', tb_logging=True, output_tb_gradients=False,
+                 tensorboard_dir='logs', name='ibp', tb_logging=True, tb_debug=False,
                  beta_1=1.0, beta_2=1.0, beta_3=1.0, use_local_reparam=False, implicit_beta=False,
                  clip_grads=False):
 
@@ -29,7 +29,7 @@ class IBP_BNN(Cla_NN):
         self.name = name
         self.num_ibp_samples = num_ibp_samples
         self.tb_logging = tb_logging
-        self.output_tb_gradients = output_tb_gradients
+        self.tb_debug = tb_debug
         self.beta_1 = beta_1
         self.beta_2 = beta_2
         self.beta_3 = beta_3
@@ -95,7 +95,7 @@ class IBP_BNN(Cla_NN):
         self.optim = tf.train.AdamOptimizer(self.learning_rate)
         gradients = self.optim.compute_gradients(self.cost)
         # Debug
-        if self.tb_logging and self.output_tb_gradients:
+        if self.tb_logging and self.tb_debug:
             for grad_var_tuple in gradients:
                 current_variable = grad_var_tuple[1]
                 current_gradient = grad_var_tuple[0]
@@ -229,21 +229,22 @@ class IBP_BNN(Cla_NN):
             tf.compat.v1.summary.scalar("acc", self.acc)
             Z_all = tf.reduce_sum([tf.cast(tf.reduce_sum(x), tf.float32) for x in self.Z]) / tf.reduce_sum([tf.cast(tf.size(x), tf.float32) for x in self.Z])
             tf.compat.v1.summary.scalar("Z_av", Z_all)
-            tf.compat.v1.summary.histogram("W_mu", tf.concat([tf.reshape(i, [-1]) for i in self.means], 0))
-            tf.compat.v1.summary.histogram("W_sigma", tf.concat([tf.reshape(i, [-1]) for i in self.vars], 0))
-            for i in range(len(self.hidden_size)):
-                tf.compat.v1.summary.histogram("v_beta_a_l{}".format(i), tf.cast(tf.math.softplus(tf.exp(tf.log(self.beta_a[i] + 1e-8))) + 0.01, tf.float32))
-                tf.compat.v1.summary.histogram("v_beta_b_l{}".format(i), tf.cast(tf.math.softplus(tf.exp(tf.log(self.beta_b[i] + 1e-8))) + 0.01, tf.float32))
-            for i in range(len(self.Z)):
-                # tf.summary.images expects 4-d tensor b x height x width x channels
-                print("Z: {}".format(self.Z[i].get_shape()))
-                _Z = tf.expand_dims(tf.reduce_mean(self.Z[i], axis=0), 0)[:, :50, :] # removing the samples col, and truncating the number of points to make tb faster (hopefully).
-                tf.compat.v1.summary.image("Z_{}".format(i),
-                                 tf.expand_dims(_Z, 3),
-                                 max_outputs=1)
+            if self.tb_debug:
+                tf.compat.v1.summary.histogram("W_mu", tf.concat([tf.reshape(i, [-1]) for i in self.means], 0))
+                tf.compat.v1.summary.histogram("W_sigma", tf.concat([tf.reshape(i, [-1]) for i in self.vars], 0))
+                for i in range(len(self.hidden_size)):
+                    tf.compat.v1.summary.histogram("v_beta_a_l{}".format(i), tf.cast(tf.math.softplus(tf.exp(tf.log(self.beta_a[i] + 1e-8))) + 0.01, tf.float32))
+                    tf.compat.v1.summary.histogram("v_beta_b_l{}".format(i), tf.cast(tf.math.softplus(tf.exp(tf.log(self.beta_b[i] + 1e-8))) + 0.01, tf.float32))
+                for i in range(len(self.Z)):
+                    # tf.summary.images expects 4-d tensor b x height x width x channels
+                    print("Z: {}".format(self.Z[i].get_shape()))
+                    _Z = tf.expand_dims(tf.reduce_mean(self.Z[i], axis=0), 0)[:, :50, :] # removing the samples col, and truncating the number of points to make tb faster (hopefully).
+                    tf.compat.v1.summary.image("Z_{}".format(i),
+                                     tf.expand_dims(_Z, 3),
+                                     max_outputs=1)
 
-                tf.compat.v1.summary.histogram("Z_num_latent_factors_{}".format(i),
-                                    tf.reduce_sum(tf.squeeze(self.Z[i]), axis=1))
+                    tf.compat.v1.summary.histogram("Z_num_latent_factors_{}".format(i),
+                                        tf.reduce_sum(tf.squeeze(self.Z[i]), axis=1))
 
             self.summary_op = tf.summary.merge_all()
 

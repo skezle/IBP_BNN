@@ -156,7 +156,7 @@ if __name__ == '__main__':
                                    name='{}_alpha_{:.02}_beta_{:.02}_lambda_1_{:.02}_lambda_2_{:.02}'.format(experiment_name,
                                                                                                              alpha, beta, lambda_1,
                                                                                                              lambda_2),
-                                   output_tb_gradients=False,
+                                   tb_debug=False,
                                    beta_1=model_params_cv['beta_1'],
                                    beta_2=model_params_cv['beta_2'],
                                    beta_3=model_params_cv['beta_3'],

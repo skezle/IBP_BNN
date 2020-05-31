@@ -286,7 +286,7 @@ if __name__ == '__main__':
                                  tensorboard_dir=args.log_dir,
                                  name='hibp_wp_{0}_run{1}'.format(args.tag, i),
                                  tb_logging=False,
-                                 output_tb_gradients=False,
+                                 tb_debug=False,
                                  use_local_reparam=False,
                                  implicit_beta=True)
             else:
@@ -304,7 +304,7 @@ if __name__ == '__main__':
                                 lambda_1=lambda_1, lambda_2=lambda_2,
                                 tensorboard_dir=args.log_dir,
                                 tb_logging=False,
-                                output_tb_gradients=False,
+                                tb_debug=False,
                                 name='ibp_wp_{0}_run{1}'.format(args.tag, i),
                                 use_local_reparam=False,
                                 implicit_beta=True)
