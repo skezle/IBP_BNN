@@ -118,6 +118,10 @@ if __name__ == "__main__":
                         default=5,
                         type=int,
                         help='Number permutations/tasks to perform.')
+    parser.add_argument('--new_tag', action='store',
+                        dest='new_tag',
+                        default='',
+                        help='New tag to use to store pickle file if we are reloading a chackpoint with the tag arg.')
     args = parser.parse_args()
 
     print('cl2                  = {!r}'.format(args.cl2))
@@ -126,6 +130,7 @@ if __name__ == "__main__":
     print('hibp                 = {!r}'.format(args.hibp))
     print('log_dir              = {!r}'.format(args.log_dir))
     print('tag                  = {!r}'.format(args.tag))
+    print('new_tag              = {!r}'.format(args.new_tag))
     print('run_baselines        = {!r}'.format(args.run_baselines))
     print('h_list               = {!r}'.format(args.h_list))
     print('K                    = {!r}'.format(args.K))
@@ -201,7 +206,7 @@ if __name__ == "__main__":
                 baseline_uncerts[h][i, :, :] = uncerts
 
 
-    with open('results/permuted_mnist_{}.pkl'.format(args.tag), 'wb') as input_file:
+    with open('results/permuted_mnist_{0}_{1}.pkl'.format(args.tag, args.new_tag), 'wb') as input_file:
         pickle.dump({'vcl_ibp': vcl_ibp_accs,
                      'vcl_baselines': baseline_accs,
                      'uncerts_ibp': all_ibp_uncerts,
