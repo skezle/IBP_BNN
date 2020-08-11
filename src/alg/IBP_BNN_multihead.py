@@ -12,7 +12,7 @@ from cla_models_multihead import Cla_NN
 class IBP_BNN(Cla_NN):
     def __init__(self, input_size, hidden_size, output_size, training_size,
                  no_train_samples=10, no_pred_samples=100, num_ibp_samples=10, prev_means=None, prev_log_variances=None,
-                 prev_betas=None, learning_rate=0.001, learning_rate_decay=0.87,
+                 prev_betas=None, stamp=dict(), learning_rate=0.001, learning_rate_decay=0.87,
                  prior_mean=0, prior_var=1, alpha0=5., beta0=1., lambda_1=1., lambda_2=1.,
                  tensorboard_dir='logs', name='ibp', tb_logging=True, tb_debug=False,
                  beta_1=1.0, beta_2=1.0, beta_3=1.0, use_local_reparam=False, implicit_beta=False,
@@ -51,6 +51,7 @@ class IBP_BNN(Cla_NN):
         self.prior_mean = prior_mean
         self.prior_var = prior_var
         self.clip_grads = clip_grads
+        self.time_stamp = stamp
         #self.lambda_1 = tf.placeholder(tf.float32, name="temperature")
 
     def create_model(self):
@@ -172,7 +173,10 @@ class IBP_BNN(Cla_NN):
             log_z_sample.append(z_log_sample)
             # multiplication by IBP mask
             pre = tf.add(tf.einsum('mni,mio->mno', act, _weights), _biases) # m = samples, n = din, i=input d, o=output d
-            act = tf.multiply(tf.nn.relu(pre), z_discrete) # [K, din, dout]
+            _act = tf.multiply(tf.nn.relu(pre), z_discrete) # [K, din, dout]
+            act = tf.cond(self.training,
+                         true_fn=lambda: self.ts_training(_act, task_idx, i, dout),
+                         false_fn=lambda: self.ts_prediction(_act, task_idx, i, dout))
 
             # apply local reparameterisation trick: sample activations before applying the non-linearity
             m_h = tf.einsum('mni,io->mno', act_local, self.W_m[i])
@@ -181,8 +185,10 @@ class IBP_BNN(Cla_NN):
             v_h = v_h + tf.exp(self.b_v[i])
             eps = tf.random_normal([no_samples, 1, dout], 0.0, 1.0, dtype=tf.float32)
             pre_local = m_h + tf.sqrt(v_h + 1e-9) * eps
-            act_local = tf.multiply(tf.nn.relu(pre_local), z_discrete)  # shape (K, batch_size (None, ?), out)
-
+            _act_local = tf.multiply(tf.nn.relu(pre_local), z_discrete)  # shape (K, batch_size (None, ?), out)
+            act_local = tf.cond(self.training,
+                          true_fn=lambda: self.ts_training(_act_local, task_idx, i, dout),
+                          false_fn=lambda: self.ts_prediction(_act_local, task_idx, i, dout))
 
         din = self.size[-2]
         dout = self.size[-1]
@@ -216,6 +222,25 @@ class IBP_BNN(Cla_NN):
         pre_local = m_h + tf.sqrt(v_h + 1e-9) * eps
         pre_local = tf.reshape(pre_local, [no_samples, batch_size, dout])
         return pre, pre_local, prior_log_pis, log_pis, log_z_sample
+
+    def ts_training(self, _act, task_idx, layer, dout):
+        # time-stamping
+        stamps = tf.convert_to_tensor(list(self.time_stamp.values()))
+        stamp = tf.gather(stamps, task_idx)[layer]
+        mask = tf.concat([tf.zeros([1, 1, stamp]), tf.ones([1, 1, dout - stamp])], 2)
+        print("mask: {}".format(mask.get_shape()))
+        mask_h = 1 - mask
+        act = tf.stop_gradient(tf.multiply(mask_h, _act)) + tf.multiply(mask, _act)
+        print("train act_m: {}".format(act.get_shape()))
+        return act
+
+    def ts_prediction(self, _act, task_idx, layer, dout):
+        stamps = tf.convert_to_tensor(list(self.time_stamp.values()))
+        stamp = tf.gather(stamps, task_idx)[layer]
+        mask = tf.concat([tf.zeros([1, 1, stamp]), tf.ones([1, 1, dout - stamp])], 2)
+        act = tf.multiply(mask, _act)
+        print("pred act_m: {}".format(act.get_shape()))
+        return act
 
     def create_summaries(self):
         """Creates summaries in TensorBoard"""
@@ -609,10 +634,8 @@ class IBP_BNN(Cla_NN):
     def prediction_acc(self, x_test, y_test, batch_size, task_idx):
         sess = self.sess
         N = x_test.shape[0]
-        avg_acc = 0.
-        avg_neg_elbo = 0.
+        avg_acc, avg_neg_elbo = 0, 0
         total_batch = int(np.ceil(N * 1.0 / batch_size))
-        # Loop over all batches
         for i in range(total_batch):
             start_ind = i * batch_size
             end_ind = np.min([(i + 1) * batch_size, N])
@@ -626,18 +649,18 @@ class IBP_BNN(Cla_NN):
                                                 self.training: False,
                                                 #self.lambda_1: 0.5,
                                                 }) # we want to output concrete kl so make training True, however Concrete is more stable, just use Concrete like training.
-            #pdb.set_trace()
-            # Compute average loss
+
             avg_acc += acc / total_batch
             avg_neg_elbo += neg_elbo / total_batch
         return avg_acc, avg_neg_elbo
 
-    def prediction_Zs(self, x_test, batch_size, task_idx):
+    def prediction_Zs(self, x_test, batch_size, task_idx, cut_off=0.5):
         sess = self.sess
-        N = x_test.shape[0]
         Zs = []
+        N = x_test.shape[0]
+        if batch_size is None:
+            batch_size = N
         total_batch = int(np.ceil(N * 1.0 / batch_size))
-        # Loop over all batches
         for i in range(total_batch):
             start_ind = i * batch_size
             end_ind = np.min([(i + 1) * batch_size, N])
@@ -645,7 +668,23 @@ class IBP_BNN(Cla_NN):
             Zs.append(sess.run(self.Z, feed_dict={self.x: batch_x, self.task_idx: task_idx, self.training: True,
                                                   #self.lambda_1:0.5,
                                                   }))
-        return Zs
+        # get thresholds for time stamping
+        pdb.set_trace()
+        num_layers = len(self.hidden_size)
+        _Z_ibp = []
+        for j in range(num_layers):
+            tmp = []
+            for i in range(len(Zs)):
+                tmp.append(np.squeeze(Zs[i][j]))
+            _Z_ibp.append(tmp)
+        Z_ibp = [np.concatenate(_Z_ibp[i], axis=0) for i in range(num_layers)] # len num_layers
+        thresholds = []
+        for i in range(num_layers):
+            num_active = (Z_ibp[i] > cut_off).astype(int)
+            num_active_col = np.sum(num_active, 0)
+            c = np.argmin(num_active_col) # first active col is returned.
+            thresholds.append(c)
+        return Zs, thresholds
 
     def save(self, model_dir):
         self.saver.save(self.sess, os.path.join(model_dir, "model.ckpt"))

@@ -155,10 +155,11 @@ def run_vcl_ibp(hidden_size, alpha, no_epochs, data_gen,
         # lambda_2 --> temp of the relaxed prior, for task != 0 this should be lambda_1!!!
         if task_id == 0:
             ml_model = Vanilla_NN(in_dim, hidden_size, out_dim, x_train.shape[0])
-            ml_model.train(x_train, y_train, task_id, 200, bsize)
+            ml_model.train(x_train, y_train, task_id, 100, bsize)
             mf_weights = ml_model.get_weights()
             mf_variances = None
             mf_betas = None
+            stamp = {0: [0]*len(hidden_size)}
             ml_model.close_session()
 
         if hibp and len(hidden_size) > 1:
@@ -182,6 +183,7 @@ def run_vcl_ibp(hidden_size, alpha, no_epochs, data_gen,
             model = IBP_BNN(in_dim, hidden_size, out_dim, x_train.shape[0], num_ibp_samples=ibp_samples,
                             prev_means=mf_weights,
                             prev_log_variances=mf_variances, prev_betas=mf_betas,
+                            stamp=stamp,
                             alpha0=alpha0, beta0=beta0, learning_rate=lr,
                             prior_mean=prior_mean, prior_var=prior_var, lambda_1=lambda_1,
                             lambda_2=lambda_2 if task_id == 0 else lambda_1,
@@ -208,7 +210,9 @@ def run_vcl_ibp(hidden_size, alpha, no_epochs, data_gen,
         else:
             print("New model, training")
             model.train(x_train, y_train, head, n, bsize)
-        mf_weights, mf_variances, mf_betas = model.get_weights()
+
+        mf_weights, mf_variances, mf_betas = model.get_weights() # stamp: dict task_id: list # list of len n_layers
+        stamp[task_id] = model.prediction_Zs(x_val, None, task_id)
 
         # get accuracies for all test sets seen so far
         if val:
