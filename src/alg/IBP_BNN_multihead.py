@@ -580,7 +580,7 @@ class IBP_BNN(Cla_NN):
                         summary = sess.run([self.summary_op],
                                         feed_dict={self.x: batch_x, self.y: batch_y, self.task_idx: task_idx,
                                                    self.training: True,
-                                                   #self.lambda_1: temp,
+                                                   self.stamps: np.array(list(self.time_stamp.values())[-1]) # won't be used
                                                    })[0]
                         writer.add_summary(summary, global_step)
                 else:
@@ -589,7 +589,7 @@ class IBP_BNN(Cla_NN):
                         [self.train_step, self.cost],
                         feed_dict={self.x: batch_x, self.y: batch_y, self.task_idx: task_idx,
                                    self.training: True,
-                                   #self.lambda_1: temp,
+                                   self.stamps: np.array(list(self.time_stamp.values())[-1]) # won't be used
                                    })
 
                     # Compute average loss
@@ -613,7 +613,7 @@ class IBP_BNN(Cla_NN):
         # Test model
         prediction = self.sess.run([self.pred], feed_dict={self.x: x_test, self.task_idx: task_idx,
                                                            self.training: True,
-                                                           #self.lambda_1: 0.5,
+                                                           self.stamps: np.array(list(self.time_stamp.values())[-1]) # won't be used
                                                            })[0]
         return prediction
 
@@ -675,7 +675,7 @@ class IBP_BNN(Cla_NN):
             end_ind = np.min([(i + 1) * batch_size, N])
             batch_x = x_test[start_ind:end_ind, :]
             Zs.append(sess.run(self.Z, feed_dict={self.x: batch_x, self.task_idx: task_idx, self.training: True,
-                                                  #self.lambda_1:0.5,
+                                                  self.stamps: np.array(list(self.time_stamp.values())[-1]) # won't be used
                                                   }))
         # get thresholds for time stamping
         num_layers = len(self.hidden_size)

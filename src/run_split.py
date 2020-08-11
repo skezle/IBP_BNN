@@ -545,7 +545,8 @@ if __name__ == "__main__":
                                          use_local_reparam=args.use_local_reparam,
                                          implicit_beta=True, hibp=args.hibp, beta_1=args.beta_1,
                                          optimism=args.optimism, pred_ent=False if args.mutual_info else True,
-                                         use_uncert=args.use_uncert, batch_size_entropy=batch_size_entropy)
+                                         use_uncert=args.use_uncert, batch_size_entropy=batch_size_entropy,
+                                         seed=s)
 
             all_Zs.append(Zs)
             vcl_ibp_accs[0, i, :, :] = ibp_acc[0] # task known
