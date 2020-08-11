@@ -25,9 +25,9 @@ def get_uncertainties(model, x_testsets, y_testsets, single_head, task_id, bsize
         uncert.append(pe)
     return uncert
 
-def predictive_entropy(model, x_test, task_idx, bsize, reps=1):
+def predictive_entropy(model, x_test, task_idx, bsize, stamps, reps=1):
     # pdb.set_trace()
-    mc_samples = [model.prediction_prob(x_test, task_idx, bsize) for _ in range(reps)] # each item is a list of [no_preds, None, n_out]
+    mc_samples = [model.prediction_prob(x_test, task_idx, bsize, stamps) for _ in range(reps)] # each item is a list of [no_preds, None, n_out]
     mc_samples_ = [np.concatenate(item, axis=1) for item in mc_samples] # each item is a list of [no_preds, N_test, n_out]
     mc_samples__ = np.concatenate(mc_samples_, axis=0) # ar of size 10xno_preds, N_test, n_out
     # pdb.set_trace()
@@ -35,7 +35,7 @@ def predictive_entropy(model, x_test, task_idx, bsize, reps=1):
     predictive_entropy = -np.sum(mc_arr * np.log(mc_arr + eps), axis=-1)  # (test_set_size, )
     return predictive_entropy # test_size: (n,)
 
-def mutual_information(model, x_test, task_idx, bsize, reps=1):
+def mutual_information(model, x_test, task_idx, bsize, stamps, reps=1):
     """
     :param model: BNN model object
     :param x_test: test data (n, d)
@@ -45,7 +45,7 @@ def mutual_information(model, x_test, task_idx, bsize, reps=1):
     # expected entropy part
     pe = predictive_entropy(model, x_test, task_idx, bsize) # (test_size,)
     # expected entropy part
-    mc_samples = [model.prediction_prob(x_test, task_idx, bsize) for _ in range(reps)]
+    mc_samples = [model.prediction_prob(x_test, task_idx, bsize, stamps) for _ in range(reps)]
     mc_samples_ = [np.concatenate(item, axis=1) for item in mc_samples]  # each item is a list of [no_preds, N_test, n_out]
     mc_samples__ = np.concatenate(mc_samples_, axis=0)  # ar of size 10xno_preds, N_test, n_out
     mc_arr = mc_samples__.reshape(-1, mc_samples__.shape[-1])  # 10xno_predxtest_size, n_out
@@ -71,7 +71,7 @@ def concatenate_results(score, all_score):
         all_score = np.vstack((new_arr, score))
     return all_score
 
-def get_scores(model, x_testsets, y_testsets, x_coresets, y_coresets, batch_size, single_head,
+def get_scores(model, x_testsets, y_testsets, x_coresets, y_coresets, batch_size, single_head, stamp,
                hparams, ibp, hibp):
     accs = []
     if ibp or hibp:
@@ -139,7 +139,7 @@ def get_scores(model, x_testsets, y_testsets, x_coresets, y_coresets, batch_size
     for i in range(len(x_testsets)):
         head = 0 if single_head else i
         x_test, y_test = x_testsets[i], y_testsets[i]
-        acc, _ = final_model.prediction_acc(x_test, y_test, batch_size, head)
+        acc, _ = final_model.prediction_acc(x_test, y_test, batch_size, head, stamp[head+1])
         accs.append(acc)
 
     if len(x_coresets) > 0:
@@ -147,7 +147,7 @@ def get_scores(model, x_testsets, y_testsets, x_coresets, y_coresets, batch_size
 
     return accs
 
-def get_scores_entropy(model, x_testsets, y_testsets, x_coresets, y_coresets, single_head,
+def get_scores_entropy(model, x_testsets, y_testsets, x_coresets, y_coresets, single_head, stamp,
                        hparams, ibp, hibp, batch_size, optimism=True, pred_ent=True, use_uncert=True):
     accs = []
     if ibp or hibp:
@@ -232,13 +232,13 @@ def get_scores_entropy(model, x_testsets, y_testsets, x_coresets, y_coresets, si
             y_test_batch = y_test[start_ind:end_ind, :]
             for j in range(len(x_testsets)): # iterating over the heads seen so far
                 if pred_ent:
-                    u = predictive_entropy(final_model, x_test_batch, j, b) # differnet batch size
+                    u = predictive_entropy(final_model, x_test_batch, j, b, stamp[j+1]) # differnet batch size
                 else:
-                    u = mutual_information(final_model, x_test_batch, j, b)
+                    u = mutual_information(final_model, x_test_batch, j, b, stamp[j+1])
                 obj = np.mean(u) - alpha*np.std(u) if optimism else -np.mean(u) / np.std(u) # Optimism or Sharpe
                 uncerts.append(obj)
             head = np.argmin(uncerts) if optimism else np.argmax(uncerts)
-            acc, _ = final_model.prediction_acc(x_test_batch, y_test_batch, b, head)
+            acc, _ = final_model.prediction_acc(x_test_batch, y_test_batch, b, head, stamp[head+1])
             accs_task.append(acc)
         accs.append(np.mean(accs_task))
 

@@ -155,7 +155,7 @@ def run_vcl_ibp(hidden_size, alpha, no_epochs, data_gen,
         # lambda_2 --> temp of the relaxed prior, for task != 0 this should be lambda_1!!!
         if task_id == 0:
             ml_model = Vanilla_NN(in_dim, hidden_size, out_dim, x_train.shape[0])
-            ml_model.train(x_train, y_train, task_id, 100, bsize)
+            ml_model.train(x_train, y_train, task_id, 200, bsize)
             mf_weights = ml_model.get_weights()
             mf_variances = None
             mf_betas = None
@@ -212,20 +212,22 @@ def run_vcl_ibp(hidden_size, alpha, no_epochs, data_gen,
             model.train(x_train, y_train, head, n, bsize)
 
         mf_weights, mf_variances, mf_betas = model.get_weights() # stamp: dict task_id: list # list of len n_layers
-        stamp[task_id] = model.prediction_Zs(x_val, None, task_id)
+        _, s = model.prediction_Zs(x_train, None, task_id)
+        stamp[task_id+1] = s
+        print("stamp: {}".format(stamp))
 
         # get accuracies for all test sets seen so far
         if val:
-            acc = get_scores(model, x_valsets, y_valsets, x_coresets, y_coresets, bsize, single_head,
+            acc = get_scores(model, x_valsets, y_valsets, x_coresets, y_coresets, bsize, single_head, stamp,
                              hparams, ibp=not hibp, hibp=hibp)
-            acc_ent = get_scores_entropy(model, x_valsets, y_valsets, x_coresets, y_coresets, single_head,
+            acc_ent = get_scores_entropy(model, x_valsets, y_valsets, x_coresets, y_coresets, single_head, stamp,
                                          hparams, ibp=not hibp, hibp=hibp,
                                          batch_size=batch_size_entropy, optimism=optimism, pred_ent=pred_ent,
                                          use_uncert=use_uncert)
         else:
-            acc = get_scores(model, x_testsets, y_testsets, x_coresets, y_coresets, bsize, single_head,
+            acc = get_scores(model, x_testsets, y_testsets, x_coresets, y_coresets, bsize, single_head, stamp,
                              hparams, ibp=not hibp, hibp=hibp)
-            acc_ent = get_scores_entropy(model, x_testsets, y_testsets, x_coresets, y_coresets, single_head,
+            acc_ent = get_scores_entropy(model, x_testsets, y_testsets, x_coresets, y_coresets, single_head, stamp,
                                          hparams, ibp=not hibp, hibp=hibp,
                                          batch_size=batch_size_entropy, optimism=optimism, pred_ent=pred_ent,
                                          use_uncert=use_uncert)
