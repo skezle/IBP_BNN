@@ -184,7 +184,8 @@ if __name__ == "__main__":
                                                lambda_1=lambda_1, lambda_2=lambda_2,
                                                learning_rate=0.001, no_pred_samples=100, ibp_samples=ibp_samples,
                                                log_dir=args.log_dir,
-                                               implicit_beta=True, hibp=args.hibp)
+                                               implicit_beta=True, hibp=args.hibp,
+                                               seed=s)
             all_Zs.append(Zs)
             vcl_ibp_accs[0, i, :, :] = ibp_acc[0]
             vcl_ibp_accs[1, i, :, :] = ibp_acc[1]
