@@ -16,7 +16,7 @@ class IBP_BNN(Cla_NN):
                  prior_mean=0, prior_var=1, alpha0=5., beta0=1., lambda_1=1., lambda_2=1.,
                  tensorboard_dir='logs', name='ibp', tb_logging=True, tb_debug=False,
                  beta_1=1.0, beta_2=1.0, beta_3=1.0, use_local_reparam=False, implicit_beta=False,
-                 clip_grads=False, seed=100):
+                 clip_grads=False, ts_stop_gradients=False, seed=100):
 
         super(IBP_BNN, self).__init__(input_size, hidden_size, output_size, training_size)
 
@@ -52,6 +52,7 @@ class IBP_BNN(Cla_NN):
         self.prior_var = prior_var
         self.clip_grads = clip_grads
         self.time_stamp = stamp
+        self.ts_stop_gradient = ts_stop_gradients
         print("init ts: {}".format(self.time_stamp))
         tf.compat.v1.set_random_seed(seed)
         self.stamps = tf.placeholder(tf.int32, [None], name='stamps') # the stamps per layer
@@ -226,16 +227,18 @@ class IBP_BNN(Cla_NN):
         return pre, pre_local, prior_log_pis, log_pis, log_z_sample
 
     def ts_training(self, _act, task_idx, layer, dout):
-        # time-stamping
         # stop gradient trick from stackoverflow.com/questions/43364985/how-to-stop-gradient-for-some-entry-of-a-tensor-in-tensorflow
         # dict in indexing in tf stackoverflow.com/questions/46413817/get-dictionary-element-in-tensorflow
-        stamps = tf.convert_to_tensor(list(self.time_stamp.values()))
-        stamp = tf.gather(stamps, task_idx)[layer]
-        mask = tf.concat([tf.zeros([1, 1, stamp]), tf.ones([1, 1, dout - stamp])], 2)
-        print("mask: {}".format(mask.get_shape()))
-        mask_h = 1 - mask
-        act = tf.stop_gradient(tf.multiply(mask_h, _act)) + tf.multiply(mask, _act)
-        print("train act_m: {}".format(act.get_shape()))
+        if self.ts_stop_gradient:
+            stamps = tf.convert_to_tensor(list(self.time_stamp.values()))
+            stamp = tf.gather(stamps, task_idx)[layer]
+            mask = tf.concat([tf.zeros([1, 1, stamp]), tf.ones([1, 1, dout - stamp])], 2)
+            mask_h = 1 - mask
+            act = tf.stop_gradient(tf.multiply(mask_h, _act)) + tf.multiply(mask, _act)
+            print("train act_m: {}".format(act.get_shape()))
+        else:
+            act = _act
+            stamp = -1
         return act, stamp
 
     def ts_prediction(self, _act, layer, dout, stamps):

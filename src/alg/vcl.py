@@ -87,7 +87,7 @@ def run_vcl_ibp(hidden_size, alpha, no_epochs, data_gen,
                 use_local_reparam=False, implicit_beta=True,
                 hibp=False, beta_1=1.0, beta_2=1.0, beta_3=1.0,
                 optimism=True, pred_ent=True, use_uncert=False, batch_size_entropy=None,
-                seed=100):
+                ts_stop_gradient=False, seed=100):
 
     assert not (single_head and task_inf), "Can't have both single head and task inference at the same time."
     all_acc, all_acc_ent = np.array([]), np.array([])
@@ -195,6 +195,7 @@ def run_vcl_ibp(hidden_size, alpha, no_epochs, data_gen,
                             use_local_reparam=use_local_reparam,
                             implicit_beta=implicit_beta,
                             beta_1=b1, beta_2=beta_2, beta_3=beta_3,
+                            ts_stop_gradient=ts_stop_gradient,
                             seed=seed)
 
         # for coresets

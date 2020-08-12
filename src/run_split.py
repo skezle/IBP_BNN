@@ -446,7 +446,10 @@ if __name__ == "__main__":
                         default=False,
                         dest='batch_entropy',
                         help='Whether to use batches when calculating uncertainties for cl2 and cl3.')
-
+    parser.add_argument('--ts_stop_gradient', action='store_true',
+                        default=False,
+                        dest='ts_stop_gradient',
+                        help='Whether to stop gradients using time stamping during training.')
     args = parser.parse_args()
 
     print('cl2                  = {!r}'.format(args.cl2))
@@ -470,6 +473,7 @@ if __name__ == "__main__":
     print('mutual_info          = {!r}'.format(args.mutual_info))
     print('use_uncert           = {!r}'.format(args.use_uncert))
     print('rand_coreset         = {!r}'.format(args.rand_coreset))
+    print('ts_stop_gradient     = {!r}'.format(args.ts_stop_gradient))
 
     seeds = list(range(1, 1 + args.runs))
 
@@ -546,7 +550,7 @@ if __name__ == "__main__":
                                          implicit_beta=True, hibp=args.hibp, beta_1=args.beta_1,
                                          optimism=args.optimism, pred_ent=False if args.mutual_info else True,
                                          use_uncert=args.use_uncert, batch_size_entropy=batch_size_entropy,
-                                         seed=s)
+                                         ts_stop_gradient=args.ts_stop_gradient, seed=s)
 
             all_Zs.append(Zs)
             vcl_ibp_accs[0, i, :, :] = ibp_acc[0] # task known
