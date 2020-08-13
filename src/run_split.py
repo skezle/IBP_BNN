@@ -454,6 +454,10 @@ if __name__ == "__main__":
                         default=0.5,
                         dest='ts_cutoff', type=float,
                         help='Threshold for the timestamping of Z.')
+    parser.add_argument('--ts', action='store_true',
+                        default=False,
+                        dest='ts',
+                        help='Whether to perform timestamping at test time.')
     args = parser.parse_args()
 
     print('cl2                  = {!r}'.format(args.cl2))
@@ -478,6 +482,7 @@ if __name__ == "__main__":
     print('use_uncert           = {!r}'.format(args.use_uncert))
     print('rand_coreset         = {!r}'.format(args.rand_coreset))
     print('ts_stop_gradients    = {!r}'.format(args.ts_stop_gradients))
+    print('ts                   = {!r}'.format(args.ts))
     print('ts_cutoff            = {!r}'.format(args.ts_cutoff))
 
     seeds = list(range(1, 1 + args.runs))
@@ -555,7 +560,8 @@ if __name__ == "__main__":
                                          implicit_beta=True, hibp=args.hibp, beta_1=args.beta_1,
                                          optimism=args.optimism, pred_ent=False if args.mutual_info else True,
                                          use_uncert=args.use_uncert, batch_size_entropy=batch_size_entropy,
-                                         ts_stop_gradients=args.ts_stop_gradients, ts_cutoff=args.ts_cutoff, seed=s)
+                                         ts_stop_gradients=args.ts_stop_gradients, ts=args.ts,
+                                         ts_cutoff=args.ts_cutoff, seed=s)
 
             all_Zs.append(Zs)
             all_uncerts.append(uncerts)
