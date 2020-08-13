@@ -446,7 +446,14 @@ if __name__ == "__main__":
                         default=False,
                         dest='batch_entropy',
                         help='Whether to use batches when calculating uncertainties for cl2 and cl3.')
-
+    parser.add_argument('--ts_stop_gradients', action='store_true',
+                        default=False,
+                        dest='ts_stop_gradients',
+                        help='Whether to stop gradients using time stamping during training.')
+    parser.add_argument('--ts_cutoff', action='store',
+                        default=0.5,
+                        dest='ts_cutoff', type=float,
+                        help='Threshold for the timestamping of Z.')
     args = parser.parse_args()
 
     print('cl2                  = {!r}'.format(args.cl2))
@@ -470,6 +477,8 @@ if __name__ == "__main__":
     print('mutual_info          = {!r}'.format(args.mutual_info))
     print('use_uncert           = {!r}'.format(args.use_uncert))
     print('rand_coreset         = {!r}'.format(args.rand_coreset))
+    print('ts_stop_gradients    = {!r}'.format(args.ts_stop_gradients))
+    print('ts_cutoff            = {!r}'.format(args.ts_cutoff))
 
     seeds = list(range(1, 1 + args.runs))
 
@@ -500,7 +509,7 @@ if __name__ == "__main__":
     baseline_accs = {h: np.zeros((2, len(seeds), num_tasks, num_tasks)) for h in args.h_list}
     all_ibp_uncerts = np.zeros((len(seeds), num_tasks, num_tasks))
     baseline_uncerts = {h: np.zeros((len(seeds), num_tasks, num_tasks)) for h in args.h_list}
-    all_Zs = []
+    all_Zs, all_uncerts, time_stamps = [], [], []
 
     # IBP params
     alpha0 = args.alpha0
@@ -514,7 +523,7 @@ if __name__ == "__main__":
     # Other params
     batch_size = 512
     batch_size_entropy = 1500 if args.batch_entropy else None
-    no_epochs = 600
+    no_epochs = 1000
     ibp_samples = 10
     no_pred_samples = 100
     # Coreset params
@@ -532,7 +541,7 @@ if __name__ == "__main__":
             hidden_size = [args.K] * args.num_layers
             # Z matrix for each task is output
             # This is overwritten for each run
-            ibp_acc, Zs, _ = run_vcl_ibp(hidden_size=hidden_size, alpha=alpha,
+            ibp_acc, Zs, uncerts, stamp = run_vcl_ibp(hidden_size=hidden_size, alpha=alpha,
                                          no_epochs= [int(no_epochs*1.2)] + [no_epochs]*(num_tasks-1),
                                          data_gen=data_gen, coreset_method=coreset_method,
                                          coreset_size=coreset_size,
@@ -545,9 +554,12 @@ if __name__ == "__main__":
                                          use_local_reparam=args.use_local_reparam,
                                          implicit_beta=True, hibp=args.hibp, beta_1=args.beta_1,
                                          optimism=args.optimism, pred_ent=False if args.mutual_info else True,
-                                         use_uncert=args.use_uncert, batch_size_entropy=batch_size_entropy)
+                                         use_uncert=args.use_uncert, batch_size_entropy=batch_size_entropy,
+                                         ts_stop_gradients=args.ts_stop_gradients, ts_cutoff=args.ts_cutoff, seed=s)
 
             all_Zs.append(Zs)
+            all_uncerts.append(uncerts)
+            time_stamps.append(stamp)
             vcl_ibp_accs[0, i, :, :] = ibp_acc[0] # task known
             vcl_ibp_accs[1, i, :, :] = ibp_acc[1] # task infered
 
@@ -572,8 +584,9 @@ if __name__ == "__main__":
     with open('results/split_mnist_{0}_{1}.pkl'.format(args.tag, args.new_tag), 'wb') as input_file:
         pickle.dump({'vcl_ibp': vcl_ibp_accs,
                      'vcl_baselines': baseline_accs,
-                     'uncerts_ibp': all_ibp_uncerts,
+                     'uncerts_ibp': all_uncerts,
                      'uncerts_vcl_baselines': baseline_uncerts,
-                     'Z': all_Zs}, input_file)
+                     'Z': all_Zs,
+                     'ts': time_stamps}, input_file)
 
     print("Finished running.")

@@ -16,7 +16,7 @@ class IBP_BNN(Cla_NN):
                  prior_mean=0, prior_var=1, alpha0=5., beta0=1., lambda_1=1., lambda_2=1.,
                  tensorboard_dir='logs', name='ibp', tb_logging=True, tb_debug=False,
                  beta_1=1.0, beta_2=1.0, beta_3=1.0, use_local_reparam=False, implicit_beta=False,
-                 clip_grads=False):
+                 clip_grads=False, ts_stop_gradients=False, seed=100):
 
         super(IBP_BNN, self).__init__(input_size, hidden_size, output_size, training_size)
 
@@ -52,7 +52,10 @@ class IBP_BNN(Cla_NN):
         self.prior_var = prior_var
         self.clip_grads = clip_grads
         self.time_stamp = stamp
-        #self.lambda_1 = tf.placeholder(tf.float32, name="temperature")
+        self.ts_stop_gradient = ts_stop_gradients
+        print("init ts: {}".format(self.time_stamp))
+        tf.compat.v1.set_random_seed(seed)
+        self.stamps = tf.placeholder(tf.int32, [None], name='stamps') # the stamps per layer
 
     def create_model(self):
         m, v, betas, self.size = self.create_weights(
@@ -174,9 +177,9 @@ class IBP_BNN(Cla_NN):
             # multiplication by IBP mask
             pre = tf.add(tf.einsum('mni,mio->mno', act, _weights), _biases) # m = samples, n = din, i=input d, o=output d
             _act = tf.multiply(tf.nn.relu(pre), z_discrete) # [K, din, dout]
-            act = tf.cond(self.training,
+            act, self.stamp = tf.cond(self.training,
                          true_fn=lambda: self.ts_training(_act, task_idx, i, dout),
-                         false_fn=lambda: self.ts_prediction(_act, task_idx, i, dout))
+                         false_fn=lambda: self.ts_prediction(_act, i, dout, self.stamps))
 
             # apply local reparameterisation trick: sample activations before applying the non-linearity
             m_h = tf.einsum('mni,io->mno', act_local, self.W_m[i])
@@ -186,9 +189,9 @@ class IBP_BNN(Cla_NN):
             eps = tf.random_normal([no_samples, 1, dout], 0.0, 1.0, dtype=tf.float32)
             pre_local = m_h + tf.sqrt(v_h + 1e-9) * eps
             _act_local = tf.multiply(tf.nn.relu(pre_local), z_discrete)  # shape (K, batch_size (None, ?), out)
-            act_local = tf.cond(self.training,
+            act_local, self.stamp = tf.cond(self.training,
                           true_fn=lambda: self.ts_training(_act_local, task_idx, i, dout),
-                          false_fn=lambda: self.ts_prediction(_act_local, task_idx, i, dout))
+                          false_fn=lambda: self.ts_prediction(_act_local, i, dout, self.stamps))
 
         din = self.size[-2]
         dout = self.size[-1]
@@ -224,23 +227,26 @@ class IBP_BNN(Cla_NN):
         return pre, pre_local, prior_log_pis, log_pis, log_z_sample
 
     def ts_training(self, _act, task_idx, layer, dout):
-        # time-stamping
-        stamps = tf.convert_to_tensor(list(self.time_stamp.values()))
-        stamp = tf.gather(stamps, task_idx)[layer]
-        mask = tf.concat([tf.zeros([1, 1, stamp]), tf.ones([1, 1, dout - stamp])], 2)
-        print("mask: {}".format(mask.get_shape()))
-        mask_h = 1 - mask
-        act = tf.stop_gradient(tf.multiply(mask_h, _act)) + tf.multiply(mask, _act)
-        print("train act_m: {}".format(act.get_shape()))
-        return act
+        # stop gradient trick from stackoverflow.com/questions/43364985/how-to-stop-gradient-for-some-entry-of-a-tensor-in-tensorflow
+        # dict in indexing in tf stackoverflow.com/questions/46413817/get-dictionary-element-in-tensorflow
+        if self.ts_stop_gradient:
+            stamps = tf.convert_to_tensor(list(self.time_stamp.values()))
+            stamp = tf.gather(stamps, task_idx)[layer]
+            mask = tf.concat([tf.zeros([1, 1, stamp]), tf.ones([1, 1, dout - stamp])], 2)
+            mask_h = 1 - mask
+            act = tf.stop_gradient(tf.multiply(mask_h, _act)) + tf.multiply(mask, _act)
+            print("train act_m: {}".format(act.get_shape()))
+        else:
+            act = _act
+            stamp = -1
+        return act, stamp
 
-    def ts_prediction(self, _act, task_idx, layer, dout):
-        stamps = tf.convert_to_tensor(list(self.time_stamp.values()))
-        stamp = tf.gather(stamps, task_idx)[layer]
-        mask = tf.concat([tf.zeros([1, 1, stamp]), tf.ones([1, 1, dout - stamp])], 2)
+    def ts_prediction(self, _act, layer, dout, stamps):
+        stamp = stamps[layer]
+        mask = tf.concat([tf.ones([1, 1, stamp]), tf.zeros([1, 1, dout - stamp])], 2) # mask = tf.concat([tf.zeros([1, 1, stamp]), tf.ones([1, 1, dout - stamp])], 2) with stamp_idx = task_idx also works
         act = tf.multiply(mask, _act)
         print("pred act_m: {}".format(act.get_shape()))
-        return act
+        return act, stamp
 
     def create_summaries(self):
         """Creates summaries in TensorBoard"""
@@ -577,7 +583,7 @@ class IBP_BNN(Cla_NN):
                         summary = sess.run([self.summary_op],
                                         feed_dict={self.x: batch_x, self.y: batch_y, self.task_idx: task_idx,
                                                    self.training: True,
-                                                   #self.lambda_1: temp,
+                                                   self.stamps: np.array(list(self.time_stamp.values())[-1]) # won't be used
                                                    })[0]
                         writer.add_summary(summary, global_step)
                 else:
@@ -586,7 +592,7 @@ class IBP_BNN(Cla_NN):
                         [self.train_step, self.cost],
                         feed_dict={self.x: batch_x, self.y: batch_y, self.task_idx: task_idx,
                                    self.training: True,
-                                   #self.lambda_1: temp,
+                                   self.stamps: np.array(list(self.time_stamp.values())[-1]) # won't be used
                                    })
 
                     # Compute average loss
@@ -610,11 +616,11 @@ class IBP_BNN(Cla_NN):
         # Test model
         prediction = self.sess.run([self.pred], feed_dict={self.x: x_test, self.task_idx: task_idx,
                                                            self.training: True,
-                                                           #self.lambda_1: 0.5,
+                                                           self.stamps: np.array(list(self.time_stamp.values())[-1]) # won't be used
                                                            })[0]
         return prediction
 
-    def prediction_prob(self, x_test, task_idx, batch_size):
+    def prediction_prob(self, x_test, task_idx, batch_size, stamps):
         sess = self.sess
         N = x_test.shape[0]
         total_batch = int(np.ceil(N * 1.0 / batch_size))
@@ -626,12 +632,12 @@ class IBP_BNN(Cla_NN):
             prob = sess.run([tf.nn.softmax(self.pred)], feed_dict={self.x: batch_x,
                                                                    self.task_idx: task_idx,
                                                                    self.training: False,
-                                                                   # self.lambda_1: 0.5,
+                                                                   self.stamps: np.array(stamps),
                                                                    })[0]
             probs.append(prob)
         return probs
 
-    def prediction_acc(self, x_test, y_test, batch_size, task_idx):
+    def prediction_acc(self, x_test, y_test, batch_size, task_idx, stamps):
         sess = self.sess
         N = x_test.shape[0]
         avg_acc, avg_neg_elbo = 0, 0
@@ -647,11 +653,17 @@ class IBP_BNN(Cla_NN):
                                                 self.y: batch_y,
                                                 self.task_idx: task_idx,
                                                 self.training: False,
-                                                #self.lambda_1: 0.5,
+                                                self.stamps: np.array(stamps),
                                                 }) # we want to output concrete kl so make training True, however Concrete is more stable, just use Concrete like training.
 
             avg_acc += acc / total_batch
             avg_neg_elbo += neg_elbo / total_batch
+        print("task: {0} stamp: {1}".format(task_idx, sess.run([self.stamp],feed_dict={self.x: batch_x,
+                                                self.y: batch_y,
+                                                self.task_idx: task_idx,
+                                                self.training: False,
+                                                self.stamps: np.array(stamps),
+                                                })))
         return avg_acc, avg_neg_elbo
 
     def prediction_Zs(self, x_test, batch_size, task_idx, cut_off=0.5):
@@ -666,10 +678,9 @@ class IBP_BNN(Cla_NN):
             end_ind = np.min([(i + 1) * batch_size, N])
             batch_x = x_test[start_ind:end_ind, :]
             Zs.append(sess.run(self.Z, feed_dict={self.x: batch_x, self.task_idx: task_idx, self.training: True,
-                                                  #self.lambda_1:0.5,
+                                                  self.stamps: np.array(list(self.time_stamp.values())[-1]) # won't be used
                                                   }))
         # get thresholds for time stamping
-        pdb.set_trace()
         num_layers = len(self.hidden_size)
         _Z_ibp = []
         for j in range(num_layers):
@@ -682,7 +693,7 @@ class IBP_BNN(Cla_NN):
         for i in range(num_layers):
             num_active = (Z_ibp[i] > cut_off).astype(int)
             num_active_col = np.sum(num_active, 0)
-            c = np.argmin(num_active_col) # first active col is returned.
+            c = np.argmin((np.cumsum(num_active_col/np.sum(num_active_col)) < 0.99).astype(int)) # first active col is returned.
             thresholds.append(c)
         return Zs, thresholds
 
