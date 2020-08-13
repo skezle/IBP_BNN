@@ -147,7 +147,7 @@ if __name__ == "__main__":
     baseline_accs = {h: np.zeros((2, len(seeds), num_tasks, num_tasks)) for h in args.h_list}
     all_ibp_uncerts = np.zeros((len(seeds), num_tasks, num_tasks))
     baseline_uncerts = {h: np.zeros((len(seeds), num_tasks, num_tasks)) for h in args.h_list}
-    all_Zs = []
+    all_Zs, all_uncerts, time_stamps = [], [], []
 
     alpha0 = 5.0
     beta0 = 1.0
@@ -167,7 +167,7 @@ if __name__ == "__main__":
     val = True
     for i in range(len(seeds)):
         s = seeds[i]
-        tf.set_random_seed(s)
+        tf.compat.v1.set_random_seed(s)
         np.random.seed(1)
 
         if not args.no_ibp:
@@ -175,7 +175,7 @@ if __name__ == "__main__":
             name = "ibp_{0}_run{1}_{2}".format("perm", i + 1, args.tag)
             # Z matrix for each task is output
             # This is overwritten for each run
-            ibp_acc, Zs, uncerts = run_vcl_ibp(hidden_size=hidden_size, alpha=[alpha]*len(hidden_size),
+            ibp_acc, Zs, uncerts, stamp = run_vcl_ibp(hidden_size=hidden_size, alpha=[alpha]*len(hidden_size),
                                                no_epochs=[no_epochs]*num_tasks,
                                                data_gen=data_gen, coreset_method=coreset_method,
                                                coreset_size=coreset_size, name=name, val=val, batch_size=batch_size,
@@ -187,14 +187,15 @@ if __name__ == "__main__":
                                                implicit_beta=True, hibp=args.hibp,
                                                seed=s)
             all_Zs.append(Zs)
+            all_uncerts.append(uncerts)
+            time_stamps.append(stamp)
             vcl_ibp_accs[0, i, :, :] = ibp_acc[0]
             vcl_ibp_accs[1, i, :, :] = ibp_acc[1]
-            all_ibp_uncerts[i, :, :] = uncerts
 
         # Run Vanilla VCL
         if args.run_baselines:
             for h in args.h_list:
-                tf.reset_default_graph()
+                tf.compat.v1.reset_default_graph()
                 hidden_size = [h] * args.num_layers
                 data_gen = PermutedMnistGenerator(num_tasks, val=val)
                 vcl_result, uncerts = run_vcl(hidden_size, no_epochs, data_gen,
@@ -210,8 +211,9 @@ if __name__ == "__main__":
     with open('results/permuted_mnist_{0}_{1}.pkl'.format(args.tag, args.new_tag), 'wb') as input_file:
         pickle.dump({'vcl_ibp': vcl_ibp_accs,
                      'vcl_baselines': baseline_accs,
-                     'uncerts_ibp': all_ibp_uncerts,
+                     'uncerts_ibp': all_uncerts,
                      'uncerts_vcl_baselines': baseline_uncerts,
-                     'Z': all_Zs}, input_file)
+                     'Z': all_Zs,
+                     'ts': time_stamps}, input_file)
 
     print("Finished running.")

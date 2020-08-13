@@ -167,7 +167,7 @@ if __name__ == "__main__":
         ibp_samples = 10
         no_pred_samples = 100
 
-        tf.set_random_seed(s)
+        tf.compat.v1.set_random_seed(s)
         np.random.seed(1)
 
         coreset_size = 0
@@ -191,7 +191,7 @@ if __name__ == "__main__":
         if args.run_baselines:
             # Run Vanilla VCL
             for h in args.h_list:
-                tf.reset_default_graph()
+                tf.compat.v1.reset_default_graph()
                 hidden_size = [h] * args.num_layers
                 data_gen = NotMnistGenerator(args.noise)
                 vcl_result, uncerts = run_vcl(hidden_size, no_epochs, data_gen,

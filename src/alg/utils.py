@@ -86,7 +86,7 @@ def get_scores(model, x_testsets, y_testsets, x_coresets, y_coresets, batch_size
         else:
             for i in range(len(x_coresets)):
 
-                tf.reset_default_graph()
+                tf.compat.v1.reset_default_graph()
 
                 x_train, y_train = x_coresets[i], y_coresets[i]
                 if ibp:
@@ -149,7 +149,7 @@ def get_scores(model, x_testsets, y_testsets, x_coresets, y_coresets, batch_size
 
 def get_scores_entropy(model, x_testsets, y_testsets, x_coresets, y_coresets, single_head, stamp,
                        hparams, ibp, hibp, batch_size, optimism=True, pred_ent=True, use_uncert=True):
-    accs = []
+    accs, uncerts = [], []
     if ibp or hibp:
         mf_weights, mf_variances, betas = model.get_weights()
     else:
@@ -162,7 +162,7 @@ def get_scores_entropy(model, x_testsets, y_testsets, x_coresets, y_coresets, si
         else:
             for i in range(len(x_coresets)):
 
-                tf.reset_default_graph()
+                tf.compat.v1.reset_default_graph()
 
                 x_train, y_train = x_coresets[i], y_coresets[i]
                 if ibp:
@@ -217,7 +217,7 @@ def get_scores_entropy(model, x_testsets, y_testsets, x_coresets, y_coresets, si
         final_model = model
 
     for i in range(len(x_testsets)): # iterating over the test datasets
-        uncerts, accs_task = [], []
+        uncerts_task, accs_task = [], []
         x_test, y_test = x_testsets[i], y_testsets[i]
         N = x_test.shape[0]
         b = 128 # batch size to pass to graph to make things efficient, passing the entire test set can lead to OOM issues.
@@ -236,8 +236,9 @@ def get_scores_entropy(model, x_testsets, y_testsets, x_coresets, y_coresets, si
                 else:
                     u = mutual_information(final_model, x_test_batch, j, b, stamp[j+1])
                 obj = np.mean(u) - alpha*np.std(u) if optimism else -np.mean(u) / np.std(u) # Optimism or Sharpe
-                uncerts.append(obj)
-            head = np.argmin(uncerts) if optimism else np.argmax(uncerts)
+                uncerts_task.append(obj)
+                uncerts.append((np.mean(u), np.std(u)))
+            head = np.argmin(uncerts_task) if optimism else np.argmax(uncerts_task)
             acc, _ = final_model.prediction_acc(x_test_batch, y_test_batch, b, head, stamp[head+1])
             accs_task.append(acc)
         accs.append(np.mean(accs_task))
@@ -245,7 +246,7 @@ def get_scores_entropy(model, x_testsets, y_testsets, x_coresets, y_coresets, si
     if len(x_coresets) > 0:
         final_model.close_session()
 
-    return accs
+    return accs, uncerts
 
 def get_Zs(model, x_test, batch_size, task_id):
     Zs = model.prediction_Zs(x_test, batch_size, task_id)

@@ -22,7 +22,7 @@ def run_vcl(hidden_size, no_epochs, data_gen, coreset_method, coreset_size=0, ba
 
         in_dim, out_dim = data_gen.get_dims()
         
-        tf.reset_default_graph()
+        tf.compat.v1.reset_default_graph()
 
         if val:
             x_train, y_train, x_test, y_test, _, _ = data_gen.next_task()
@@ -87,15 +87,14 @@ def run_vcl_ibp(hidden_size, alpha, no_epochs, data_gen,
                 use_local_reparam=False, implicit_beta=True,
                 hibp=False, beta_1=1.0, beta_2=1.0, beta_3=1.0,
                 optimism=True, pred_ent=True, use_uncert=False, batch_size_entropy=None,
-                ts_stop_gradient=False, seed=100):
+                ts_stop_gradients=False, ts_cutoff=0.5, seed=100):
 
     assert not (single_head and task_inf), "Can't have both single head and task inference at the same time."
     all_acc, all_acc_ent = np.array([]), np.array([])
-    all_uncerts = np.zeros((data_gen.max_iter, data_gen.max_iter))
+    all_uncerts, Zs = [], []
     x_testsets, y_testsets = [], []
     x_valsets, y_valsets = [], []
     x_coresets, y_coresets = [], []
-    Zs = []
     all_x_testsets, all_y_testsets = [], []
 
     for task_id in range(data_gen.max_iter):
@@ -112,7 +111,7 @@ def run_vcl_ibp(hidden_size, alpha, no_epochs, data_gen,
 
         in_dim, out_dim = data_gen.get_dims()
 
-        tf.reset_default_graph()
+        tf.compat.v1.reset_default_graph()
 
         if val:
             x_train, y_train, x_test, y_test, x_val, y_val = data_gen.next_task()
@@ -195,7 +194,7 @@ def run_vcl_ibp(hidden_size, alpha, no_epochs, data_gen,
                             use_local_reparam=use_local_reparam,
                             implicit_beta=implicit_beta,
                             beta_1=b1, beta_2=beta_2, beta_3=beta_3,
-                            ts_stop_gradient=ts_stop_gradient,
+                            ts_stop_gradients=ts_stop_gradients,
                             seed=seed)
 
         # for coresets
@@ -215,32 +214,33 @@ def run_vcl_ibp(hidden_size, alpha, no_epochs, data_gen,
             model.train(x_train, y_train, head, n, bsize)
 
         mf_weights, mf_variances, mf_betas = model.get_weights() # stamp: dict task_id: list # list of len n_layers
-        _, s = model.prediction_Zs(x_train, None, task_id)
-        stamp[task_id+1] = s
+        if val:
+            _, s_new = model.prediction_Zs(x_val, None, task_id, cut_off=ts_cutoff)
+        else:
+            _, s_new = model.prediction_Zs(x_train, None, task_id, cut_off=0.5)
+        stamp[task_id+1] = [max(s, s_old+2) for s, s_old in zip(s_new, stamp[task_id])]
         print("stamp: {}".format(stamp))
 
         # get accuracies for all test sets seen so far
         if val:
             acc = get_scores(model, x_valsets, y_valsets, x_coresets, y_coresets, bsize, single_head, stamp,
                              hparams, ibp=not hibp, hibp=hibp)
-            acc_ent = get_scores_entropy(model, x_valsets, y_valsets, x_coresets, y_coresets, single_head, stamp,
+            acc_ent, uncerts = get_scores_entropy(model, x_valsets, y_valsets, x_coresets, y_coresets, single_head, stamp,
                                          hparams, ibp=not hibp, hibp=hibp,
                                          batch_size=batch_size_entropy, optimism=optimism, pred_ent=pred_ent,
                                          use_uncert=use_uncert)
         else:
             acc = get_scores(model, x_testsets, y_testsets, x_coresets, y_coresets, bsize, single_head, stamp,
                              hparams, ibp=not hibp, hibp=hibp)
-            acc_ent = get_scores_entropy(model, x_testsets, y_testsets, x_coresets, y_coresets, single_head, stamp,
+            acc_ent, uncerts = get_scores_entropy(model, x_testsets, y_testsets, x_coresets, y_coresets, single_head, stamp,
                                          hparams, ibp=not hibp, hibp=hibp,
                                          batch_size=batch_size_entropy, optimism=optimism, pred_ent=pred_ent,
                                          use_uncert=use_uncert)
         all_acc = concatenate_results(acc, all_acc)
         all_acc_ent = concatenate_results(acc_ent, all_acc_ent)
-
-        # get Z matrices
         Zs.append(model.sess.run(model.Z, feed_dict={model.x: x_test, model.task_idx: task_id, model.training: False}))
-
+        all_uncerts.append(uncerts)
         model.close_session()
 
     Zs = [item for sublist in Zs for item in sublist]
-    return [all_acc, all_acc_ent], Zs, all_uncerts
+    return [all_acc, all_acc_ent], Zs, all_uncerts, stamp

@@ -239,14 +239,14 @@ if __name__ == '__main__':
 
     if not args.no_ibp:
         for i in range(args.runs):
-            tf.set_random_seed(seeds[i])
+            tf.compat.v1.set_random_seed(seeds[i])
             data_gen = MnistGenerator()
             single_head=True
             in_dim, out_dim = data_gen.get_dims()
             x_testsets, y_testsets = [], []
             task_id=0
 
-            tf.reset_default_graph()
+            tf.compat.v1.reset_default_graph()
             if val:
                 x_train, y_train, x_test, y_test, _, _ = data_gen.task()
             else:
@@ -331,14 +331,14 @@ if __name__ == '__main__':
     #no_epochs = 200
     if args.run_baselines:
         for i in range(args.runs):
-            tf.set_random_seed(seeds[i])
+            tf.compat.v1.set_random_seed(seeds[i])
             np.random.seed(1)
             data_gen = MnistGenerator()
             single_head=False
             in_dim, out_dim = data_gen.get_dims()
             task_id=0
 
-            tf.reset_default_graph()
+            tf.compat.v1.reset_default_graph()
             if val:
                 x_train, y_train, x_test, y_test, _, _ = data_gen.task()
             else:

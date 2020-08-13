@@ -22,7 +22,7 @@ class IBP_BNN(Cla_NN):
 
         self.alpha0 = alpha0
         self.beta0 = beta0
-        self.training = tf.placeholder(tf.bool, name='training')
+        self.training = tf.compat.v1.placeholder(tf.bool, name='training')
         self.lambda_1 = lambda_1 # temp of the variational Concrete posterior
         self.lambda_2 = lambda_2 # temp of the relaxed prior
         self.tensorboard_dir = tensorboard_dir
@@ -55,7 +55,7 @@ class IBP_BNN(Cla_NN):
         self.ts_stop_gradient = ts_stop_gradients
         print("init ts: {}".format(self.time_stamp))
         tf.compat.v1.set_random_seed(seed)
-        self.stamps = tf.placeholder(tf.int32, [None], name='stamps') # the stamps per layer
+        self.stamps = tf.compat.v1.placeholder(tf.int32, [None], name='stamps') # the stamps per layer
 
     def create_model(self):
         m, v, betas, self.size = self.create_weights(
@@ -83,7 +83,7 @@ class IBP_BNN(Cla_NN):
 
         self.assign_optimizer(self.learning_rate)
 
-        self.saver = tf.train.Saver()
+        self.saver = tf.compat.v1.train.Saver()
 
         if self.tb_logging:
             self.create_summaries()
@@ -96,7 +96,7 @@ class IBP_BNN(Cla_NN):
                                                                   global_step,
                                                                   1000, self.learning_rate_decay, staircase=False)
 
-        self.optim = tf.train.AdamOptimizer(self.learning_rate)
+        self.optim = tf.compat.v1.train.AdamOptimizer(self.learning_rate)
         gradients = self.optim.compute_gradients(self.cost)
         # Debug
         if self.tb_logging and self.tb_debug:
@@ -277,7 +277,7 @@ class IBP_BNN(Cla_NN):
                     tf.compat.v1.summary.histogram("Z_num_latent_factors_{}".format(i),
                                         tf.reduce_sum(tf.squeeze(self.Z[i]), axis=1))
 
-            self.summary_op = tf.summary.merge_all()
+            self.summary_op = tf.compat.v1.summary.merge_all()
 
     def _logpred(self, inputs, targets, task_idx):
         """ Average loss over batch
@@ -387,8 +387,8 @@ class IBP_BNN(Cla_NN):
             din = hidden_size[i]
             dout = hidden_size[i + 1]
             if prev_weights is None:
-                Wi_m_val = tf.truncated_normal([din, dout], stddev=0.1)
-                bi_m_val = tf.truncated_normal([dout], stddev=0.1)
+                Wi_m_val = tf.random.truncated_normal([din, dout], stddev=0.1)
+                bi_m_val = tf.random.truncated_normal([dout], stddev=0.1)
                 Wi_v_val = tf.constant(-6.0, shape=[din, dout])
                 bi_v_val = tf.constant(-6.0, shape=[dout])
                 beta_a_val = tf.constant(np.log(np.exp(self.alpha0) - 1), shape=[dout])
@@ -455,8 +455,8 @@ class IBP_BNN(Cla_NN):
             Wi_m_val = prev_weights[2][0]
             bi_m_val = prev_weights[3][0]
         else:
-            Wi_m_val = tf.truncated_normal([din, dout], stddev=0.1)
-            bi_m_val = tf.truncated_normal([dout], stddev=0.1)
+            Wi_m_val = tf.random.truncated_normal([din, dout], stddev=0.1)
+            bi_m_val = tf.random.truncated_normal([dout], stddev=0.1)
         Wi_v_val = tf.constant(-6.0, shape=[din, dout])
         bi_v_val = tf.constant(-6.0, shape=[dout])
 
@@ -693,7 +693,7 @@ class IBP_BNN(Cla_NN):
         for i in range(num_layers):
             num_active = (Z_ibp[i] > cut_off).astype(int)
             num_active_col = np.sum(num_active, 0)
-            c = np.argmin(num_active_col) # first active col is returned.
+            c = np.argmin((np.cumsum(num_active_col/np.sum(num_active_col)) < 0.99).astype(int)) # first active col is returned.
             thresholds.append(c)
         return Zs, thresholds
 
