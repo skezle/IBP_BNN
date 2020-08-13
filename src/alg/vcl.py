@@ -22,7 +22,7 @@ def run_vcl(hidden_size, no_epochs, data_gen, coreset_method, coreset_size=0, ba
 
         in_dim, out_dim = data_gen.get_dims()
         
-        tf.reset_default_graph()
+        tf.compat.v1.reset_default_graph()
 
         if val:
             x_train, y_train, x_test, y_test, _, _ = data_gen.next_task()
@@ -111,7 +111,7 @@ def run_vcl_ibp(hidden_size, alpha, no_epochs, data_gen,
 
         in_dim, out_dim = data_gen.get_dims()
 
-        tf.reset_default_graph()
+        tf.compat.v1.reset_default_graph()
 
         if val:
             x_train, y_train, x_test, y_test, x_val, y_val = data_gen.next_task()

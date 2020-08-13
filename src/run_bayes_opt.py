@@ -106,7 +106,7 @@ if __name__ == '__main__':
         returns av accuracy over val set
         """
         # Run vanilla VCL
-        tf.set_random_seed(12)
+        tf.compat.v1.set_random_seed(12)
         np.random.seed(1)
 
         ibp_acc = np.array([])
@@ -119,7 +119,7 @@ if __name__ == '__main__':
         x_valsets, y_valsets = [], []
         for task_id in range(data_gen.max_iter):
 
-            tf.reset_default_graph()
+            tf.compat.v1.reset_default_graph()
             x_train, y_train, _, _, x_val, y_val = data_gen.next_task()
             x_valsets.append(x_val)
             y_valsets.append(y_val)
@@ -219,7 +219,7 @@ if __name__ == '__main__':
     ########################################
 
     # Run vanilla VCL
-    tf.set_random_seed(12)
+    tf.compat.v1.set_random_seed(12)
     np.random.seed(1)
 
     ibp_acc = np.array([])
@@ -231,7 +231,7 @@ if __name__ == '__main__':
     x_testsets, y_testsets = [], []
     for task_id in range(data_gen.max_iter):
 
-        tf.reset_default_graph()
+        tf.compat.v1.reset_default_graph()
         x_train, y_train, x_test, y_test, _, _ = data_gen.next_task()
         x_testsets.append(x_test)
         y_testsets.append(y_test)
@@ -287,8 +287,8 @@ if __name__ == '__main__':
     ####################################
 
     # Run Vanilla VCL
-    tf.reset_default_graph()
-    tf.set_random_seed(12)
+    tf.compat.v1.reset_default_graph()
+    tf.compat.v1.set_random_seed(12)
     np.random.seed(1)
     hidden_size = [5]
     coreset_size = 0

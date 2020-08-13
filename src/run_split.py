@@ -532,7 +532,7 @@ if __name__ == "__main__":
 
     for i in range(len(seeds)):
         s = seeds[i]
-        tf.set_random_seed(s)
+        tf.compat.v1.set_random_seed(s)
         np.random.seed(1)
 
         if not args.no_ibp:
@@ -567,7 +567,7 @@ if __name__ == "__main__":
             # Run Vanilla VCL
             # Comparison with other single layer neural networks
             for h in args.h_list:
-                tf.reset_default_graph()
+                tf.compat.v1.reset_default_graph()
                 hidden_size = [h] * args.num_layers
                 data_gen = get_datagen()
                 vcl_result, _ = run_vcl(hidden_size, no_epochs, data_gen,

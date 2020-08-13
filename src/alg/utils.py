@@ -86,7 +86,7 @@ def get_scores(model, x_testsets, y_testsets, x_coresets, y_coresets, batch_size
         else:
             for i in range(len(x_coresets)):
 
-                tf.reset_default_graph()
+                tf.compat.v1.reset_default_graph()
 
                 x_train, y_train = x_coresets[i], y_coresets[i]
                 if ibp:
@@ -162,7 +162,7 @@ def get_scores_entropy(model, x_testsets, y_testsets, x_coresets, y_coresets, si
         else:
             for i in range(len(x_coresets)):
 
-                tf.reset_default_graph()
+                tf.compat.v1.reset_default_graph()
 
                 x_train, y_train = x_coresets[i], y_coresets[i]
                 if ibp:

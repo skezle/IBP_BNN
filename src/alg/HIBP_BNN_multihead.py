@@ -62,7 +62,7 @@ class HIBP_BNN(IBP_BNN):
 
         self.assign_optimizer(self.learning_rate)
 
-        self.saver = tf.train.Saver()
+        self.saver = tf.compat.v1.train.Saver()
 
         if self.tb_logging:
             self.create_summaries()
@@ -70,13 +70,13 @@ class HIBP_BNN(IBP_BNN):
         self.assign_session()
 
     def assign_optimizer(self, learning_rate=0.001):
-        #self.train_step = tf.train.AdamOptimizer(learning_rate).minimize(self.cost)
+        #self.train_step = tf.compat.v1.train.AdamOptimizer(learning_rate).minimize(self.cost)
         global_step = tf.Variable(0, trainable=False)
         self.learning_rate = tf.compat.v1.train.exponential_decay(learning_rate,
                                                                   global_step,
                                                                   1000, self.learning_rate_decay, staircase=False)
 
-        optim = tf.train.AdamOptimizer(self.learning_rate)
+        optim = tf.compat.v1.train.AdamOptimizer(self.learning_rate)
         gradients = optim.compute_gradients(self.cost)
         if self.tb_logging and self.tb_debug:
             for grad_var_tuple in gradients:
@@ -240,7 +240,7 @@ class HIBP_BNN(IBP_BNN):
                     tf.compat.v1.summary.histogram("Z_num_latent_factors_{}".format(i),
                                         tf.reduce_sum(tf.squeeze(self.Z[i]), axis=1))
 
-            self.summary_op = tf.summary.merge_all()
+            self.summary_op = tf.compat.v1.summary.merge_all()
 
     def _KL_term(self, no_samples, prior_log_pis, log_pis, z_log_sample):
         kl = 0
@@ -354,8 +354,8 @@ class HIBP_BNN(IBP_BNN):
             din = hidden_size[i]
             dout = hidden_size[i + 1]
             if prev_weights is None:
-                Wi_m_val = tf.truncated_normal([din, dout], stddev=0.1)
-                bi_m_val = tf.truncated_normal([dout], stddev=0.1)
+                Wi_m_val = tf.random.truncated_normal([din, dout], stddev=0.1)
+                bi_m_val = tf.random.truncated_normal([dout], stddev=0.1)
                 Wi_v_val = tf.constant(-6.0, shape=[din, dout])
                 bi_v_val = tf.constant(-6.0, shape=[dout])
             else:
@@ -410,8 +410,8 @@ class HIBP_BNN(IBP_BNN):
             Wi_m_val = prev_weights[2][0]
             bi_m_val = prev_weights[3][0]
         else:
-            Wi_m_val = tf.truncated_normal([din, dout], stddev=0.1)
-            bi_m_val = tf.truncated_normal([dout], stddev=0.1)
+            Wi_m_val = tf.random.truncated_normal([din, dout], stddev=0.1)
+            bi_m_val = tf.random.truncated_normal([dout], stddev=0.1)
         Wi_v_val = tf.constant(-6.0, shape=[din, dout])
         bi_v_val = tf.constant(-6.0, shape=[dout])
 

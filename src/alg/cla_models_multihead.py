@@ -16,7 +16,7 @@ def weight_variable(shape, init_weights=None):
     if init_weights is not None:
         initial = tf.constant(init_weights)
     else:
-        initial = tf.truncated_normal(shape, stddev=0.1)
+        initial = tf.random.truncated_normal(shape, stddev=0.1)
     return tf.Variable(initial)
 
 def bias_variable(shape):
@@ -50,16 +50,16 @@ def _create_weights_mf(in_dim, hidden_size, out_dim, init_weights=None, init_var
 class Cla_NN(object):
     def __init__(self, input_size, hidden_size, output_size, training_size):
         # input and output placeholders
-        self.x = tf.placeholder(tf.float32, [None, input_size], name='x')
-        self.y = tf.placeholder(tf.float32, [None, output_size], name='y')
-        self.task_idx = tf.placeholder(tf.int32, name='task_id')
+        self.x = tf.compat.v1.placeholder(tf.float32, [None, input_size], name='x')
+        self.y = tf.compat.v1.placeholder(tf.float32, [None, output_size], name='y')
+        self.task_idx = tf.compat.v1.placeholder(tf.int32, name='task_id')
 
     def assign_optimizer(self, learning_rate=0.001):
-        self.train_step = tf.train.AdamOptimizer(learning_rate).minimize(self.cost)
+        self.train_step = tf.compat.v1.train.AdamOptimizer(learning_rate).minimize(self.cost)
 
     def assign_session(self):
         # Initializing the variables
-        init = tf.global_variables_initializer()
+        init = tf.compat.v1.global_variables_initializer()
 
         # launch a session
         self.sess = tf.Session(config=config)
@@ -172,8 +172,8 @@ class Vanilla_NN(Cla_NN):
             din = hidden_size[i]
             dout = hidden_size[i+1]
             if prev_weights is None:
-                Wi_val = tf.truncated_normal([din, dout], stddev=0.1)
-                bi_val = tf.truncated_normal([dout], stddev=0.1)
+                Wi_val = tf.random.truncated_normal([din, dout], stddev=0.1)
+                bi_val = tf.random.truncated_normal([dout], stddev=0.1)
             else:
                 Wi_val = tf.constant(prev_weights[0][i])
                 bi_val = tf.constant(prev_weights[1][i])
@@ -196,8 +196,8 @@ class Vanilla_NN(Cla_NN):
 
         din = hidden_size[-2]
         dout = hidden_size[-1]
-        Wi_val = tf.truncated_normal([din, dout], stddev=0.1)
-        bi_val = tf.truncated_normal([dout], stddev=0.1)
+        Wi_val = tf.random.truncated_normal([din, dout], stddev=0.1)
+        bi_val = tf.random.truncated_normal([dout], stddev=0.1)
         Wi = tf.Variable(Wi_val, name="w_h_0")
         bi = tf.Variable(bi_val, name="b_h_0")
         W_last.append(Wi)
@@ -241,7 +241,7 @@ class MFVI_NN(Cla_NN):
         
         self.assign_optimizer(learning_rate)
 
-        self.saver = tf.train.Saver()
+        self.saver = tf.compat.v1.train.Saver()
 
         self.create_summaries()
 
@@ -253,7 +253,7 @@ class MFVI_NN(Cla_NN):
                                                                   global_step,
                                                                   1000, self.learning_rate_decay, staircase=False)
 
-        self.optim = tf.train.AdamOptimizer(self.learning_rate)
+        self.optim = tf.compat.v1.train.AdamOptimizer(self.learning_rate)
         gradients = self.optim.compute_gradients(self.cost)
         self.train_step = self.optim.apply_gradients(grads_and_vars=gradients, global_step=global_step)
 
@@ -262,7 +262,7 @@ class MFVI_NN(Cla_NN):
         with tf.name_scope("summaries"):
             tf.compat.v1.summary.scalar("elbo", self.cost)
             tf.compat.v1.summary.scalar("acc", self.acc)
-            self.summary_op = tf.summary.merge_all()
+            self.summary_op = tf.compat.v1.summary.merge_all()
 
     def _prediction(self, inputs, task_idx, no_samples):
         y, y_local = self._prediction_layer(inputs, task_idx, no_samples)
@@ -394,8 +394,8 @@ class MFVI_NN(Cla_NN):
             din = hidden_size[i]
             dout = hidden_size[i+1]
             if prev_weights is None:
-                Wi_m_val = tf.truncated_normal([din, dout], stddev=0.1)
-                bi_m_val = tf.truncated_normal([dout], stddev=0.1)
+                Wi_m_val = tf.random.truncated_normal([din, dout], stddev=0.1)
+                bi_m_val = tf.random.truncated_normal([dout], stddev=0.1)
                 Wi_v_val = tf.constant(-6.0, shape=[din, dout])
                 bi_v_val = tf.constant(-6.0, shape=[dout])
             else:
@@ -448,8 +448,8 @@ class MFVI_NN(Cla_NN):
             Wi_m_val = prev_weights[2][0]
             bi_m_val = prev_weights[3][0]
         else:
-            Wi_m_val = tf.truncated_normal([din, dout], stddev=0.1)
-            bi_m_val = tf.truncated_normal([dout], stddev=0.1)
+            Wi_m_val = tf.random.truncated_normal([din, dout], stddev=0.1)
+            bi_m_val = tf.random.truncated_normal([dout], stddev=0.1)
         Wi_v_val = tf.constant(-6.0, shape=[din, dout])
         bi_v_val = tf.constant(-6.0, shape=[dout])
 

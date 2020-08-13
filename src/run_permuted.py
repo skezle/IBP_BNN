@@ -167,7 +167,7 @@ if __name__ == "__main__":
     val = True
     for i in range(len(seeds)):
         s = seeds[i]
-        tf.set_random_seed(s)
+        tf.compat.v1.set_random_seed(s)
         np.random.seed(1)
 
         if not args.no_ibp:
@@ -195,7 +195,7 @@ if __name__ == "__main__":
         # Run Vanilla VCL
         if args.run_baselines:
             for h in args.h_list:
-                tf.reset_default_graph()
+                tf.compat.v1.reset_default_graph()
                 hidden_size = [h] * args.num_layers
                 data_gen = PermutedMnistGenerator(num_tasks, val=val)
                 vcl_result, uncerts = run_vcl(hidden_size, no_epochs, data_gen,

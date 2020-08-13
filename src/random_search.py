@@ -372,7 +372,7 @@ if __name__ == "__main__":
     val = False
     for i in range(len(seeds)):
         s = seeds[i]
-        tf.set_random_seed(s)
+        tf.compat.v1.set_random_seed(s)
         data_gen = get_datagen(val)
         name = "ibp_rs_opt_split_{0}_{1}_run{2}".format(args.dataset, args.tag, i+1)
         # changed the search space...
