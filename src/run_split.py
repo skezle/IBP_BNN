@@ -286,8 +286,8 @@ class SplitMix(SplitMnistGenerator):
         # zero padding
         _X_train_fmnist = np.zeros((X_train_fmnist.shape[0], 32, 32))
         _X_test_fmnist = np.zeros((X_test_fmnist.shape[0], 32, 32))
-        _X_train_fmnist[:, 2:30, 2:30] = train
-        _X_test_fmnist[:, 2:30, 2:30] = test
+        _X_train_fmnist[:, 2:30, 2:30] = X_train_fmnist
+        _X_test_fmnist[:, 2:30, 2:30] = X_test_fmnist
         _X_train_fmnist = _X_train_fmnist.reshape(-1, 32 * 32)
         _X_test_fmnist = _X_test_fmnist.reshape(-1, 32 * 32)
 
@@ -547,7 +547,7 @@ if __name__ == "__main__":
             # Z matrix for each task is output
             # This is overwritten for each run
             ibp_acc, Zs, uncerts, stamp = run_vcl_ibp(hidden_size=hidden_size, alpha=alpha,
-                                         no_epochs= [int(no_epochs*1.2)] + [no_epochs]*(num_tasks-1),
+                                         no_epochs=[no_epochs]*num_tasks if no_epochs > 600 else [int(no_epochs*1.2)]+[no_epochs]*(num_tasks-1),
                                          data_gen=data_gen, coreset_method=coreset_method,
                                          coreset_size=coreset_size,
                                          name=name, val=val, batch_size=batch_size,

@@ -78,7 +78,7 @@ def run_vcl(hidden_size, no_epochs, data_gen, coreset_method, coreset_size=0, ba
 
 def run_vcl_ibp(hidden_size, alpha, no_epochs, data_gen,
                 coreset_method, coreset_size, name,
-                val, batch_size=None, single_head=False, task_inf=False,
+                val, run_val_set=False, batch_size=None, single_head=False, task_inf=False,
                 prior_mean=0.0, prior_var=1.0, alpha0=5.0,
                 beta0 = 1.0, lambda_1 = 1.0, lambda_2 = 1.0, learning_rate=0.001,
                 learning_rate_decay=0.87,
@@ -168,6 +168,7 @@ def run_vcl_ibp(hidden_size, alpha, no_epochs, data_gen,
                              training_size=x_train.shape[0], num_ibp_samples=ibp_samples,
                              prev_means=mf_weights,
                              prev_log_variances=mf_variances, prev_betas=mf_betas,
+                             stamp=stamp, # currently not used
                              alpha0=alpha0, beta0=beta0, learning_rate=lr,
                              learning_rate_decay=learning_rate_decay,
                              prior_mean=prior_mean, prior_var=prior_var, lambda_1=lambda_1,
@@ -214,15 +215,15 @@ def run_vcl_ibp(hidden_size, alpha, no_epochs, data_gen,
             model.train(x_train, y_train, head, n, bsize)
 
         mf_weights, mf_variances, mf_betas = model.get_weights() # stamp: dict task_id: list # list of len n_layers
-        if val:
-            _, s_new = model.prediction_Zs(x_val, None, task_id, cut_off=ts_cutoff)
+        if ts:
+            _, s_new = model.prediction_Zs(x_train, None, task_id, cut_off=ts_cutoff)
+            stamp[task_id+1] = [max(s, s_old+2) for s, s_old in zip(s_new, stamp[task_id])]
         else:
-            _, s_new = model.prediction_Zs(x_train, None, task_id, cut_off=0.5)
-        stamp[task_id+1] = [max(s, s_old+2) for s, s_old in zip(s_new, stamp[task_id])]
+            # just fill with something for placeholder - will not be used.
+            stamp[task_id+1] = [s for s in stamp[task_id]]
         print("stamp: {}".format(stamp))
 
-        # get accuracies for all test sets seen so far
-        if val:
+        if val and run_val_set:
             acc = get_scores(model, x_valsets, y_valsets, x_coresets, y_coresets, bsize, single_head, stamp,
                              hparams, ibp=not hibp, hibp=hibp)
             acc_ent, uncerts = get_scores_entropy(model, x_valsets, y_valsets, x_coresets, y_coresets, single_head, stamp,

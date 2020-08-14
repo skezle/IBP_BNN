@@ -12,14 +12,8 @@ import argparse
 import pickle
 import tensorflow as tf
 
-from run_split import SplitMnistBackgroundGenerator, SplitMnistRandomGenerator, SplitMnistGenerator, SplitCIFAR10Generator
-from run_not import NotMnistGenerator
-from run_permuted import PermutedMnistGenerator
-from vcl import run_vcl_ibp, run_vcl
-
-import matplotlib
-matplotlib.use('agg')
-import matplotlib.pyplot as plt
+from run_split import SplitMnistImagesGenerator, SplitMnistRandomGenerator, SplitMnistGenerator, SplitMix, SplitCIFAR10Generator
+from vcl import run_vcl_ibp
 
 class HyperparamOptManager:
 
@@ -227,110 +221,81 @@ class HyperparamErrorManager(HyperparamOptManager):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('--single_head', action='store_true',
-                        default=False,
-                        dest='single_head',
-                        help='Whether to use a single head.')
-    parser.add_argument('--noise', action='store_true',
-                        default=False,
-                        dest='noise',
-                        help='Whether to add noise to not MNIST dataset.')
-    parser.add_argument('--num_layers', action='store',
-                        dest='num_layers',
-                        default=1,
-                        type=int,
-                        help='Number of layers in the NNs.')
-    parser.add_argument('--runs', action='store',
-                        dest='runs',
-                        default=20,
-                        type=int,
-                        help='Number iterations of random search.')
-    parser.add_argument('--log_dir', action='store',
-                        dest='log_dir',
-                        default='logs',
-                        help='TB log directory.')
-    parser.add_argument('--dataset', action='store',
-                        dest='dataset',
-                        help='Which dataset to choose {normal, noise, background, not, perm, cifar10}.')
-    parser.add_argument('--tag', action='store',
-                        dest='tag',
-                        help='Tag to use in naming file outputs')
-    parser.add_argument('--use_local_reparam', action='store_true',
-                        default=False,
-                        dest='use_local_reparam',
-                        help='Whether to use local reparam.')
-    parser.add_argument('--implicit_beta', action='store_true',
-                        default=False,
-                        dest='implicit_beta',
-                        help='Whether to use reparam for Beta dist.')
-    parser.add_argument('--hibp', action='store_true',
-                        default=False,
-                        dest='hibp',
-                        help='Whether to use HIBP.')
-    parser.add_argument('--K', action='store',
-                        dest='K',
-                        default=100,
-                        type=int,
-                        help='Variational truncation param for IBP.')
-
+    parser.add_argument('--single_head', action='store_true', default=False, dest='single_head', help='Whether to use a single head.')
+    parser.add_argument('--cl2', action='store_true', default=False, dest='cl2', help='Whether to use a perform CL2: domain incremental learning.')
+    parser.add_argument('--cl3', action='store_true', default=False, dest='cl3', help='Whether to use a perform CL3: class incremental learning.')
+    parser.add_argument('--num_layers', action='store', dest='num_layers', default=1, type=int, help='Number of layers in the NNs.')
+    parser.add_argument('--log_dir', action='store', dest='log_dir', default='logs', help='TB log directory.')
+    parser.add_argument('--dataset', action='store', dest='dataset', help='Which dataset to choose {normal, random, images, cifar10, mix}.')
+    parser.add_argument('--runs', action='store', dest='runs', default=10, type=int, help='Number runs to perform.')
+    parser.add_argument('--tag', action='store', dest='tag', help='Tag to use in naming file outputs')
+    parser.add_argument('--use_local_reparam', action='store_true', default=False, dest='use_local_reparam', help='Whether to use local reparam.')
+    parser.add_argument('--hibp', action='store_true', default=False, dest='hibp', help='Whether to use hibp.')
+    parser.add_argument('--K', action='store', dest='K', default=100, type=int, help='Variational truncation param for IBP.')
+    parser.add_argument('--optimism', action='store_true', default=False, dest='optimism', help='Whether to use optimism in the face of uncertainty when infering task head for CL2 and CL3.')
+    parser.add_argument('--mutual_info', action='store_true', default=False, dest='mutual_info', help='Whether to use predictive entropy or mutual information as a measure of uncertainty for task inference in CL2 and CL3.')
+    parser.add_argument('--use_uncert', action='store_true', default=False, dest='use_uncert', help='Whether the uncertainties of the uncertainties to help make choices for inferring CL2 and CL3.')
+    parser.add_argument('--batch_entropy', action='store_true', default=False, dest='batch_entropy', help='Whether to use batches when calculating uncertainties for cl2 and cl3.')
+    parser.add_argument('--ts_stop_gradients', action='store_true', default=False, dest='ts_stop_gradients', help='Whether to stop gradients using time stamping during training.')
+    parser.add_argument('--ts_cutoff', action='store', default=0.5, dest='ts_cutoff', type=float, help='Threshold for the timestamping of Z.')
+    parser.add_argument('--ts', action='store_true', default=False, dest='ts', help='Whether to perform timestamping at test time.')
     args = parser.parse_args()
 
-    print('single_head            = {!r}'.format(args.single_head))
-    print('implicit_beta          = {!r}'.format(args.implicit_beta))
-    print('num_layers             = {!r}'.format(args.num_layers))
-    print('runs                   = {!r}'.format(args.runs))
-    print('log_dir                = {!r}'.format(args.log_dir))
-    print('dataset                = {!r}'.format(args.dataset))
-    print('use_local_reparam      = {!r}'.format(args.use_local_reparam))
-    print('noise                  = {!r}'.format(args.noise))
-    print('hibp                   = {!r}'.format(args.hibp))
-    print('tag                    = {!r}'.format(args.tag))
+    print('cl2                  = {!r}'.format(args.cl2))
+    print('cl3                  = {!r}'.format(args.cl3))
+    print('num_layers           = {!r}'.format(args.num_layers))
+    print('runs                 = {!r}'.format(args.runs))
+    print('log_dir              = {!r}'.format(args.log_dir))
+    print('dataset              = {!r}'.format(args.dataset))
+    print('use_local_reparam    = {!r}'.format(args.use_local_reparam))
+    print('hibp                 = {!r}'.format(args.hibp))
+    print('K                    = {!r}'.format(args.K))
+    print('tag                  = {!r}'.format(args.tag))
+    print('ts_stop_gradients    = {!r}'.format(args.ts_stop_gradients))
+    print('ts                   = {!r}'.format(args.ts))
+    print('ts_cutoff            = {!r}'.format(args.ts_cutoff))
 
-    seeds = list(range(10, 10 + 5))
-    num_tasks = 5
+    # We don't need a validation set
+    val = False
+    single_head = False
+    task_inf = True if args.cl3 or args.cl2 else False
+    assert not (args.cl3 and args.cl2), "Can't have both cl2 and cl3."
 
-    vcl_ibp_accs = np.zeros((len(seeds), num_tasks, num_tasks))
-    all_ibp_uncerts = np.zeros((len(seeds), num_tasks, num_tasks))
-    all_Zs = []
 
-    # define data generator
-    def get_datagen(val):
+    def get_datagen():
         if args.dataset == 'normal':
-            data_gen = SplitMnistGenerator(val=val, difficult=False)
+            data_gen = SplitMnistGenerator(val=val, cl3=args.cl3)
         elif args.dataset == 'random':
-            data_gen = SplitMnistRandomGenerator(val=val)
-        elif args.dataset == 'background':
-            data_gen = SplitMnistBackgroundGenerator(val=val)
-        elif args.dataset == 'not':
-            data_gen = NotMnistGenerator(val =val, noise=args.noise)
-        elif args.dataset == 'perm':
-            data_gen = PermutedMnistGenerator(max_iter=num_tasks, val=val)
+            data_gen = SplitMnistRandomGenerator(val=val, cl3=args.cl3)
+        elif args.dataset == 'images':
+            data_gen = SplitMnistImagesGenerator(val=val, cl3=args.cl3)
         elif args.dataset == 'cifar10':
-            data_gen = SplitCIFAR10Generator(val=val)
+            data_gen = SplitCIFAR10Generator(val=val, cl3=args.cl3)
+        elif args.dataset == 'mix':
+            data_gen = SplitMix(val=val, cl3=args.cl3)
         else:
-            raise ValueError('Pick dataset in {normal, random, background, not}')
+            raise ValueError('Pick dataset in {normal, random, images, cifar10}')
         return data_gen
 
     # define hyper parameters
 
-    hyper_param_choices_grid = {}
+    hyper_param_choices_grid = {'lambda_1': [1/2, 2/3, 3/4, 1, 5/4, 3/2, 7/4, 2, 9/4, 5/2, 11/4, 3],
+                                'lambda_2': [1/2, 2/3, 3/4, 1, 5/4, 3/2, 7/4, 2, 9/4, 5/2, 11/4, 3]}
 
-    hyper_param_choices_ranges = {'learning_rate': [0.00001, 0.001],
-                                  'alpha0': [1., 50.],
-                                  'lambda': [0.5, 1.],
-                                  'prior_var': [0.001, 1.],
-                                  }
+    hyper_param_choices_ranges = {}
 
     fixed_param_choices = {'ibp_samples': 10,
                            'no_pred_samples': 10,
                            'prior_mean': 0.0,
-                           'batch_size': 128,
-                           'beta0': 1.0}
+                           'batch_size': 512,
+                           'beta0': 1.0,
+                           'learning_rate': 0.001,
+                           'alpha0': 20,
+                           'prior_var': 0.7,
+                           'no_epochs': 1000}
 
     if args.hibp:
-        hyper_param_choices_ranges['alpha'] = [1., 50.]
-    else:
-        fixed_param_choices['alpha'] = 1.0
+        fixed_param_choices['alpha'] = [5, 5, 10, 10, 20, 20]
 
     RndSearch = HyperparamOptManager(param_grid=hyper_param_choices_grid,
                                      param_ranges=hyper_param_choices_ranges,
@@ -340,72 +305,88 @@ if __name__ == "__main__":
                                      network_class=None)
 
     RndSearch.load_results()
+
+    num_tasks = get_datagen().max_iter
+    test_runs = 5
+    vcl_ibp_accs = np.zeros((2, test_runs, num_tasks, num_tasks))  # 2 for cl1 and cl2 results
+    all_Zs, all_uncerts, time_stamps = [], [], []
+
     hidden_size = [args.K] * args.num_layers
-    no_epochs = 600
+    batch_size_entropy = 1500 if args.batch_entropy else None
     coreset_size = 0
+    coreset_method = lambda a: a
     val = True
     for i in range(args.runs):
-        data_gen = get_datagen(val=val)
         thetas = RndSearch.get_next_parameters()
-        print("thetas: ".format(thetas))
+        print("thetas: {}".format(thetas))
         name = "ibp_rs_split_{0}_run{1}_{2}".format(args.dataset, i + 1, args.tag)
-
-        ibp_acc, _, _ = run_vcl_ibp(hidden_size=hidden_size, alphas=[thetas['alpha']]*len(hidden_size),
-                                    no_epochs=[no_epochs]*num_tasks, data_gen=data_gen,
-                                    name=name, val=val, batch_size=thetas['batch_size'],
-                                    single_head=args.single_head, prior_mean=thetas['prior_mean'],
-                                    prior_var=thetas['prior_var'], alpha0=thetas['alpha0'],
-                                    beta0=thetas['beta0'], lambda_1=thetas['lambda'],
-                                    lambda_2=thetas['lambda'], learning_rate=thetas['learning_rate'],
-                                    no_pred_samples=thetas['no_pred_samples'],
-                                    ibp_samples=thetas['ibp_samples'],
-                                    log_dir=args.log_dir, run_val_set=val,
-                                    use_local_reparam=args.use_local_reparam,
-                                    implicit_beta=args.implicit_beta,
-                                    hibp=args.hibp)
+        data_gen = get_datagen()
+        hidden_size = [args.K] * args.num_layers
+        # Z matrix for each task is output
+        # This is overwritten for each run
+        ibp_acc, Zs, uncerts, stamp = run_vcl_ibp(hidden_size=hidden_size, alpha=thetas['alpha'],
+                                                  no_epochs=[thetas['no_epochs']] * num_tasks if thetas['no_epochs'] > 600 else [int(
+                                                      thetas['no_epochs'] * 1.2)] + [thetas['no_epochs']] * (num_tasks - 1),
+                                                  data_gen=data_gen, coreset_method=coreset_method,
+                                                  coreset_size=coreset_size,
+                                                  name=name, val=val, run_val_set=True, batch_size=thetas['batch_size'],
+                                                  single_head=args.single_head, task_inf=task_inf,
+                                                  prior_mean=thetas['prior_mean'], prior_var=thetas['prior_var'], alpha0=thetas['alpha0'],
+                                                  beta0=thetas['beta0'], lambda_1=thetas['lambda_1'], lambda_2=thetas['lambda_2'],
+                                                  learning_rate=[0.001] * num_tasks,
+                                                  no_pred_samples=thetas['no_pred_samples'], ibp_samples=thetas['ibp_samples'],
+                                                  log_dir=args.log_dir,
+                                                  use_local_reparam=args.use_local_reparam,
+                                                  implicit_beta=True, hibp=args.hibp, beta_1=1,
+                                                  optimism=args.optimism,
+                                                  pred_ent=False if args.mutual_info else True,
+                                                  use_uncert=args.use_uncert, batch_size_entropy=batch_size_entropy,
+                                                  ts_stop_gradients=args.ts_stop_gradients, ts=args.ts,
+                                                  ts_cutoff=args.ts_cutoff)
 
         # best score is a loss which is defined to be minimised over, hence want to minimise the negative acc
         _ = RndSearch.update_score(thetas, -np.nanmean(ibp_acc), model=None, sess=None)  # rewards act like the inverse of a loss
 
     # run final VCL + IBP with opt parameters
     thetas_opt = RndSearch.get_best_params()
-    val = False
-    for i in range(len(seeds)):
-        s = seeds[i]
+    seed=100
+    for i in range(test_runs):
+        s = seed + i
         tf.compat.v1.set_random_seed(s)
         data_gen = get_datagen(val)
         name = "ibp_rs_opt_split_{0}_{1}_run{2}".format(args.dataset, args.tag, i+1)
-        # changed the search space...
-        if 'lambda_1' in thetas_opt and 'lambda_2' in thetas_opt:
-            lambda_1 = thetas_opt['lambda_1']
-            lambda_2 = thetas_opt['lambda_2']
-        else:
-            lambda_1 = thetas_opt['lambda']
-            lambda_2 = thetas_opt['lambda']
-        ibp_acc, Zs, uncerts = run_vcl_ibp(hidden_size=hidden_size, alphas=[thetas_opt['alpha']]*len(hidden_size),
-                                           no_epochs=[no_epochs]*num_tasks, data_gen=data_gen,
-                                           name=name, val=val, batch_size=int(thetas_opt['batch_size']),
-                                           single_head=args.single_head, prior_mean=thetas_opt['prior_mean'],
-                                           prior_var=thetas_opt['prior_var'], alpha0=thetas_opt['alpha0'],
-                                           beta0=thetas_opt['beta0'], lambda_1=lambda_1,
-                                           lambda_2=lambda_2, learning_rate=thetas_opt['learning_rate'],
-                                           no_pred_samples=int(thetas_opt['no_pred_samples']),
-                                           ibp_samples=int(thetas_opt['ibp_samples']),
-                                           log_dir=args.log_dir, run_val_set=False,
-                                           use_local_reparam=args.use_local_reparam,
-                                           implicit_beta=args.implicit_beta,
-                                           hibp=args.hibp)
+        ibp_acc, Zs, uncerts, stamp = run_vcl_ibp(hidden_size=hidden_size, alpha=thetas_opt['alpha'],
+                                                  no_epochs=[thetas_opt['no_epochs']] * num_tasks if thetas_opt['no_epochs'] > 600 else [int(
+                                                      thetas_opt['no_epochs'] * 1.2)] + [thetas_opt['no_epochs']] * (num_tasks - 1),
+                                                  data_gen=data_gen, coreset_method=coreset_method,
+                                                  coreset_size=coreset_size,
+                                                  name=name, val=val, run_val_set=False, batch_size=thetas_opt['batch_size'],
+                                                  single_head=args.single_head, task_inf=task_inf,
+                                                  prior_mean=thetas_opt['prior_mean'], prior_var=thetas_opt['prior_var'], alpha0=thetas_opt['alpha0'],
+                                                  beta0=thetas_opt['beta0'], lambda_1=thetas_opt['lambda_1'], lambda_2=thetas_opt['lambda_2'],
+                                                  learning_rate=[0.001] * num_tasks,
+                                                  no_pred_samples=thetas_opt['no_pred_samples'], ibp_samples=thetas_opt['ibp_samples'],
+                                                  log_dir=args.log_dir,
+                                                  use_local_reparam=args.use_local_reparam,
+                                                  implicit_beta=True, hibp=args.hibp, beta_1=args.beta_1,
+                                                  optimism=args.optimism,
+                                                  pred_ent=False if args.mutual_info else True,
+                                                  use_uncert=args.use_uncert, batch_size_entropy=batch_size_entropy,
+                                                  ts_stop_gradients=args.ts_stop_gradients, ts=args.ts,
+                                                  ts_cutoff=args.ts_cutoff, seed=s)
 
         all_Zs.append(Zs)
-        vcl_ibp_accs[i, :, :] = ibp_acc
-        all_ibp_uncerts[i, :, :] = uncerts
+        all_uncerts.append(uncerts)
+        time_stamps.append(stamp)
+        vcl_ibp_accs[0, i, :, :] = ibp_acc[0]  # task known
+        vcl_ibp_accs[1, i, :, :] = ibp_acc[1]  # task infered
+    print("Opt test acc a: {0:.3f}, b: {1:.3f}".format(np.nanmean(vcl_ibp_accs[0, :, :, :]), np.nanmean(vcl_ibp_accs[0, :, :, :])))
 
-    tag="ibp_rs_split_{0}_{1}".format(args.dataset, args.tag)
-    with open('results/split_mnist_res5_{}.pkl'.format(tag), 'wb') as input_file:
+    with open('results/split_mnist_{0}.pkl'.format(args.tag), 'wb') as input_file:
         pickle.dump({'vcl_ibp': vcl_ibp_accs,
-                     'uncerts_ibp': all_ibp_uncerts,
+                     'uncerts_ibp': all_uncerts,
                      'Z': all_Zs,
-                     'opt_params': thetas_opt}, input_file)
+                     'ts': time_stamps}, input_file)
 
     print("Finished running.")
 

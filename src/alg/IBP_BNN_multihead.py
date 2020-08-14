@@ -581,7 +581,7 @@ class IBP_BNN(Cla_NN):
                 batch_y = cur_y_train[start_ind:end_ind, :]
 
                 # run summaries every 250 steps
-                if global_step % 5000 == 0:
+                if global_step % 500 == 0:
                     if self.tb_logging:
                         summary = sess.run([self.summary_op],
                                         feed_dict={self.x: batch_x, self.y: batch_y, self.task_idx: task_idx,
@@ -661,12 +661,12 @@ class IBP_BNN(Cla_NN):
 
             avg_acc += acc / total_batch
             avg_neg_elbo += neg_elbo / total_batch
-        print("task: {0} stamp: {1}".format(task_idx, sess.run([self.stamp],feed_dict={self.x: batch_x,
-                                                self.y: batch_y,
-                                                self.task_idx: task_idx,
-                                                self.training: False,
-                                                self.stamps: np.array(stamps),
-                                                })))
+        # print("task: {0} stamp: {1}".format(task_idx, sess.run([self.stamp],feed_dict={self.x: batch_x,
+        #                                         self.y: batch_y,
+        #                                         self.task_idx: task_idx,
+        #                                         self.training: False,
+        #                                         self.stamps: np.array(stamps),
+        #                                         })))
         return avg_acc, avg_neg_elbo
 
     def prediction_Zs(self, x_test, batch_size, task_idx, cut_off=0.5):

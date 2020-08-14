@@ -12,7 +12,7 @@ from IBP_BNN_multihead import IBP_BNN
 class HIBP_BNN(IBP_BNN):
     def __init__(self, alpha, input_size, hidden_size, output_size, training_size,
                  no_train_samples=10, no_pred_samples=100, num_ibp_samples=10, prev_means=None, prev_log_variances=None,
-                 prev_betas=None, learning_rate=0.001, learning_rate_decay=0.87,
+                 prev_betas=None, stamp=dict(), learning_rate=0.001, learning_rate_decay=0.87,
                  prior_mean=0, prior_var=1, alpha0=5., beta0=1., lambda_1=1., lambda_2=1.,
                  tensorboard_dir='logs', name='ibp', tb_logging=True, tb_debug=False,
                  beta_1=1.0, beta_2=1.0, beta_3=1.0, use_local_reparam=True, implicit_beta=True,
@@ -23,7 +23,7 @@ class HIBP_BNN(IBP_BNN):
                                                      no_train_samples=no_train_samples, no_pred_samples=no_pred_samples,
                                                      num_ibp_samples=num_ibp_samples, prev_means=prev_means,
                                                      prev_log_variances=prev_log_variances, prev_betas=prev_betas,
-                                                     learning_rate=learning_rate,
+                                                     stamp = stamp, learning_rate=learning_rate,
                                                      learning_rate_decay=learning_rate_decay, prior_mean=prior_mean,
                                                      prior_var=prior_var, alpha0=alpha0, beta0=beta0, lambda_1=lambda_1,
                                                      lambda_2=lambda_2, tensorboard_dir=tensorboard_dir, name=name,
