@@ -280,9 +280,11 @@ if __name__ == "__main__":
     # define hyper parameters
 
     hyper_param_choices_grid = {'lambda_1': [1/2, 2/3, 3/4, 1, 5/4, 3/2, 7/4, 2, 9/4, 5/2, 11/4, 3],
-                                'lambda_2': [1/2, 2/3, 3/4, 1, 5/4, 3/2, 7/4, 2, 9/4, 5/2, 11/4, 3]}
+                                'lambda_2': [1/2, 2/3, 3/4, 1, 5/4, 3/2, 7/4, 2, 9/4, 5/2, 11/4, 3],
+                                'a_start': [1, 2, 3, 4, 5],
+                                'a_step': [2, 3]}
 
-    hyper_param_choices_ranges = {}
+    hyper_param_choices_ranges = {'alpha0': [5, 25]}
 
     fixed_param_choices = {'ibp_samples': 10,
                            'no_pred_samples': 10,
@@ -290,12 +292,8 @@ if __name__ == "__main__":
                            'batch_size': 512,
                            'beta0': 1.0,
                            'learning_rate': 0.001,
-                           'alpha0': 20,
                            'prior_var': 0.7,
                            'no_epochs': 1000}
-
-    if args.hibp:
-        fixed_param_choices['alpha'] = [5, 5, 10, 10, 20, 20]
 
     RndSearch = HyperparamOptManager(param_grid=hyper_param_choices_grid,
                                      param_ranges=hyper_param_choices_ranges,
@@ -310,7 +308,7 @@ if __name__ == "__main__":
     test_runs = 5
     vcl_ibp_accs = np.zeros((2, test_runs, num_tasks, num_tasks))  # 2 for cl1 and cl2 results
     all_Zs, all_uncerts, time_stamps = [], [], []
-
+    beta_1 = 1
     hidden_size = [args.K] * args.num_layers
     batch_size_entropy = 1500 if args.batch_entropy else None
     coreset_size = 0
@@ -324,20 +322,27 @@ if __name__ == "__main__":
         hidden_size = [args.K] * args.num_layers
         # Z matrix for each task is output
         # This is overwritten for each run
-        ibp_acc, Zs, uncerts, stamp = run_vcl_ibp(hidden_size=hidden_size, alpha=thetas['alpha'],
-                                                  no_epochs=[thetas['no_epochs']] * num_tasks if thetas['no_epochs'] > 600 else [int(
-                                                      thetas['no_epochs'] * 1.2)] + [thetas['no_epochs']] * (num_tasks - 1),
+        if args.hibp and args.dataset == 'mix':
+            alpha = [i for i in range(thetas['a_start'], thetas['a_start'] + thetas['a_step']*(num_tasks//2), thetas['a_step'])]
+            alpha = [item for item in alpha for i in range(2)]
+        else:
+            alpha = [i for i in range(thetas['a_start'], thetas['a_start'] + thetas['a_step']*num_tasks, thetas['a_step'])]
+        print("alpha: {}".format(alpha))
+        ibp_acc, Zs, uncerts, stamp = run_vcl_ibp(hidden_size=hidden_size, alpha=alpha,
+                                                  no_epochs=[int(thetas['no_epochs'])] * num_tasks if int(thetas['no_epochs']) > 600 else [int(
+                                                      int(thetas['no_epochs']) * 1.2)] + [int(thetas['no_epochs'])] * (num_tasks - 1),
                                                   data_gen=data_gen, coreset_method=coreset_method,
                                                   coreset_size=coreset_size,
-                                                  name=name, val=val, run_val_set=True, batch_size=thetas['batch_size'],
+                                                  name=name, val=val, run_val_set=True, batch_size=int(thetas['batch_size']),
                                                   single_head=args.single_head, task_inf=task_inf,
-                                                  prior_mean=thetas['prior_mean'], prior_var=thetas['prior_var'], alpha0=thetas['alpha0'],
-                                                  beta0=thetas['beta0'], lambda_1=thetas['lambda_1'], lambda_2=thetas['lambda_2'],
+                                                  prior_mean=float(thetas['prior_mean']), prior_var=float(thetas['prior_var']),
+                                                  alpha0=float(thetas['alpha0']),
+                                                  beta0=float(thetas['beta0']), lambda_1=float(thetas['lambda_1']), lambda_2=float(thetas['lambda_2']),
                                                   learning_rate=[0.001] * num_tasks,
-                                                  no_pred_samples=thetas['no_pred_samples'], ibp_samples=thetas['ibp_samples'],
+                                                  no_pred_samples=int(thetas['no_pred_samples']), ibp_samples=int(thetas['ibp_samples']),
                                                   log_dir=args.log_dir,
                                                   use_local_reparam=args.use_local_reparam,
-                                                  implicit_beta=True, hibp=args.hibp, beta_1=1,
+                                                  implicit_beta=True, hibp=args.hibp, beta_1=beta_1,
                                                   optimism=args.optimism,
                                                   pred_ent=False if args.mutual_info else True,
                                                   use_uncert=args.use_uncert, batch_size_entropy=batch_size_entropy,
@@ -349,26 +354,29 @@ if __name__ == "__main__":
 
     # run final VCL + IBP with opt parameters
     thetas_opt = RndSearch.get_best_params()
+    import json
+    print(json.loads(thetas_opt['alpha']))
     seed=100
     for i in range(test_runs):
         s = seed + i
         tf.compat.v1.set_random_seed(s)
-        data_gen = get_datagen(val)
+        data_gen = get_datagen()
         name = "ibp_rs_opt_split_{0}_{1}_run{2}".format(args.dataset, args.tag, i+1)
-        ibp_acc, Zs, uncerts, stamp = run_vcl_ibp(hidden_size=hidden_size, alpha=thetas_opt['alpha'],
-                                                  no_epochs=[thetas_opt['no_epochs']] * num_tasks if thetas_opt['no_epochs'] > 600 else [int(
-                                                      thetas_opt['no_epochs'] * 1.2)] + [thetas_opt['no_epochs']] * (num_tasks - 1),
+        ibp_acc, Zs, uncerts, stamp = run_vcl_ibp(hidden_size=hidden_size, alpha=json.loads(thetas_opt['alpha']),
+                                                  no_epochs=[int(thetas_opt['no_epochs'])] * num_tasks if int(thetas_opt['no_epochs']) > 600 else [int(
+                                                      thetas_opt['no_epochs'] * 1.2)] + [int(thetas_opt['no_epochs'])] * (num_tasks - 1),
                                                   data_gen=data_gen, coreset_method=coreset_method,
                                                   coreset_size=coreset_size,
-                                                  name=name, val=val, run_val_set=False, batch_size=thetas_opt['batch_size'],
+                                                  name=name, val=val, run_val_set=False, batch_size=int(thetas_opt['batch_size']),
                                                   single_head=args.single_head, task_inf=task_inf,
-                                                  prior_mean=thetas_opt['prior_mean'], prior_var=thetas_opt['prior_var'], alpha0=thetas_opt['alpha0'],
-                                                  beta0=thetas_opt['beta0'], lambda_1=thetas_opt['lambda_1'], lambda_2=thetas_opt['lambda_2'],
+                                                  prior_mean=float(thetas_opt['prior_mean']), prior_var=float(thetas_opt['prior_var']),
+                                                  alpha0=float(thetas_opt['alpha0']),
+                                                  beta0=float(thetas_opt['beta0']), lambda_1=float(thetas_opt['lambda_1']), lambda_2=float(thetas_opt['lambda_2']),
                                                   learning_rate=[0.001] * num_tasks,
-                                                  no_pred_samples=thetas_opt['no_pred_samples'], ibp_samples=thetas_opt['ibp_samples'],
+                                                  no_pred_samples=int(thetas_opt['no_pred_samples']), ibp_samples=int(thetas_opt['ibp_samples']),
                                                   log_dir=args.log_dir,
                                                   use_local_reparam=args.use_local_reparam,
-                                                  implicit_beta=True, hibp=args.hibp, beta_1=args.beta_1,
+                                                  implicit_beta=True, hibp=args.hibp, beta_1=beta_1,
                                                   optimism=args.optimism,
                                                   pred_ent=False if args.mutual_info else True,
                                                   use_uncert=args.use_uncert, batch_size_entropy=batch_size_entropy,

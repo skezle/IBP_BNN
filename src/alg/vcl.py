@@ -10,13 +10,13 @@ from HIBP_BNN_multihead import HIBP_BNN
 def run_vcl(hidden_size, no_epochs, data_gen, coreset_method, coreset_size=0, batch_size=None,
             single_head=True, task_inf=False, val=False, verbose=True, name='vcl', log_dir='logs',
             use_local_reparam=False, optimism=True, pred_ent=True, use_uncert=False,
-            batch_size_entropy=None):
+            batch_size_entropy=None, ts_stop_gradients=False, ts=False, ts_cutoff=0.5, seed=100):
     assert not (single_head and task_inf), "Can't have both single head and task inference."
     x_testsets, y_testsets = [], []
     x_coresets, y_coresets = [], []
 
     all_acc, all_acc_ent = np.array([]), np.array([])
-    all_uncerts = np.zeros((data_gen.max_iter, data_gen.max_iter))
+    all_uncerts = []
 
     for task_id in range(data_gen.max_iter):
 
@@ -45,6 +45,7 @@ def run_vcl(hidden_size, no_epochs, data_gen, coreset_method, coreset_size=0, ba
             ml_model.train(x_train, y_train, task_id, 200, bsize)
             mf_weights = ml_model.get_weights()
             mf_variances = None
+            stamp = None
             ml_model.close_session()
 
         # Train on non-coreset data
@@ -65,13 +66,13 @@ def run_vcl(hidden_size, no_epochs, data_gen, coreset_method, coreset_size=0, ba
 
         # get accuracies for all test sets seen so far
         acc = get_scores(mf_model, x_testsets, y_testsets, x_coresets, y_coresets, bsize, single_head,
-                         hparams, ibp=False, hibp=False)
-        acc_ent = get_scores_entropy(mf_model, x_testsets, y_testsets, x_coresets, y_coresets, single_head,
-                                     hparams, ibp=False, hibp=False, batch_size=batch_size_entropy,
+                         stamp, hparams, ibp=False, hibp=False)
+        acc_ent, uncerts = get_scores_entropy(mf_model, x_testsets, y_testsets, x_coresets, y_coresets, single_head,
+                                     stamp, hparams, ibp=False, hibp=False, batch_size=batch_size_entropy,
                                      optimism=optimism, pred_ent=pred_ent, use_uncert=use_uncert)
         all_acc = concatenate_results(acc, all_acc)
         all_acc_ent = concatenate_results(acc_ent, all_acc_ent)
-
+        all_uncerts.append(uncerts)
         mf_model.close_session()
 
     return [all_acc, all_acc_ent], all_uncerts

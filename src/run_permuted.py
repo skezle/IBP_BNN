@@ -66,62 +66,19 @@ class PermutedMnistGenerator():
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--cl2', action='store_true',
-                        default=False,
-                        dest='cl2',
-                        help='Whether to use a perform CL2: domain incremental learning.')
-    parser.add_argument('--cl3', action='store_true',
-                        default=False,
-                        dest='cl3',
-                        help='Whether to use a perform CL3: class incremental learning.')
-    parser.add_argument('--hibp', action='store_true',
-                        default=False,
-                        dest='hibp',
-                        help='Whether to use hibp.')
-    parser.add_argument('--num_layers', action='store',
-                        dest='num_layers',
-                        default=1,
-                        type=int,
-                        help='Number of layers in the NNs.')
-    parser.add_argument('--log_dir', action='store',
-                        dest='log_dir',
-                        default='logs',
-                        help='TB Log directory.')
-    parser.add_argument('--run_baselines', action='store_true',
-                        default=False,
-                        dest='run_baselines',
-                        help='Whether to run VCL baselines.')
-    parser.add_argument('--tag', action='store',
-                        dest='tag',
-                        help='Tag to use in naming file outputs')
-    parser.add_argument('--h', nargs='+',
-                        dest='h_list',
-                        type=int,
-                        default=[5, 50],
-                        help='List of hidden states')
-    parser.add_argument('--K', action='store',
-                        dest='K',
-                        type=int,
-                        default=100,
-                        help='Variational truncation param for IBP.')
-    parser.add_argument('--no_ibp', action='store_true',
-                        default=False,
-                        dest='no_ibp',
-                        help='Whether not to run ibp.')
-    parser.add_argument('--runs', action='store',
-                        dest='runs',
-                        default=1,
-                        type=int,
-                        help='Number runs to perform.')
-    parser.add_argument('--num_tasks', action='store',
-                        dest='num_tasks',
-                        default=5,
-                        type=int,
-                        help='Number permutations/tasks to perform.')
-    parser.add_argument('--new_tag', action='store',
-                        dest='new_tag',
-                        default='',
-                        help='New tag to use to store pickle file if we are reloading a chackpoint with the tag arg.')
+    parser.add_argument('--cl2', action='store_true', default=False, dest='cl2', help='Whether to use a perform CL2: domain incremental learning.')
+    parser.add_argument('--cl3', action='store_true', default=False, dest='cl3', help='Whether to use a perform CL3: class incremental learning.')
+    parser.add_argument('--hibp', action='store_true', default=False, dest='hibp', help='Whether to use hibp.')
+    parser.add_argument('--num_layers', action='store', dest='num_layers', default=1, type=int, help='Number of layers in the NNs.')
+    parser.add_argument('--log_dir', action='store', dest='log_dir', default='logs', help='TB Log directory.')
+    parser.add_argument('--run_baselines', action='store_true', default=False, dest='run_baselines', help='Whether to run VCL baselines.')
+    parser.add_argument('--tag', action='store', dest='tag', help='Tag to use in naming file outputs')
+    parser.add_argument('--h', nargs='+', dest='h_list', type=int, default=[5, 50], help='List of hidden states')
+    parser.add_argument('--K', action='store', dest='K', type=int, default=100, help='Variational truncation param for IBP.')
+    parser.add_argument('--no_ibp', action='store_true', default=False, dest='no_ibp', help='Whether not to run ibp.')
+    parser.add_argument('--runs', action='store', dest='runs', default=1, type=int, help='Number runs to perform.')
+    parser.add_argument('--num_tasks', action='store', dest='num_tasks', default=5, type=int, help='Number permutations/tasks to perform.')
+    parser.add_argument('--new_tag', action='store', dest='new_tag', default='', help='New tag to use to store pickle file if we are reloading a chackpoint with the tag arg.')
     args = parser.parse_args()
 
     print('cl2                  = {!r}'.format(args.cl2))
@@ -145,8 +102,7 @@ if __name__ == "__main__":
 
     vcl_ibp_accs = np.zeros((2, len(seeds), num_tasks, num_tasks))
     baseline_accs = {h: np.zeros((2, len(seeds), num_tasks, num_tasks)) for h in args.h_list}
-    all_ibp_uncerts = np.zeros((len(seeds), num_tasks, num_tasks))
-    baseline_uncerts = {h: np.zeros((len(seeds), num_tasks, num_tasks)) for h in args.h_list}
+    baseline_uncerts = {h: [] for h in args.h_list}
     all_Zs, all_uncerts, time_stamps = [], [], []
 
     alpha0 = 5.0
@@ -205,7 +161,7 @@ if __name__ == "__main__":
                                               log_dir=args.log_dir)
                 baseline_accs[h][0, i, :, :] = vcl_result[0]
                 baseline_accs[h][1, i, :, :] = vcl_result[1]
-                baseline_uncerts[h][i, :, :] = uncerts
+                baseline_uncerts[h].append(uncerts)
 
 
     with open('results/permuted_mnist_{0}_{1}.pkl'.format(args.tag, args.new_tag), 'wb') as input_file:
