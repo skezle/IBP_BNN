@@ -1,5 +1,6 @@
 import numpy as np
 import tensorflow as tf
+from tensorflow import keras
 import gzip
 import pickle
 import os.path
@@ -13,7 +14,7 @@ from HIBP_BNN_multihead import HIBP_BNN
 from copy import deepcopy
 
 
-def prune_weights(model, X_test, Y_test, bsize, task_id, xs):
+def prune_weights(model, X_test, Y_test, bsize, task_id, xs, stamps):
     """ Performs weight pruning.
 
     Z is at a data level doesn't make sense to introduce this intot he mask over weights which get zeroed
@@ -59,7 +60,6 @@ def prune_weights(model, X_test, Y_test, bsize, task_id, xs):
         """
         if uncert_pruning:
             sorted_STN = np.sort(np.abs(weightvalues) / sigmavalues)
-
         else:
             sorted_STN = np.sort(np.abs(weightvalues))
         cutoff = sorted_STN[int(remove_pct * len(sorted_STN))]
@@ -74,7 +74,7 @@ def prune_weights(model, X_test, Y_test, bsize, task_id, xs):
             model.sess.run(tf.assign(v, tf.multiply(v, tf.cast(mask, v.dtype))))
             #self.sess.run(tf.assign(s, np.multiply(self.sess.run(s), mask)))  # also apply zero std to weight!!!
 
-        acc, _ = model.prediction_acc(X_test, Y_test, bsize, task_id)
+        acc, _ = model.prediction_acc(X_test, Y_test, bsize, task_id, stamps)
         print("%.2f, %s" % (np.sum(sorted_STN < cutoff) / len(sorted_STN), np.mean(acc)))
         return np.mean(acc)
 
@@ -82,12 +82,9 @@ def prune_weights(model, X_test, Y_test, bsize, task_id, xs):
     weights = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope=tf.get_variable_scope().name)
 
     # Get weights from network
-    mus_w = []
-    mus_b = []
-    sigmas_w = []
-    sigmas_b = []
-    mus_h = [] # weights and biases
-    sigmas_h = [] # weights and biases
+    mus_w, mus_b = [], []
+    sigmas_w, sigmas_b = [], []
+    mus_h, sigmas_h = [], [] # weights and biases
     for v in weights:
         if re.match("^([w])(_mu_)([0-9]+)(:0)$", v.name):
             mus_w.append(v)
@@ -131,7 +128,7 @@ def prune_weights(model, X_test, Y_test, bsize, task_id, xs):
     yb = []
     for pct in xs:
         yb.append(pruning(pct, weightvalues, sigmavalues, mus_w + mus_b + mus_h,
-                              sigmas_w + sigmas_b + sigmas_h, bsize, uncert_pruning=True))
+                          sigmas_w + sigmas_b + sigmas_h, bsize, uncert_pruning=True))
 
     reset_weights(mus_w, sigmas_w, _mus_w, _sigmas_w)
     reset_weights(mus_b, sigmas_b, _mus_b, _sigmas_b)
@@ -141,19 +138,32 @@ def prune_weights(model, X_test, Y_test, bsize, task_id, xs):
 
 
 class MnistGenerator():
-    def __init__(self, val=False):
+    def __init__(self, fmnist=False, val=False):
         self.val = val
-        with gzip.open('data/mnist.pkl.gz', 'rb') as f:
-            train_set, valid_set, test_set = pickle.load(f, encoding='latin1')
-
-        if self.val:
-            self.X_train = train_set[0]
-            self.X_val = valid_set[0]
-            self.Y_train = train_set[1]
-            self.Y_val = valid_set[1]
+        self.fmnist = fmnist
+        if self.fmnist:
+            fashion_mnist = keras.datasets.fashion_mnist
+            train_set, test_set = fashion_mnist.load_data() # (60000, 28, 28), (10000, 28, 28)
+            if self.val:
+                idx = np.random.permutation(train_set[0].shape[0])
+                self.X_train = train_set[0][idx[10000:], :, :].reshape(-1, 1)
+                self.X_val = train_set[0][idx[:10000], :, :].reshape(-1, 1)
+                self.Y_train = train_set[1][idx[10000:]]
+                self.Y_val = train_set[1][idx[:10000]]
+            else:
+                self.X_train = train_set[0]
+                self.Y_train = train_set[1]
         else:
-            self.X_train = np.vstack((train_set[0], valid_set[0]))
-            self.Y_train = np.hstack((train_set[1], valid_set[1]))
+            with gzip.open('data/mnist.pkl.gz', 'rb') as f:
+                train_set, valid_set, test_set = pickle.load(f, encoding='latin1')
+            if self.val:
+                self.X_train = train_set[0]
+                self.X_val = valid_set[0]
+                self.Y_train = train_set[1]
+                self.Y_val = valid_set[1]
+            else:
+                self.X_train = np.vstack((train_set[0], valid_set[0]))
+                self.Y_train = np.hstack((train_set[1], valid_set[1]))
         self.X_test = test_set[0]
         self.Y_test = test_set[1]
 
@@ -174,36 +184,19 @@ class MnistGenerator():
             x_val = deepcopy(self.X_val)
             y_val = np.eye(10)[self.Y_val]
             return x_train, y_train, x_test, y_test, x_val, y_val
-
-        return x_train, y_train, x_test, y_test
+        else:
+            return x_train, y_train, x_test, y_test
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--run_baselines', action='store_true',
-                        default=False,
-                        dest='run_baselines',
-                        help='Whether to run MFVI baselines.')
-    parser.add_argument('--hibp', action='store_true',
-                        default=False,
-                        dest='hibp',
-                        help='Whether to use HIBP.')
-    parser.add_argument('--tag', action='store',
-                        dest='tag',
-                        help='Tag to use in naming file outputs')
-    parser.add_argument('--no_ibp', action='store_true',
-                        default=False,
-                        dest='no_ibp',
-                        help='Whether not to run ibp.')
-    parser.add_argument('--runs', action='store',
-                        dest='runs',
-                        default=1,
-                        type=int,
-                        help='Number runs to perform.')
-    parser.add_argument('--log_dir', action='store',
-                        dest='log_dir',
-                        default='logs',
-                        help='TB log directory.')
+    parser.add_argument('--run_baselines', action='store_true', default=False, dest='run_baselines', help='Whether to run MFVI baselines.')
+    parser.add_argument('--dataset', action='store', dest='dataset', default='mnist', help='Whether to use {mnist or fmnist}.')
+    parser.add_argument('--hibp', action='store_true', default=False, dest='hibp', help='Whether to use HIBP.')
+    parser.add_argument('--tag', action='store', dest='tag', help='Tag to use in naming file outputs')
+    parser.add_argument('--no_ibp', action='store_true', default=False, dest='no_ibp', help='Whether not to run ibp.')
+    parser.add_argument('--runs', action='store', dest='runs', default=1, type=int, help='Number runs to perform.')
+    parser.add_argument('--log_dir', action='store', dest='log_dir', default='logs', help='TB log directory.')
     args = parser.parse_args()
 
     print('tag                    = {!r}'.format(args.tag))
@@ -213,12 +206,13 @@ if __name__ == '__main__':
     print('runs                   = {!r}'.format(args.runs))
     print('log_dir                = {!r}'.format(args.log_dir))
 
-    hidden_size = [400, 400]
+    hidden_size = 400
+    num_layers = 4
     batch_size = 128
     no_epochs = 200
     seeds = [1, 2, 3, 4, 5]
     np.random.seed(1)
-    xs = np.append(0.1 * np.array(range(10)), [0.95, 0.96, 0.97, 0.98, 0.99, 0.992, 0.995, 0.997, 0.999])
+    xs = np.append(np.linspace(0.6, 0.95, 8), np.linspace(0.95, 1.0, 26)[:-1])
 
     ###########
     ## H-IBP ##
@@ -234,148 +228,150 @@ if __name__ == '__main__':
     prior_mean = 0.0
     prior_var = 0.7
     val = False
-    ya_ibp_all = np.zeros((args.runs, len(xs)))
-    yb_ibp_all = np.zeros((args.runs, len(xs)))
+    ya_ibp_all = np.zeros((args.runs, num_layers, len(xs)))
+    yb_ibp_all = np.zeros((args.runs, num_layers, len(xs)))
 
     if not args.no_ibp:
         for i in range(args.runs):
-            tf.compat.v1.set_random_seed(seeds[i])
-            data_gen = MnistGenerator()
-            single_head=True
-            in_dim, out_dim = data_gen.get_dims()
-            x_testsets, y_testsets = [], []
-            task_id=0
+            for j in range(num_layers):
+                tf.compat.v1.set_random_seed(seeds[i])
+                data_gen = MnistGenerator(fmnist=True if args.dataset == 'fmnist' else False)
+                single_head=True
+                in_dim, out_dim = data_gen.get_dims()
+                x_testsets, y_testsets = [], []
+                task_id=0
 
-            tf.compat.v1.reset_default_graph()
-            if val:
-                x_train, y_train, x_test, y_test, _, _ = data_gen.task()
-            else:
-                x_train, y_train, x_test, y_test = data_gen.task()
-            x_testsets.append(x_test)
-            y_testsets.append(y_test)
+                tf.compat.v1.reset_default_graph()
+                if val:
+                    x_train, y_train, x_test, y_test, _, _ = data_gen.task()
+                else:
+                    x_train, y_train, x_test, y_test = data_gen.task()
+                x_testsets.append(x_test)
+                y_testsets.append(y_test)
 
-            # Set the readout head to train
-            head = 0 if single_head else task_id
-            bsize = x_train.shape[0] if (batch_size is None) else batch_size
+                # Set the readout head to train
+                head = 0 if single_head else task_id
+                bsize = x_train.shape[0] if (batch_size is None) else batch_size
 
-            # Train network with maximum likelihood to initialize first model
-            if task_id == 0:
-                ml_model = Vanilla_NN(in_dim, hidden_size, out_dim, x_train.shape[0])
-                ml_model.train(x_train, y_train, task_id, 100, bsize)
-                mf_weights = ml_model.get_weights()
-                mf_variances = None
-                mf_betas = None
-                ml_model.close_session()
+                # Train network with maximum likelihood to initialize first model
+                if task_id == 0:
+                    ml_model = Vanilla_NN(in_dim, [hidden_size]*(j+1), out_dim, x_train.shape[0])
+                    ml_model.train(x_train, y_train, task_id, 100, bsize)
+                    mf_weights = ml_model.get_weights()
+                    mf_variances = None
+                    mf_betas = None
+                    stamps = stamp = {0: [0]*(j+1)}
+                    ml_model.close_session()
 
-            if args.hibp:
-                model = HIBP_BNN(alphas=[alpha]*len(hidden_size),
-                                 input_size=in_dim,
-                                 hidden_size=hidden_size,
-                                 output_size=out_dim,
-                                 training_size=x_train.shape[0],
-                                 no_pred_samples=100,
-                                 num_ibp_samples=10,
-                                 no_train_samples=10,
-                                 prev_means=mf_weights,
-                                 prev_log_variances=mf_variances,
-                                 prev_betas=mf_betas,
-                                 learning_rate=0.001, learning_rate_decay=0.87,
-                                 prior_mean=prior_mean, prior_var=prior_var,
-                                 alpha0=alpha0, beta0=beta0,
-                                 lambda_1=lambda_1, lambda_2=lambda_2,
-                                 tensorboard_dir=args.log_dir,
-                                 name='hibp_wp_{0}_run{1}'.format(args.tag, i),
-                                 tb_logging=False,
-                                 tb_debug=False,
-                                 use_local_reparam=False,
-                                 implicit_beta=True)
-            else:
-                model = IBP_BNN(in_dim, hidden_size, out_dim,
-                                x_train.shape[0],
-                                no_pred_samples=100,
-                                num_ibp_samples=10,
-                                no_train_samples=10,
-                                prev_means=mf_weights,
-                                prev_log_variances=mf_variances,
-                                prev_betas=mf_betas,
-                                learning_rate=0.001, learning_rate_decay=0.87,
-                                prior_mean=prior_mean, prior_var=prior_var,
-                                alpha0=alpha0, beta0=beta0,
-                                lambda_1=lambda_1, lambda_2=lambda_2,
-                                tensorboard_dir=args.log_dir,
-                                tb_logging=False,
-                                tb_debug=False,
-                                name='ibp_wp_{0}_run{1}'.format(args.tag, i),
-                                use_local_reparam=False,
-                                implicit_beta=True)
-            model.create_model()
+                if args.hibp:
+                    model = HIBP_BNN(alphas=[alpha]*(j+1),
+                                     input_size=in_dim,
+                                     hidden_size=[hidden_size]*(j+1),
+                                     output_size=out_dim,
+                                     training_size=x_train.shape[0],
+                                     no_pred_samples=100,
+                                     num_ibp_samples=10,
+                                     no_train_samples=10,
+                                     prev_means=mf_weights,
+                                     prev_log_variances=mf_variances,
+                                     prev_betas=mf_betas,
+                                     learning_rate=0.001, learning_rate_decay=0.87,
+                                     prior_mean=prior_mean, prior_var=prior_var,
+                                     alpha0=alpha0, beta0=beta0,
+                                     lambda_1=lambda_1, lambda_2=lambda_2,
+                                     tensorboard_dir=args.log_dir,
+                                     name='hibp_wp_{0}_run{1}'.format(args.tag, i),
+                                     tb_logging=False,
+                                     tb_debug=False,
+                                     use_local_reparam=True,
+                                     implicit_beta=True)
+                else:
+                    model = IBP_BNN(in_dim, hidden_size, out_dim,
+                                    x_train.shape[0],
+                                    no_pred_samples=100,
+                                    num_ibp_samples=10,
+                                    no_train_samples=10,
+                                    prev_means=mf_weights,
+                                    prev_log_variances=mf_variances,
+                                    prev_betas=mf_betas,
+                                    learning_rate=0.001, learning_rate_decay=0.87,
+                                    prior_mean=prior_mean, prior_var=prior_var,
+                                    alpha0=alpha0, beta0=beta0,
+                                    lambda_1=lambda_1, lambda_2=lambda_2,
+                                    tensorboard_dir=args.log_dir,
+                                    tb_logging=True,
+                                    tb_debug=False,
+                                    name='ibp_wp_{0}_run{1}'.format(args.tag, i),
+                                    use_local_reparam=True,
+                                    implicit_beta=True)
+                model.create_model()
 
-            if os.path.isdir(model.log_folder):
-                print("Restoring model from {}".format(model.log_folder))
-                model.restore(model.log_folder)
-            else:
-                print("New model, training")
-                model.train(x_train, y_train, head, no_epochs, bsize, verbose=False)
+                if os.path.isdir(model.log_folder):
+                    print("Restoring model from {}".format(model.log_folder))
+                    model.restore(model.log_folder)
+                else:
+                    print("New model, training")
+                    model.train(x_train, y_train, head, no_epochs, bsize, verbose=False)
 
-            xs, ya_ibp, yb_ibp = prune_weights(model, x_test, y_test, bsize, head, xs)
-            ya_ibp_all[i, :] = ya_ibp
-            yb_ibp_all[i, :] = yb_ibp
+                xs, ya_ibp, yb_ibp = prune_weights(model, x_test, y_test, bsize, head, xs, stamps)
+                ya_ibp_all[i, j, :] = ya_ibp
+                yb_ibp_all[i, j, :] = yb_ibp
 
-            model.close_session()
+                model.close_session()
 
     ##########
     ## MFVI ##
     ##########
-    ya_all = np.zeros((args.runs, len(xs)))
-    yb_all = np.zeros((args.runs, len(xs)))
+    ya_all = np.zeros((args.runs, num_layers, len(xs)))
+    yb_all = np.zeros((args.runs, num_layers, len(xs)))
     #no_epochs = 200
     if args.run_baselines:
         for i in range(args.runs):
-            tf.compat.v1.set_random_seed(seeds[i])
-            np.random.seed(1)
-            data_gen = MnistGenerator()
-            single_head=False
-            in_dim, out_dim = data_gen.get_dims()
-            task_id=0
+            for j in range(num_layers):
+                tf.compat.v1.set_random_seed(seeds[i])
+                np.random.seed(1)
+                data_gen = MnistGenerator()
+                single_head=False
+                in_dim, out_dim = data_gen.get_dims()
+                task_id=0
 
-            tf.compat.v1.reset_default_graph()
-            if val:
-                x_train, y_train, x_test, y_test, _, _ = data_gen.task()
-            else:
-                x_train, y_train, x_test, y_test = data_gen.task()
+                tf.compat.v1.reset_default_graph()
+                if val:
+                    x_train, y_train, x_test, y_test, _, _ = data_gen.task()
+                else:
+                    x_train, y_train, x_test, y_test = data_gen.task()
 
-            # Set the readout head to train
-            head = 0 if single_head else task_id
-            bsize = x_train.shape[0] if (batch_size is None) else batch_size
+                # Set the readout head to train
+                head = 0 if single_head else task_id
+                bsize = x_train.shape[0] if (batch_size is None) else batch_size
 
-            # Train network with maximum likelihood to initialize first model
-            if task_id == 0:
-                ml_model = Vanilla_NN(in_dim, hidden_size, out_dim, x_train.shape[0])
-                ml_model.train(x_train, y_train, task_id, 100, bsize)
-                mf_weights = ml_model.get_weights()
-                mf_variances = None
-                ml_model.close_session()
+                # Train network with maximum likelihood to initialize first model
+                if task_id == 0:
+                    ml_model = Vanilla_NN(in_dim, [hidden_size]*(j+1), out_dim, x_train.shape[0])
+                    ml_model.train(x_train, y_train, task_id, 100, bsize)
+                    mf_weights = ml_model.get_weights()
+                    mf_variances = None
+                    ml_model.close_session()
 
-            mf_model = MFVI_NN(in_dim, hidden_size, out_dim,
-                               x_train.shape[0], no_train_samples=10, no_pred_samples=100,
-                               prev_means=mf_weights, prev_log_variances=mf_variances,
-                               learning_rate=0.001, learning_rate_decay=0.50,
-                               prior_mean=prior_mean, prior_var=prior_var,
-                               use_local_reparam=False)
+                mf_model = MFVI_NN(in_dim, [hidden_size]*(j+1), out_dim,
+                                   x_train.shape[0], no_train_samples=10, no_pred_samples=100,
+                                   prev_means=mf_weights, prev_log_variances=mf_variances,
+                                   learning_rate=0.001, learning_rate_decay=0.50,
+                                   prior_mean=prior_mean, prior_var=prior_var,
+                                   use_local_reparam=False)
 
-            if os.path.isdir(mf_model.log_folder):
-                print("Restoring model from {}".format(mf_model.log_folder))
-                mf_model.restore(mf_model.log_folder)
-            else:
-                print("New model, training")
-                mf_model.train(x_train, y_train, head, no_epochs, bsize)
+                if os.path.isdir(mf_model.log_folder):
+                    print("Restoring model from {}".format(mf_model.log_folder))
+                    mf_model.restore(mf_model.log_folder)
+                else:
+                    print("New model, training")
+                    mf_model.train(x_train, y_train, head, no_epochs, bsize)
 
-            xs, ya, yb = prune_weights(mf_model, x_test, y_test, bsize, head, xs)
-            ya_all[i, :] = ya
-            yb_all[i, :] = yb
+                xs, ya, yb = prune_weights(mf_model, x_test, y_test, bsize, head, xs)
+                ya_all[i, j, :] = ya
+                yb_all[i, j, :] = yb
 
-            mf_model.close_session()
-
+                mf_model.close_session()
 
     with open('results/weight_pruning_{0}.pkl'.format(args.tag), 'wb') as input_file:
         pickle.dump({'xs': xs,
