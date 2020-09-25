@@ -355,7 +355,7 @@ if __name__ == "__main__":
     # run final VCL + IBP with opt parameters
     thetas_opt = RndSearch.get_best_params()
     import json
-    print(json.loads(thetas_opt['alpha']))
+    print(json.loads(thetas_opt))
     seed=100
     for i in range(test_runs):
         s = seed + i
@@ -388,13 +388,14 @@ if __name__ == "__main__":
         time_stamps.append(stamp)
         vcl_ibp_accs[0, i, :, :] = ibp_acc[0]  # task known
         vcl_ibp_accs[1, i, :, :] = ibp_acc[1]  # task infered
-    print("Opt test acc a: {0:.3f}, b: {1:.3f}".format(np.nanmean(vcl_ibp_accs[0, :, :, :]), np.nanmean(vcl_ibp_accs[0, :, :, :])))
+    print("Opt test acc a: {0:.3f}, b: {1:.3f}".format(np.nanmean(vcl_ibp_accs[0, :, :, :]), np.nanmean(vcl_ibp_accs[1, :, :, :])))
 
     with open('results/split_mnist_{0}.pkl'.format(args.tag), 'wb') as input_file:
         pickle.dump({'vcl_ibp': vcl_ibp_accs,
                      'uncerts_ibp': all_uncerts,
                      'Z': all_Zs,
-                     'ts': time_stamps}, input_file)
+                     'ts': time_stamps,
+                     'opt_thetas': thetas_opt}, input_file)
 
     print("Finished running.")
 
