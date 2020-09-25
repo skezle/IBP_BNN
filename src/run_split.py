@@ -286,8 +286,8 @@ class SplitMix(SplitMnistGenerator):
         # zero padding
         _X_train_fmnist = np.zeros((X_train_fmnist.shape[0], 32, 32))
         _X_test_fmnist = np.zeros((X_test_fmnist.shape[0], 32, 32))
-        _X_train_fmnist[:, 2:30, 2:30] = train
-        _X_test_fmnist[:, 2:30, 2:30] = test
+        _X_train_fmnist[:, 2:30, 2:30] = X_train_fmnist
+        _X_test_fmnist[:, 2:30, 2:30] = X_test_fmnist
         _X_train_fmnist = _X_train_fmnist.reshape(-1, 32 * 32)
         _X_test_fmnist = _X_test_fmnist.reshape(-1, 32 * 32)
 
@@ -349,111 +349,32 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('--single_head', action='store_true',
-                        default=False,
-                        dest='single_head',
-                        help='Whether to use a single head.')
-    parser.add_argument('--cl2', action='store_true',
-                        default=False,
-                        dest='cl2',
-                        help='Whether to use a perform CL2: domain incremental learning.')
-    parser.add_argument('--cl3', action='store_true',
-                        default=False,
-                        dest='cl3',
-                        help='Whether to use a perform CL3: class incremental learning.')
-    parser.add_argument('--num_layers', action='store',
-                        dest='num_layers',
-                        default=1,
-                        type=int,
-                        help='Number of layers in the NNs.')
-    parser.add_argument('--runs', action='store',
-                        dest='runs',
-                        default=1,
-                        type=int,
-                        help='Number runs to perform.')
-    parser.add_argument('--log_dir', action='store',
-                        dest='log_dir',
-                        default='logs',
-                        help='TB log directory.')
-    parser.add_argument('--dataset', action='store',
-                        dest='dataset',
-                        help='Which dataset to choose {normal, random, images, cifar10, mix}.')
-    parser.add_argument('--tag', action='store',
-                        dest='tag',
-                        help='Tag to use in naming file outputs')
-    parser.add_argument('--new_tag', action='store',
-                        dest='new_tag',
-                        default='',
-                        help='New tag to use to store pickle file if we are reloading a chackpoint with the tag arg.')
-    parser.add_argument('--use_local_reparam', action='store_true',
-                        default=False,
-                        dest='use_local_reparam',
-                        help='Whether to use local reparam.')
-    parser.add_argument('--alpha0', action='store',
-                        default=5.0,
-                        type=float,
-                        dest='alpha0',
-                        help='The prior and initialisation for the beta concentration param.')
-    parser.add_argument('--hibp', action='store_true',
-                        default=False,
-                        dest='hibp',
-                        help='Whether to use hibp.')
-    parser.add_argument('--run_baselines', action='store_true',
-                        default=False,
-                        dest='run_baselines',
-                        help='Whether to run the baselines.')
-    parser.add_argument('--no_ibp', action='store_true',
-                        default=False,
-                        dest='no_ibp',
-                        help='Whether not to run ibp.')
-    parser.add_argument('--h', nargs='+',
-                        dest='h_list',
-                        type=int,
-                        default=[5, 50],
-                        help='List of hidden states')
-    parser.add_argument('--beta_1', nargs='+',
-                        dest='beta_1',
-                        type=int,
-                        default=1,
-                        help='List KL gauss coefficients.')
-    parser.add_argument('--K', action='store',
-                        dest='K',
-                        default=100,
-                        type=int,
-                        help='Variational truncation param for IBP.')
-    parser.add_argument('--alpha',  nargs='+',
-                        dest='alpha',
-                        type=int,
-                        default=[4],
-                        help='H-IBP hyperparam.')
-    parser.add_argument('--optimism', action='store_true',
-                        default=False,
-                        dest='optimism',
-                        help='Whether to use optimism in the face of uncertainty when infering task head for CL2 and CL3.')
-    parser.add_argument('--mutual_info', action='store_true',
-                        default=False,
-                        dest='mutual_info',
-                        help='Whether to use predictive entropy or mutual information as a measure of uncertainty for task inference in CL2 and CL3.')
-    parser.add_argument('--use_uncert', action='store_true',
-                        default=False,
-                        dest='use_uncert',
-                        help='Whether the uncertainties of the uncertainties to help make choices for inferring CL2 and CL3.')
-    parser.add_argument('--rand_coreset', action='store_true',
-                        default=False,
-                        dest='rand_coreset',
-                        help='Whether to use a random coreset.')
-    parser.add_argument('--batch_entropy', action='store_true',
-                        default=False,
-                        dest='batch_entropy',
-                        help='Whether to use batches when calculating uncertainties for cl2 and cl3.')
-    parser.add_argument('--ts_stop_gradients', action='store_true',
-                        default=False,
-                        dest='ts_stop_gradients',
-                        help='Whether to stop gradients using time stamping during training.')
-    parser.add_argument('--ts_cutoff', action='store',
-                        default=0.5,
-                        dest='ts_cutoff', type=float,
-                        help='Threshold for the timestamping of Z.')
+    parser.add_argument('--single_head', action='store_true', default=False, dest='single_head', help='Whether to use a single head.')
+    parser.add_argument('--cl2', action='store_true', default=False, dest='cl2', help='Whether to use a perform CL2: domain incremental learning.')
+    parser.add_argument('--cl3', action='store_true', default=False, dest='cl3', help='Whether to use a perform CL3: class incremental learning.')
+    parser.add_argument('--num_layers', action='store', dest='num_layers', default=1, type=int, help='Number of layers in the NNs.')
+    parser.add_argument('--runs', action='store', dest='runs', default=1, type=int, help='Number runs to perform.')
+    parser.add_argument('--log_dir', action='store', dest='log_dir', default='logs', help='TB log directory.')
+    parser.add_argument('--dataset', action='store', dest='dataset', help='Which dataset to choose {normal, random, images, cifar10, mix}.')
+    parser.add_argument('--tag', action='store', dest='tag', help='Tag to use in naming file outputs')
+    parser.add_argument('--new_tag', action='store', dest='new_tag', default='', help='New tag to use to store pickle file if we are reloading a chackpoint with the tag arg.')
+    parser.add_argument('--use_local_reparam', action='store_true', default=False, dest='use_local_reparam', help='Whether to use local reparam.')
+    parser.add_argument('--alpha0', action='store', default=5.0, type=float, dest='alpha0', help='The prior and initialisation for the beta concentration param.')
+    parser.add_argument('--hibp', action='store_true', default=False, dest='hibp', help='Whether to use hibp.')
+    parser.add_argument('--run_baselines', action='store_true', default=False, dest='run_baselines', help='Whether to run the baselines.')
+    parser.add_argument('--no_ibp', action='store_true', default=False, dest='no_ibp', help='Whether not to run ibp.')
+    parser.add_argument('--h', nargs='+', dest='h_list', type=int, default=[5, 50], help='List of hidden states')
+    parser.add_argument('--beta_1', nargs='+', dest='beta_1', type=int, default=1, help='List KL gauss coefficients.')
+    parser.add_argument('--K', action='store', dest='K', default=100, type=int, help='Variational truncation param for IBP.')
+    parser.add_argument('--alpha',  nargs='+', dest='alpha', type=int, default=[4], help='H-IBP hyperparam.')
+    parser.add_argument('--optimism', action='store_true', default=False, dest='optimism', help='Whether to use optimism in the face of uncertainty when infering task head for CL2 and CL3.')
+    parser.add_argument('--mutual_info', action='store_true', default=False, dest='mutual_info', help='Whether to use predictive entropy or mutual information as a measure of uncertainty for task inference in CL2 and CL3.')
+    parser.add_argument('--use_uncert', action='store_true', default=False, dest='use_uncert', help='Whether the uncertainties of the uncertainties to help make choices for inferring CL2 and CL3.')
+    parser.add_argument('--rand_coreset', action='store_true', default=False, dest='rand_coreset', help='Whether to use a random coreset.')
+    parser.add_argument('--batch_entropy', action='store_true', default=False, dest='batch_entropy', help='Whether to use batches when calculating uncertainties for cl2 and cl3.')
+    parser.add_argument('--ts_stop_gradients', action='store_true', default=False, dest='ts_stop_gradients', help='Whether to stop gradients using time stamping during training.')
+    parser.add_argument('--ts_cutoff', action='store', default=0.5, dest='ts_cutoff', type=float, help='Threshold for the timestamping of Z.')
+    parser.add_argument('--ts', action='store_true', default=False, dest='ts', help='Whether to perform timestamping at test time.')
     args = parser.parse_args()
 
     print('cl2                  = {!r}'.format(args.cl2))
@@ -478,6 +399,7 @@ if __name__ == "__main__":
     print('use_uncert           = {!r}'.format(args.use_uncert))
     print('rand_coreset         = {!r}'.format(args.rand_coreset))
     print('ts_stop_gradients    = {!r}'.format(args.ts_stop_gradients))
+    print('ts                   = {!r}'.format(args.ts))
     print('ts_cutoff            = {!r}'.format(args.ts_cutoff))
 
     seeds = list(range(1, 1 + args.runs))
@@ -507,8 +429,7 @@ if __name__ == "__main__":
 
     vcl_ibp_accs = np.zeros((2, len(seeds), num_tasks, num_tasks))  # 2 for cl1 and cl2 results
     baseline_accs = {h: np.zeros((2, len(seeds), num_tasks, num_tasks)) for h in args.h_list}
-    all_ibp_uncerts = np.zeros((len(seeds), num_tasks, num_tasks))
-    baseline_uncerts = {h: np.zeros((len(seeds), num_tasks, num_tasks)) for h in args.h_list}
+    baseline_uncerts = {h: [] for h in args.h_list}
     all_Zs, all_uncerts, time_stamps = [], [], []
 
     # IBP params
@@ -542,7 +463,7 @@ if __name__ == "__main__":
             # Z matrix for each task is output
             # This is overwritten for each run
             ibp_acc, Zs, uncerts, stamp = run_vcl_ibp(hidden_size=hidden_size, alpha=alpha,
-                                         no_epochs= [int(no_epochs*1.2)] + [no_epochs]*(num_tasks-1),
+                                         no_epochs=[no_epochs]*num_tasks if no_epochs > 600 else [int(no_epochs*1.2)]+[no_epochs]*(num_tasks-1),
                                          data_gen=data_gen, coreset_method=coreset_method,
                                          coreset_size=coreset_size,
                                          name=name, val=val, batch_size=batch_size,
@@ -555,7 +476,8 @@ if __name__ == "__main__":
                                          implicit_beta=True, hibp=args.hibp, beta_1=args.beta_1,
                                          optimism=args.optimism, pred_ent=False if args.mutual_info else True,
                                          use_uncert=args.use_uncert, batch_size_entropy=batch_size_entropy,
-                                         ts_stop_gradients=args.ts_stop_gradients, ts_cutoff=args.ts_cutoff, seed=s)
+                                         ts_stop_gradients=args.ts_stop_gradients, ts=args.ts,
+                                         ts_cutoff=args.ts_cutoff, seed=s)
 
             all_Zs.append(Zs)
             all_uncerts.append(uncerts)
@@ -570,7 +492,7 @@ if __name__ == "__main__":
                 tf.compat.v1.reset_default_graph()
                 hidden_size = [h] * args.num_layers
                 data_gen = get_datagen()
-                vcl_result, _ = run_vcl(hidden_size, no_epochs, data_gen,
+                vcl_result, uncerts = run_vcl(hidden_size, no_epochs, data_gen,
                                         coreset_method, coreset_size, batch_size,
                                         single_head, task_inf, val=val,
                                         name='vcl_h{0}_{1}_run{2}_{3}'.format(h, args.dataset, i+1, args.tag),
@@ -580,6 +502,7 @@ if __name__ == "__main__":
 
                 baseline_accs[h][0, i, :, :] = vcl_result[0]
                 baseline_accs[h][1, i, :, :] = vcl_result[1]
+                baseline_uncerts[h].append(uncerts)
 
     with open('results/split_mnist_{0}_{1}.pkl'.format(args.tag, args.new_tag), 'wb') as input_file:
         pickle.dump({'vcl_ibp': vcl_ibp_accs,

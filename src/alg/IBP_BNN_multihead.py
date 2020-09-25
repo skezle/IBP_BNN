@@ -16,7 +16,7 @@ class IBP_BNN(Cla_NN):
                  prior_mean=0, prior_var=1, alpha0=5., beta0=1., lambda_1=1., lambda_2=1.,
                  tensorboard_dir='logs', name='ibp', tb_logging=True, tb_debug=False,
                  beta_1=1.0, beta_2=1.0, beta_3=1.0, use_local_reparam=False, implicit_beta=False,
-                 clip_grads=False, ts_stop_gradients=False, seed=100):
+                 clip_grads=False, ts_stop_gradients=False, ts=False, seed=100):
 
         super(IBP_BNN, self).__init__(input_size, hidden_size, output_size, training_size)
 
@@ -53,6 +53,7 @@ class IBP_BNN(Cla_NN):
         self.clip_grads = clip_grads
         self.time_stamp = stamp
         self.ts_stop_gradient = ts_stop_gradients
+        self.ts = ts
         print("init ts: {}".format(self.time_stamp))
         tf.compat.v1.set_random_seed(seed)
         self.stamps = tf.compat.v1.placeholder(tf.int32, [None], name='stamps') # the stamps per layer
@@ -235,17 +236,19 @@ class IBP_BNN(Cla_NN):
             mask = tf.concat([tf.zeros([1, 1, stamp]), tf.ones([1, 1, dout - stamp])], 2)
             mask_h = 1 - mask
             act = tf.stop_gradient(tf.multiply(mask_h, _act)) + tf.multiply(mask, _act)
-            print("train act_m: {}".format(act.get_shape()))
         else:
             act = _act
             stamp = -1
         return act, stamp
 
     def ts_prediction(self, _act, layer, dout, stamps):
-        stamp = stamps[layer]
-        mask = tf.concat([tf.ones([1, 1, stamp]), tf.zeros([1, 1, dout - stamp])], 2) # mask = tf.concat([tf.zeros([1, 1, stamp]), tf.ones([1, 1, dout - stamp])], 2) with stamp_idx = task_idx also works
-        act = tf.multiply(mask, _act)
-        print("pred act_m: {}".format(act.get_shape()))
+        if self.ts:
+            stamp = stamps[layer]
+            mask = tf.concat([tf.ones([1, 1, stamp]), tf.zeros([1, 1, dout - stamp])], 2) # mask = tf.concat([tf.zeros([1, 1, stamp]), tf.ones([1, 1, dout - stamp])], 2) with stamp_idx = task_idx also works
+            act = tf.multiply(mask, _act)
+        else:
+            act = _act
+            stamp = -1
         return act, stamp
 
     def create_summaries(self):
@@ -578,7 +581,7 @@ class IBP_BNN(Cla_NN):
                 batch_y = cur_y_train[start_ind:end_ind, :]
 
                 # run summaries every 250 steps
-                if global_step % 250 == 0:
+                if global_step % 500 == 0:
                     if self.tb_logging:
                         summary = sess.run([self.summary_op],
                                         feed_dict={self.x: batch_x, self.y: batch_y, self.task_idx: task_idx,
@@ -658,12 +661,12 @@ class IBP_BNN(Cla_NN):
 
             avg_acc += acc / total_batch
             avg_neg_elbo += neg_elbo / total_batch
-        print("task: {0} stamp: {1}".format(task_idx, sess.run([self.stamp],feed_dict={self.x: batch_x,
-                                                self.y: batch_y,
-                                                self.task_idx: task_idx,
-                                                self.training: False,
-                                                self.stamps: np.array(stamps),
-                                                })))
+        # print("task: {0} stamp: {1}".format(task_idx, sess.run([self.stamp],feed_dict={self.x: batch_x,
+        #                                         self.y: batch_y,
+        #                                         self.task_idx: task_idx,
+        #                                         self.training: False,
+        #                                         self.stamps: np.array(stamps),
+        #                                         })))
         return avg_acc, avg_neg_elbo
 
     def prediction_Zs(self, x_test, batch_size, task_idx, cut_off=0.5):
