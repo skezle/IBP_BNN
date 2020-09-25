@@ -74,7 +74,10 @@ def prune_weights(model, X_test, Y_test, bsize, task_id, xs, stamps):
             model.sess.run(tf.assign(v, tf.multiply(v, tf.cast(mask, v.dtype))))
             #self.sess.run(tf.assign(s, np.multiply(self.sess.run(s), mask)))  # also apply zero std to weight!!!
 
-        acc, _ = model.prediction_acc(X_test, Y_test, bsize, task_id, stamps[task_id])
+        if stamps is not None:
+            acc, _ = model.prediction_acc(X_test, Y_test, bsize, task_id, stamps[task_id])
+        else:
+            acc, _ = model.prediction_acc(X_test, Y_test, bsize, task_id)
         print("%.2f, %s" % (np.sum(sorted_STN < cutoff) / len(sorted_STN), np.mean(acc)))
         return np.mean(acc)
 
@@ -101,9 +104,12 @@ def prune_weights(model, X_test, Y_test, bsize, task_id, xs, stamps):
         else:
             print("Un-matched: {}".format(v.name))
 
-    acc, neg_elbo = model.prediction_acc(X_test, Y_test, bsize, task_id, stamps[task_id])  # z mask for each layer in a list, each Z \in dout
-    print("test acc: {}".format(acc))
-    print("test neg_elbo: {}".format(neg_elbo))
+    if stamps is not None:
+        acc, neg_elbo = model.prediction_acc(X_test, Y_test, bsize, task_id, stamps[task_id])
+    else:
+        acc, neg_elbo = model.prediction_acc(X_test, Y_test, bsize, task_id)
+    print("test acc: {0}, test neg_elbo: {1}".format(acc, neg_elbo))
+
     # cache network weights of resetting the network
     _mus_w = [model.sess.run(w) for w in mus_w]
     _sigmas_w = [model.sess.run(w) for w in sigmas_w]
@@ -134,7 +140,6 @@ def prune_weights(model, X_test, Y_test, bsize, task_id, xs, stamps):
     reset_weights(mus_h, sigmas_h, _mus_h, _sigmas_h)
 
     return xs, ya, yb
-
 
 class MnistGenerator():
     def __init__(self, fmnist=False, val=False):
@@ -354,6 +359,7 @@ if __name__ == '__main__':
                     ml_model.train(x_train, y_train, task_id, 100, bsize)
                     mf_weights = ml_model.get_weights()
                     mf_variances = None
+                    stamps = None
                     ml_model.close_session()
 
                 mf_model = MFVI_NN(in_dim, [hidden_size]*(j+1), out_dim,
@@ -371,7 +377,7 @@ if __name__ == '__main__':
                     print("New model, training")
                     mf_model.train(x_train, y_train, head, no_epochs, bsize)
 
-                xs, ya, yb = prune_weights(mf_model, x_test, y_test, bsize, head, xs)
+                xs, ya, yb = prune_weights(mf_model, x_test, y_test, bsize, head, xs, stamps)
                 ya_all[i, j, :] = ya
                 yb_all[i, j, :] = yb
 
