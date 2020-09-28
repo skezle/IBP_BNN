@@ -13,6 +13,7 @@ import pickle
 import tensorflow as tf
 
 from run_split import SplitMnistImagesGenerator, SplitMnistRandomGenerator, SplitMnistGenerator, SplitMix, SplitCIFAR10Generator
+from weight_pruning import MnistGenerator
 from vcl import run_vcl_ibp
 
 class HyperparamOptManager:
@@ -241,6 +242,7 @@ if __name__ == "__main__":
     parser.add_argument('--ts', action='store_true', default=False, dest='ts', help='Whether to perform timestamping at test time.')
     args = parser.parse_args()
 
+    print('single_head          = {!r}'.format(args.single_head))
     print('cl2                  = {!r}'.format(args.cl2))
     print('cl3                  = {!r}'.format(args.cl3))
     print('num_layers           = {!r}'.format(args.num_layers))
@@ -255,9 +257,8 @@ if __name__ == "__main__":
     print('ts                   = {!r}'.format(args.ts))
     print('ts_cutoff            = {!r}'.format(args.ts_cutoff))
 
-    # We don't need a validation set
-    val = False
-    single_head = False
+    val = True
+    single_head = args.single_head
     task_inf = True if args.cl3 or args.cl2 else False
     assert not (args.cl3 and args.cl2), "Can't have both cl2 and cl3."
 
@@ -273,6 +274,8 @@ if __name__ == "__main__":
             data_gen = SplitCIFAR10Generator(val=val, cl3=args.cl3)
         elif args.dataset == 'mix':
             data_gen = SplitMix(val=val, cl3=args.cl3)
+        elif args.dataset == 'fmnist':
+            data_gen = MnistGenerator(fmnist=True, val=val)
         else:
             raise ValueError('Pick dataset in {normal, random, images, cifar10}')
         return data_gen
@@ -282,7 +285,7 @@ if __name__ == "__main__":
     hyper_param_choices_grid = {'lambda_1': [1/2, 2/3, 3/4, 1, 5/4, 3/2, 7/4, 2, 9/4, 5/2, 11/4, 3],
                                 'lambda_2': [1/2, 2/3, 3/4, 1, 5/4, 3/2, 7/4, 2, 9/4, 5/2, 11/4, 3],
                                 'a_start': [1, 2, 3, 4, 5],
-                                'a_step': [2, 3]}
+                                }
 
     hyper_param_choices_ranges = {'alpha0': [5, 25]}
 
@@ -293,7 +296,8 @@ if __name__ == "__main__":
                            'beta0': 1.0,
                            'learning_rate': 0.001,
                            'prior_var': 0.7,
-                           'no_epochs': 1000}
+                           'no_epochs': 1000,
+                           'a_step': 1}
 
     RndSearch = HyperparamOptManager(param_grid=hyper_param_choices_grid,
                                      param_ranges=hyper_param_choices_ranges,
@@ -322,7 +326,7 @@ if __name__ == "__main__":
         hidden_size = [args.K] * args.num_layers
         # Z matrix for each task is output
         # This is overwritten for each run
-        if args.hibp and args.dataset == 'mix':
+        if args.dataset == 'mix':
             alpha = [i for i in range(thetas['a_start'], thetas['a_start'] + thetas['a_step']*(num_tasks//2), thetas['a_step'])]
             alpha = [item for item in alpha for i in range(2)]
         else:
@@ -350,12 +354,16 @@ if __name__ == "__main__":
                                                   ts_cutoff=args.ts_cutoff)
 
         # best score is a loss which is defined to be minimised over, hence want to minimise the negative acc
-        _ = RndSearch.update_score(thetas, -np.nanmean(ibp_acc), model=None, sess=None)  # rewards act like the inverse of a loss
+        if args.task_inf:
+            acc = ibp_acc[1]
+        else:
+            acc = ibp_acc[0]
+        _ = RndSearch.update_score(thetas, -np.nanmean(acc), model=None, sess=None)  # rewards act like the inverse of a loss
 
     # run final VCL + IBP with opt parameters
     thetas_opt = RndSearch.get_best_params()
     import json
-    print(json.loads(thetas_opt))
+    print("Theta opt: {}".format(json.loads(thetas_opt)))
     seed=100
     for i in range(test_runs):
         s = seed + i

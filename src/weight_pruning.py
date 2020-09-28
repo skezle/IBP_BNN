@@ -173,11 +173,13 @@ class MnistGenerator():
             self.X_test = test_set[0]
             self.Y_test = test_set[1]
 
+        self.max_iter = 1
+
     def get_dims(self):
         # Get data input and output dimensions
         return self.X_train.shape[1], 10
 
-    def task(self):
+    def next_task(self):
         # Retrieve train data
         x_train = deepcopy(self.X_train)
         y_train = np.eye(10)[self.Y_train]
@@ -192,6 +194,9 @@ class MnistGenerator():
             return x_train, y_train, x_test, y_test, x_val, y_val
         else:
             return x_train, y_train, x_test, y_test
+
+    def reset_cur_iter(self):
+        pass
 
 
 if __name__ == '__main__':
@@ -249,9 +254,9 @@ if __name__ == '__main__':
 
                 tf.compat.v1.reset_default_graph()
                 if val:
-                    x_train, y_train, x_test, y_test, _, _ = data_gen.task()
+                    x_train, y_train, x_test, y_test, _, _ = data_gen.next_task()
                 else:
-                    x_train, y_train, x_test, y_test = data_gen.task()
+                    x_train, y_train, x_test, y_test = data_gen.next_task()
                 x_testsets.append(x_test)
                 y_testsets.append(y_test)
 
