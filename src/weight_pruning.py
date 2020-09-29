@@ -14,7 +14,7 @@ from HIBP_BNN_multihead import HIBP_BNN
 from copy import deepcopy
 
 
-def prune_weights(model, X_test, Y_test, bsize, task_id, xs, stamps):
+def prune_weights(model, X_test, Y_test, bsize, task_id, xs, stamps, finetune=False, stamps_finetune=None):
     """ Performs weight pruning.
 
     Z is at a data level doesn't make sense to introduce this intot he mask over weights which get zeroed
@@ -72,10 +72,10 @@ def prune_weights(model, X_test, Y_test, bsize, task_id, xs, stamps):
             else:
                 mask = tf.greater_equal(tf.abs(v), cutoff)
             model.sess.run(tf.assign(v, tf.multiply(v, tf.cast(mask, v.dtype))))
-            #self.sess.run(tf.assign(s, np.multiply(self.sess.run(s), mask)))  # also apply zero std to weight!!!
+            #model.sess.run(tf.assign(s, tf.multiply(s, tf.cast(mask, v.dtype))))  # also apply zero std to weight!!!
 
         if stamps is not None:
-            acc, _ = model.prediction_acc(X_test, Y_test, bsize, task_id, stamps[task_id])
+            acc, _ = model.prediction_acc(X_test, Y_test, bsize, task_id, stamps[task_id], finetune, stamps_finetune)
         else:
             acc, _ = model.prediction_acc(X_test, Y_test, bsize, task_id)
         print("%.2f, %s" % (np.sum(sorted_STN < cutoff) / len(sorted_STN), np.mean(acc)))
@@ -105,7 +105,7 @@ def prune_weights(model, X_test, Y_test, bsize, task_id, xs, stamps):
             print("Un-matched: {}".format(v.name))
 
     if stamps is not None:
-        acc, neg_elbo = model.prediction_acc(X_test, Y_test, bsize, task_id, stamps[task_id])
+        acc, neg_elbo = model.prediction_acc(X_test, Y_test, bsize, task_id, stamps[task_id], finetune, stamps_finetune)
     else:
         acc, neg_elbo = model.prediction_acc(X_test, Y_test, bsize, task_id)
     print("test acc: {0}, test neg_elbo: {1}".format(acc, neg_elbo))
@@ -121,7 +121,7 @@ def prune_weights(model, X_test, Y_test, bsize, task_id, xs, stamps):
     weightvalues = np.hstack(np.array([model.sess.run(w).flatten() for w in mus_w + mus_b + mus_h]))
     sigmavalues = np.hstack(np.array([model.sess.run(tf.exp(0.5*s)).flatten() for s in sigmas_w + sigmas_b + sigmas_h]))
 
-    ya = []
+    ya = [acc]
     for pct in xs:
         ya.append(pruning(pct, weightvalues, sigmavalues, mus_w + mus_b + mus_h,
                           sigmas_w + sigmas_b + sigmas_h, bsize, uncert_pruning=False))
@@ -130,7 +130,7 @@ def prune_weights(model, X_test, Y_test, bsize, task_id, xs, stamps):
     reset_weights(mus_w, sigmas_w, _mus_w, _sigmas_w)
     reset_weights(mus_b, sigmas_b, _mus_b, _sigmas_b)
     reset_weights(mus_h, sigmas_h, _mus_h, _sigmas_h)
-    yb = []
+    yb = [acc]
     for pct in xs:
         yb.append(pruning(pct, weightvalues, sigmavalues, mus_w + mus_b + mus_h,
                           sigmas_w + sigmas_b + sigmas_h, bsize, uncert_pruning=True))
@@ -138,7 +138,7 @@ def prune_weights(model, X_test, Y_test, bsize, task_id, xs, stamps):
     reset_weights(mus_w, sigmas_w, _mus_w, _sigmas_w)
     reset_weights(mus_b, sigmas_b, _mus_b, _sigmas_b)
     reset_weights(mus_h, sigmas_h, _mus_h, _sigmas_h)
-
+    xs = np.append(np.array([0]), xs)
     return xs, ya, yb
 
 class MnistGenerator():
@@ -208,6 +208,7 @@ if __name__ == '__main__':
     parser.add_argument('--no_ibp', action='store_true', default=False, dest='no_ibp', help='Whether not to run ibp.')
     parser.add_argument('--runs', action='store', dest='runs', default=1, type=int, help='Number runs to perform.')
     parser.add_argument('--log_dir', action='store', dest='log_dir', default='logs', help='TB log directory.')
+    parser.add_argument('--finetune', action='store_true', default=False, dest='finetune', help='Whether to fine tune or not.')
     args = parser.parse_args()
 
     print('tag                    = {!r}'.format(args.tag))
@@ -216,6 +217,7 @@ if __name__ == '__main__':
     print('no_ibp                 = {!r}'.format(args.no_ibp))
     print('runs                   = {!r}'.format(args.runs))
     print('log_dir                = {!r}'.format(args.log_dir))
+    print('finetune               = {!r}'.format(args.finetune))
 
     hidden_size = 400
     num_layers = 4
@@ -239,12 +241,19 @@ if __name__ == '__main__':
     prior_mean = 0.0
     prior_var = 0.7
     val = False
-    ya_ibp_all = np.zeros((args.runs, num_layers, len(xs)))
-    yb_ibp_all = np.zeros((args.runs, num_layers, len(xs)))
+    ya_ibp_all = np.zeros((args.runs, num_layers, len(xs) + 1)) # adding acc for cut-off of 0%
+    yb_ibp_all = np.zeros((args.runs, num_layers, len(xs) + 1)) # adding acc for cut-off of 0%
+
+    if args.finetune:
+        beta_bern = 0
+        beta_beta = 0
+    else:
+        beta_bern = 1
+        beta_beta = 1
 
     if not args.no_ibp:
         for i in range(args.runs):
-            for j in range(num_layers):
+            for j in range(2, num_layers):
                 tf.compat.v1.set_random_seed(seeds[i])
                 data_gen = MnistGenerator(fmnist=True if args.dataset == 'fmnist' else False)
                 single_head=True
@@ -287,7 +296,7 @@ if __name__ == '__main__':
                                      prev_log_variances=mf_variances,
                                      prev_betas=mf_betas,
                                      stamp=stamps,
-                                     learning_rate=0.001, learning_rate_decay=0.87,
+                                     learning_rate=3e-4, learning_rate_decay=1.0,
                                      prior_mean=prior_mean, prior_var=prior_var,
                                      alpha0=alpha0, beta0=beta0,
                                      lambda_1=lambda_1, lambda_2=lambda_2,
@@ -296,7 +305,8 @@ if __name__ == '__main__':
                                      tb_logging=False,
                                      tb_debug=False,
                                      use_local_reparam=True,
-                                     implicit_beta=True)
+                                     implicit_beta=True,
+                                     beta_2=beta_bern, beta_3=beta_beta)
                 else:
                     model = IBP_BNN(in_dim, [hidden_size]*(j+1), out_dim,
                                     x_train.shape[0],
@@ -307,7 +317,7 @@ if __name__ == '__main__':
                                     prev_log_variances=mf_variances,
                                     prev_betas=mf_betas,
                                     stamp=stamps,
-                                    learning_rate=0.001, learning_rate_decay=0.87,
+                                    learning_rate=3e-4, learning_rate_decay=1.0,
                                     prior_mean=prior_mean, prior_var=prior_var,
                                     alpha0=alpha0, beta0=beta0,
                                     lambda_1=lambda_1, lambda_2=lambda_2,
@@ -316,17 +326,30 @@ if __name__ == '__main__':
                                     tb_debug=False,
                                     name='ibp_wp_{0}_l{1}_run{2}'.format(args.tag, j+1, i),
                                     use_local_reparam=True,
-                                    implicit_beta=True)
-                model.create_model()
+                                    implicit_beta=True,
+                                    beta_2=beta_bern, beta_3=beta_beta,
+                                    fixed_IBP_sample=True)
 
+                model.create_model()
                 if os.path.isdir(model.log_folder):
                     print("Restoring model from {}".format(model.log_folder))
                     model.restore(model.log_folder)
                 else:
                     print("New model, training")
-                    model.train(x_train, y_train, head, no_epochs, bsize, verbose=False)
+                    model.train(x_train, y_train, head, no_epochs, bsize, verbose=False, finetune=False)
 
-                xs, ya_ibp, yb_ibp = prune_weights(model, x_test, y_test, bsize, head, xs, stamps)
+                if args.finetune:
+                    _, stamps_finetune = model.prediction_Zs(x_train, None, task_id, cut_off=0.5)
+                    print("stamps finetune: {}".format(stamps_finetune))
+                    print("Bernoulli KL coef: {}".format(model.beta_2))
+                    print("Beta KL coef: {}".format(model.beta_3))
+                    model.fix_Z()
+                    model.train(x_train, y_train, head, int(no_epochs*0.5), bsize, verbose=False,
+                                finetune=True, stamps_finetune=stamps_finetune, original_no_epochs=no_epochs)
+                else:
+                    stamps_finetune = None
+                xs, ya_ibp, yb_ibp = prune_weights(model, x_test, y_test, bsize, head, xs, stamps,
+                                                   args.finetune, stamps_finetune)
                 ya_ibp_all[i, j, :] = ya_ibp
                 yb_ibp_all[i, j, :] = yb_ibp
 
@@ -350,9 +373,9 @@ if __name__ == '__main__':
 
                 tf.compat.v1.reset_default_graph()
                 if val:
-                    x_train, y_train, x_test, y_test, _, _ = data_gen.task()
+                    x_train, y_train, x_test, y_test, _, _ = data_gen.next_task()
                 else:
-                    x_train, y_train, x_test, y_test = data_gen.task()
+                    x_train, y_train, x_test, y_test = data_gen.next_task()
 
                 # Set the readout head to train
                 head = 0 if single_head else task_id
