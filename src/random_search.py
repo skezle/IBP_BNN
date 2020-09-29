@@ -294,7 +294,8 @@ if __name__ == "__main__":
                            'prior_mean': 0.0,
                            'batch_size': 512,
                            'beta0': 1.0,
-                           'learning_rate': 0.001,
+                           'learning_rate': 3e-4,
+                           'learning_rate_decay': 1.0,
                            'prior_var': 0.7,
                            'no_epochs': 1000,
                            'a_step': 1}
@@ -342,7 +343,8 @@ if __name__ == "__main__":
                                                   prior_mean=float(thetas['prior_mean']), prior_var=float(thetas['prior_var']),
                                                   alpha0=float(thetas['alpha0']),
                                                   beta0=float(thetas['beta0']), lambda_1=float(thetas['lambda_1']), lambda_2=float(thetas['lambda_2']),
-                                                  learning_rate=[0.001] * num_tasks,
+                                                  learning_rate=[float(thetas['learning_rate'])] * num_tasks,
+                                                  learning_rate_decay=float(thetas['learning_rate_decay']),
                                                   no_pred_samples=int(thetas['no_pred_samples']), ibp_samples=int(thetas['ibp_samples']),
                                                   log_dir=args.log_dir,
                                                   use_local_reparam=args.use_local_reparam,
@@ -354,7 +356,7 @@ if __name__ == "__main__":
                                                   ts_cutoff=args.ts_cutoff)
 
         # best score is a loss which is defined to be minimised over, hence want to minimise the negative acc
-        if args.task_inf:
+        if task_inf:
             acc = ibp_acc[1]
         else:
             acc = ibp_acc[0]
@@ -362,15 +364,19 @@ if __name__ == "__main__":
 
     # run final VCL + IBP with opt parameters
     thetas_opt = RndSearch.get_best_params()
-    import json
-    print("Theta opt: {}".format(json.loads(thetas_opt)))
+    print("Theta opt: {}".format(thetas_opt))
     seed=100
     for i in range(test_runs):
         s = seed + i
         tf.compat.v1.set_random_seed(s)
         data_gen = get_datagen()
         name = "ibp_rs_opt_split_{0}_{1}_run{2}".format(args.dataset, args.tag, i+1)
-        ibp_acc, Zs, uncerts, stamp = run_vcl_ibp(hidden_size=hidden_size, alpha=json.loads(thetas_opt['alpha']),
+        if args.dataset == 'mix':
+            alpha = [i for i in range(int(thetas_opt['a_start']), int(thetas_opt['a_start']) + int(thetas_opt['a_step'])*(num_tasks//2), int(thetas_opt['a_step']))]
+            alpha = [item for item in alpha for i in range(2)]
+        else:
+            alpha = [i for i in range(int(thetas_opt['a_start']), int(thetas_opt['a_start']) + int(thetas_opt['a_step'])*num_tasks, int(thetas_opt['a_step']))]
+        ibp_acc, Zs, uncerts, stamp = run_vcl_ibp(hidden_size=hidden_size, alpha=alpha,
                                                   no_epochs=[int(thetas_opt['no_epochs'])] * num_tasks if int(thetas_opt['no_epochs']) > 600 else [int(
                                                       thetas_opt['no_epochs'] * 1.2)] + [int(thetas_opt['no_epochs'])] * (num_tasks - 1),
                                                   data_gen=data_gen, coreset_method=coreset_method,
@@ -380,7 +386,8 @@ if __name__ == "__main__":
                                                   prior_mean=float(thetas_opt['prior_mean']), prior_var=float(thetas_opt['prior_var']),
                                                   alpha0=float(thetas_opt['alpha0']),
                                                   beta0=float(thetas_opt['beta0']), lambda_1=float(thetas_opt['lambda_1']), lambda_2=float(thetas_opt['lambda_2']),
-                                                  learning_rate=[0.001] * num_tasks,
+                                                  learning_rate=[float(thetas_opt['learning_rate'])] * num_tasks,
+                                                  learning_rate_decay=float(thetas_opt['learning_rate_decay']),
                                                   no_pred_samples=int(thetas_opt['no_pred_samples']), ibp_samples=int(thetas_opt['ibp_samples']),
                                                   log_dir=args.log_dir,
                                                   use_local_reparam=args.use_local_reparam,
