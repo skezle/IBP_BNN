@@ -219,7 +219,7 @@ if __name__ == '__main__':
     print('log_dir                = {!r}'.format(args.log_dir))
     print('finetune               = {!r}'.format(args.finetune))
 
-    hidden_size = 400
+    hidden_size = 200
     num_layers = 4
     batch_size = 128
     no_epochs = 200
@@ -253,7 +253,7 @@ if __name__ == '__main__':
 
     if not args.no_ibp:
         for i in range(args.runs):
-            for j in range(2, num_layers):
+            for j in range(num_layers):
                 tf.compat.v1.set_random_seed(seeds[i])
                 data_gen = MnistGenerator(fmnist=True if args.dataset == 'fmnist' else False)
                 single_head=True
