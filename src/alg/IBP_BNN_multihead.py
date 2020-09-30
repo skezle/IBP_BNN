@@ -16,13 +16,14 @@ class IBP_BNN(Cla_NN):
                  prior_mean=0, prior_var=1, alpha0=5., beta0=1., lambda_1=1., lambda_2=1.,
                  tensorboard_dir='logs', name='ibp', tb_logging=True, tb_debug=False,
                  beta_1=1.0, beta_2=1.0, beta_3=1.0, use_local_reparam=False, implicit_beta=False,
-                 clip_grads=False, ts_stop_gradients=False, ts=False, seed=100):
+                 clip_grads=False, ts_stop_gradients=False, ts=False, fixed_IBP_sample=False, seed=100):
 
         super(IBP_BNN, self).__init__(input_size, hidden_size, output_size, training_size)
 
         self.alpha0 = alpha0
         self.beta0 = beta0
         self.training = tf.compat.v1.placeholder(tf.bool, name='training')
+        self.finetune = tf.compat.v1.placeholder(tf.bool, name='finetune')
         self.lambda_1 = lambda_1 # temp of the variational Concrete posterior
         self.lambda_2 = lambda_2 # temp of the relaxed prior
         self.tensorboard_dir = tensorboard_dir
@@ -57,6 +58,7 @@ class IBP_BNN(Cla_NN):
         print("init ts: {}".format(self.time_stamp))
         tf.compat.v1.set_random_seed(seed)
         self.stamps = tf.compat.v1.placeholder(tf.int32, [None], name='stamps') # the stamps per layer
+        self.fixed_IBP_sample = fixed_IBP_sample
 
     def create_model(self):
         m, v, betas, self.size = self.create_weights(
@@ -75,6 +77,9 @@ class IBP_BNN(Cla_NN):
         self.prior_W_v, self.prior_b_v, self.prior_W_last_v, self.prior_b_last_v = v[0], v[1], v[2], v[3]
         self.prior_beta_a, self.prior_beta_b = betas[0], betas[1]
 
+        if self.fixed_IBP_sample:
+            self.fix_Z()
+
         self.pred, prior_log_pis_bern, log_pis_bern, z_log_sample = self._prediction(self.x, self.task_idx, self.no_pred_samples)
         self.kl = tf.div(self._KL_term(self.no_pred_samples, prior_log_pis_bern, log_pis_bern, z_log_sample),
                          self.training_size)
@@ -90,6 +95,24 @@ class IBP_BNN(Cla_NN):
             self.create_summaries()
 
         self.assign_session()
+
+    def fix_Z(self):
+        # IBP
+        # beta reparam
+        self.fixed_Z_finetuning = []
+        for i in range(self.no_layers - 1):
+            dout = self.size[i + 1]
+            beta_a = tf.cast(tf.math.softplus(self.beta_a[i]) + 0.01, tf.float32)  # log(1+e^x), beta_a \in [dout]
+            beta_b = tf.cast(tf.math.softplus(self.beta_b[i]) + 0.01, tf.float32)
+            # Variational Bernoulli params
+            log_pi = stick_breaking_probs(beta_a, beta_b, size=(self.num_ibp_samples, 1, dout), ibp=True,
+                                          log=True, implicit=self.implicit_beta)
+            # Concrete reparam
+            # S-IBP VAE takes a sigmoid of the samples from reparam discrete. Makes sense we require z \in [0,1].
+            z_log_sample = reparameterize_discrete(log_pi, self.lambda_1, size=(self.num_ibp_samples, 1, dout))
+            # Finetuning
+            z_discrete = tf.expand_dims(tf.reduce_mean(tf.sigmoid(z_log_sample), axis=0), 0)  # (no_samples_ibp, batch_size, dout) --> (1, batch_size, dout)
+            self.fixed_Z_finetuning.append(z_discrete)
 
     def assign_optimizer(self, learning_rate=0.001):
         global_step = tf.Variable(0, trainable=False)
@@ -121,6 +144,19 @@ class IBP_BNN(Cla_NN):
         y_hat = y_local if self.use_local_reparam else y
         return y_hat, prior_log_pis, log_pis, log_z_sample
 
+    def _samples_ibp(self, z_log_sample):
+        z_discrete = tf.expand_dims(tf.reduce_mean(tf.sigmoid(z_log_sample), axis=0), 0)  # (no_samples_ibp, batch_size, dout) --> (1, batch_size, dout)
+        return z_discrete
+
+    def fine_tune(self, batch_size, dout, layer):
+        if self.fixed_IBP_sample:
+            z_discrete = self.fixed_Z_finetuning[layer]
+        else:
+            stamp = self.stamps[layer]
+            z_discrete = tf.concat([tf.ones([1, batch_size, stamp]),
+                                    tf.zeros([1, batch_size, dout - stamp])], 2)  # mask = tf.concat([tf.zeros([1, 1, stamp]), tf.ones([1, 1, dout - stamp])], 2) with stamp_idx = task_idx also works
+        return z_discrete
+
     # this samples a layer at a time
     def _prediction_layer(self, inputs, task_idx, no_samples):
         """ Outputs a prediction from the IBP BNN
@@ -135,15 +171,10 @@ class IBP_BNN(Cla_NN):
         """
         # inputs # [batch, d]
         batch_size = tf.to_int32(tf.shape(inputs)[0])
-        no_samples_ibp = self.num_ibp_samples
         act = tf.tile(tf.expand_dims(inputs, 0), [no_samples, 1, 1]) # [1, batch, d] --> [no_samples, batch, d]
         act_local = tf.tile(tf.expand_dims(inputs, 0), [no_samples, 1, 1])
-        self.Z = []
-        self.vars = []
-        self.means = []
-        log_z_sample = []
-        log_pis = []
-        prior_log_pis = []
+        self.Z, self.vars, self.means = [], [], []
+        log_z_sample, log_pis, prior_log_pis = [], [], []
         for i in range(self.no_layers - 1):
             din = self.size[i]
             dout = self.size[i + 1]
@@ -156,25 +187,31 @@ class IBP_BNN(Cla_NN):
 
             # IBP
             # beta reparam
-            beta_a = tf.cast(tf.math.softplus(self.beta_a[i]) + 0.01, tf.float32) # log(1+e^x), beta_a \in [dout]
+            beta_a = tf.cast(tf.math.softplus(self.beta_a[i]) + 0.01, tf.float32)  # log(1+e^x), beta_a \in [dout]
             beta_b = tf.cast(tf.math.softplus(self.beta_b[i]) + 0.01, tf.float32)
             prior_beta_a = tf.cast(tf.math.softplus(self.prior_beta_a[i]) + 0.01, tf.float32)
             prior_beta_b = tf.cast(tf.math.softplus(self.prior_beta_b[i]) + 0.01, tf.float32)
             # prior Bernoulli params
-            prior_log_pi = stick_breaking_probs(prior_beta_a, prior_beta_b, size=(no_samples_ibp, batch_size, dout), ibp=True, log=True, implicit=self.implicit_beta)
-            prior_log_pis.append(prior_log_pi)
+            prior_log_pi = stick_breaking_probs(prior_beta_a, prior_beta_b,
+                                                size=(self.num_ibp_samples, batch_size, dout),
+                                                ibp=True, log=True, implicit=self.implicit_beta)
             # Variational Bernoulli params
-            self.log_pi = stick_breaking_probs(beta_a, beta_b, size=(no_samples_ibp, batch_size, dout), ibp=True, log=True, implicit=self.implicit_beta)
-            log_pis.append(self.log_pi)
+            log_pi = stick_breaking_probs(beta_a, beta_b, size=(self.num_ibp_samples, batch_size, dout), ibp=True,
+                                          log=True,
+                                          implicit=self.implicit_beta)
             # Concrete reparam
             # S-IBP VAE takes a sigmoid of the samples from reparam discrete. Makes sense we require z \in [0,1].
-            z_log_sample = reparameterize_discrete(self.log_pi, self.lambda_1, size=(no_samples_ibp, batch_size, dout))
-            z_discrete = tf.expand_dims(tf.reduce_mean(tf.sigmoid(z_log_sample), axis=0), 0)# (no_samples_ibp, batch_size, dout) --> (1, batch_size, dout)
-
+            z_log_sample = reparameterize_discrete(log_pi, self.lambda_1, size=(self.num_ibp_samples, batch_size, dout))
+            # Finetuning
+            z_discrete = tf.cond(self.finetune, true_fn=lambda: self.fine_tune(batch_size, dout, i),
+                                                false_fn=lambda: self._samples_ibp(z_log_sample))
+            prior_log_pis.append(prior_log_pi)
+            log_pis.append(log_pi)
+            log_z_sample.append(z_log_sample)
             self.Z.append(z_discrete)
             self.vars += [tf.exp(0.5 * self.W_v[i]), tf.exp(0.5 * self.b_v[i])]
             self.means += [self.W_m[i], self.b_m[i]]
-            log_z_sample.append(z_log_sample)
+
             # multiplication by IBP mask
             pre = tf.add(tf.einsum('mni,mio->mno', act, _weights), _biases) # m = samples, n = din, i=input d, o=output d
             _act = tf.multiply(tf.nn.relu(pre), z_discrete) # [K, din, dout]
@@ -254,6 +291,7 @@ class IBP_BNN(Cla_NN):
     def create_summaries(self):
         """Creates summaries in TensorBoard"""
         with tf.name_scope("summaries"):
+            tf.compat.v1.summary.scalar("learning_rate", self.learning_rate)
             tf.compat.v1.summary.scalar("elbo", self.cost)
             tf.compat.v1.summary.scalar("loglik", self.ll)
             tf.compat.v1.summary.scalar("kl", self.kl)
@@ -363,8 +401,8 @@ class IBP_BNN(Cla_NN):
             mu_diff_term = 0.5 * tf.reduce_sum((tf.exp(v) + (m0 - m) ** 2) / v0)
             kl += const_term + log_std_diff + mu_diff_term
 
-        self.kl_bern_contrib = self.beta_2*kl_bern
-        self.kl_beta_contrib = self.beta_3*kl_beta
+        self.kl_bern_contrib = self.beta_2 * kl_bern
+        self.kl_beta_contrib = self.beta_3 * kl_beta
         self.kl_gauss = self.beta_1 * kl
 
         return self.kl_gauss + self.kl_beta_contrib + self.kl_bern_contrib
@@ -509,7 +547,6 @@ class IBP_BNN(Cla_NN):
                 beta_a_v = np.full((dout), self.alpha0)
                 beta_b_v = np.full((dout), 1.0)
 
-
             W_m.append(Wi_m)
             b_m.append(bi_m)
             W_v.append(Wi_v)
@@ -549,21 +586,26 @@ class IBP_BNN(Cla_NN):
         return [W_m, b_m, W_last_m, b_last_m], [W_v, b_v, W_last_v, b_last_v], \
                [betas_a, betas_b]
 
-    def train(self, x_train, y_train, task_idx, no_epochs=1000, batch_size=100, display_epoch=5, verbose=True):
+    def train(self, x_train, y_train, task_idx, no_epochs=1000, batch_size=100, display_epoch=5,
+              verbose=True, finetune=False, stamps_finetune=None, original_no_epochs=None):
         N = x_train.shape[0]
         if batch_size > N:
             batch_size = N
-
-        # TODO: try temperature annealing
-        sess = self.sess
+        total_batch = int(np.ceil(N * 1.0 / batch_size))
         costs = []
-        global_step = 0
-        anneal_rate = 0.00003
-        tau0 = 1.0
-        temp = tau0
-        min_temp = 0.5
 
-        writer = tf.compat.v1.summary.FileWriter(self.log_folder, sess.graph)
+        if finetune:
+            self.global_step = original_no_epochs * total_batch
+        else:
+            self.global_step = 0
+
+        # Finetuning
+        if stamps_finetune is not None:
+            stamps = np.array(stamps_finetune)
+        else:
+            stamps = np.array(list(self.time_stamp.values())[-1]) # won't be used
+
+        writer = tf.compat.v1.summary.FileWriter(self.log_folder, self.sess.graph)
         # Training cycle
         for epoch in range(no_epochs):
             perm_inds = list(range(x_train.shape[0]))
@@ -571,8 +613,7 @@ class IBP_BNN(Cla_NN):
             cur_x_train = x_train[perm_inds]
             cur_y_train = y_train[perm_inds]
 
-            avg_cost = 0.
-            total_batch = int(np.ceil(N * 1.0 / batch_size))
+            avg_cost = 0.0
             # Loop over all batches
             for i in range(total_batch):
                 start_ind = i*batch_size
@@ -581,30 +622,27 @@ class IBP_BNN(Cla_NN):
                 batch_y = cur_y_train[start_ind:end_ind, :]
 
                 # run summaries every 250 steps
-                if global_step % 500 == 0:
+                if self.global_step % 500 == 0:
                     if self.tb_logging:
-                        summary = sess.run([self.summary_op],
+                        summary = self.sess.run([self.summary_op],
                                         feed_dict={self.x: batch_x, self.y: batch_y, self.task_idx: task_idx,
                                                    self.training: True,
-                                                   self.stamps: np.array(list(self.time_stamp.values())[-1]) # won't be used
-                                                   })[0]
-                        writer.add_summary(summary, global_step)
+                                                   self.stamps: stamps, # won't be used if finetune=False
+                                                   self.finetune: finetune})[0]
+                        writer.add_summary(summary, self.global_step)
                 else:
                     # Run optimization op (backprop) and cost op (to get loss value)
-                    _, c = sess.run(
+                    _, c = self.sess.run(
                         [self.train_step, self.cost],
                         feed_dict={self.x: batch_x, self.y: batch_y, self.task_idx: task_idx,
                                    self.training: True,
-                                   self.stamps: np.array(list(self.time_stamp.values())[-1]) # won't be used
-                                   })
+                                   self.stamps: stamps, # won't be used if finetune=False
+                                   self.finetune: finetune})
 
                     # Compute average loss
                     avg_cost += c / total_batch
 
-                if global_step % 1000 == 1:
-                    temp = np.maximum(tau0 * np.exp(-anneal_rate * global_step), min_temp)
-
-                global_step += 1
+                self.global_step += 1
 
             # Display logs per epoch step
             if verbose and epoch % display_epoch == 0:
@@ -615,16 +653,23 @@ class IBP_BNN(Cla_NN):
         writer.close()
         return costs
 
-    def prediction(self, x_test, task_idx):
+    def prediction(self, x_test, task_idx, finetune=False, stamps_finetune=None):
         # Test model
+        if stamps_finetune is not None:
+            stamps = np.array(stamps_finetune)
+        else:
+            stamps = np.array(list(self.time_stamp.values())[-1])  # won't be used
         prediction = self.sess.run([self.pred], feed_dict={self.x: x_test, self.task_idx: task_idx,
                                                            self.training: True,
-                                                           self.stamps: np.array(list(self.time_stamp.values())[-1]) # won't be used
-                                                           })[0]
+                                                           self.stamps: stamps, # won't be used if finetune=False
+                                                           self.finetune: finetune})[0]
         return prediction
 
-    def prediction_prob(self, x_test, task_idx, batch_size, stamps):
-        sess = self.sess
+    def prediction_prob(self, x_test, task_idx, batch_size, stamps, finetune=False, stamps_finetune=None):
+        if stamps_finetune is not None:
+            stamps = np.array(stamps_finetune)
+        else:
+            stamps = np.array(stamps)
         N = x_test.shape[0]
         total_batch = int(np.ceil(N * 1.0 / batch_size))
         probs = []
@@ -632,16 +677,20 @@ class IBP_BNN(Cla_NN):
             start_ind = i * batch_size
             end_ind = np.min([(i + 1) * batch_size, N])
             batch_x = x_test[start_ind:end_ind, :]
-            prob = sess.run([tf.nn.softmax(self.pred)], feed_dict={self.x: batch_x,
+            prob = self.sess.run([tf.nn.softmax(self.pred)], feed_dict={self.x: batch_x,
                                                                    self.task_idx: task_idx,
                                                                    self.training: False,
-                                                                   self.stamps: np.array(stamps),
+                                                                   self.stamps: stamps,
+                                                                   self.finetune: finetune,
                                                                    })[0]
             probs.append(prob)
         return probs
 
-    def prediction_acc(self, x_test, y_test, batch_size, task_idx, stamps):
-        sess = self.sess
+    def prediction_acc(self, x_test, y_test, batch_size, task_idx, stamps, finetune=False, stamps_finetune=None):
+        if stamps_finetune is not None:
+            stamps = np.array(stamps_finetune)
+        else:
+            stamps = np.array(stamps)
         N = x_test.shape[0]
         avg_acc, avg_neg_elbo = 0, 0
         total_batch = int(np.ceil(N * 1.0 / batch_size))
@@ -650,23 +699,17 @@ class IBP_BNN(Cla_NN):
             end_ind = np.min([(i + 1) * batch_size, N])
             batch_x = x_test[start_ind:end_ind, :]
             batch_y = y_test[start_ind:end_ind, :]
-
-            acc, neg_elbo = sess.run([self.acc, self.cost],
+            acc, neg_elbo = self.sess.run([self.acc, self.cost],
                                      feed_dict={self.x: batch_x,
                                                 self.y: batch_y,
                                                 self.task_idx: task_idx,
                                                 self.training: False,
-                                                self.stamps: np.array(stamps),
+                                                self.stamps: stamps,
+                                                self.finetune: finetune,
                                                 }) # we want to output concrete kl so make training True, however Concrete is more stable, just use Concrete like training.
 
             avg_acc += acc / total_batch
             avg_neg_elbo += neg_elbo / total_batch
-        # print("task: {0} stamp: {1}".format(task_idx, sess.run([self.stamp],feed_dict={self.x: batch_x,
-        #                                         self.y: batch_y,
-        #                                         self.task_idx: task_idx,
-        #                                         self.training: False,
-        #                                         self.stamps: np.array(stamps),
-        #                                         })))
         return avg_acc, avg_neg_elbo
 
     def prediction_Zs(self, x_test, batch_size, task_idx, cut_off=0.5):
@@ -681,7 +724,8 @@ class IBP_BNN(Cla_NN):
             end_ind = np.min([(i + 1) * batch_size, N])
             batch_x = x_test[start_ind:end_ind, :]
             Zs.append(sess.run(self.Z, feed_dict={self.x: batch_x, self.task_idx: task_idx, self.training: True,
-                                                  self.stamps: np.array(list(self.time_stamp.values())[-1]) # won't be used
+                                                  self.stamps: np.array(list(self.time_stamp.values())[-1]), # won't be used
+                                                  self.finetune: False
                                                   }))
         # get thresholds for time stamping
         num_layers = len(self.hidden_size)

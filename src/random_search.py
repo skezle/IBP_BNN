@@ -13,6 +13,7 @@ import pickle
 import tensorflow as tf
 
 from run_split import SplitMnistImagesGenerator, SplitMnistRandomGenerator, SplitMnistGenerator, SplitMix, SplitCIFAR10Generator
+from weight_pruning import MnistGenerator
 from vcl import run_vcl_ibp
 
 class HyperparamOptManager:
@@ -228,7 +229,8 @@ if __name__ == "__main__":
     parser.add_argument('--log_dir', action='store', dest='log_dir', default='logs', help='TB log directory.')
     parser.add_argument('--dataset', action='store', dest='dataset', help='Which dataset to choose {normal, random, images, cifar10, mix}.')
     parser.add_argument('--runs', action='store', dest='runs', default=10, type=int, help='Number runs to perform.')
-    parser.add_argument('--tag', action='store', dest='tag', help='Tag to use in naming file outputs')
+    parser.add_argument('--tag', action='store', dest='tag', help='Tag to use for random search lookup')
+    parser.add_argument('--new_tag', action='store', dest='new_tag', help='Tag to use for checkpointing.')
     parser.add_argument('--use_local_reparam', action='store_true', default=False, dest='use_local_reparam', help='Whether to use local reparam.')
     parser.add_argument('--hibp', action='store_true', default=False, dest='hibp', help='Whether to use hibp.')
     parser.add_argument('--K', action='store', dest='K', default=100, type=int, help='Variational truncation param for IBP.')
@@ -241,6 +243,7 @@ if __name__ == "__main__":
     parser.add_argument('--ts', action='store_true', default=False, dest='ts', help='Whether to perform timestamping at test time.')
     args = parser.parse_args()
 
+    print('single_head          = {!r}'.format(args.single_head))
     print('cl2                  = {!r}'.format(args.cl2))
     print('cl3                  = {!r}'.format(args.cl3))
     print('num_layers           = {!r}'.format(args.num_layers))
@@ -251,13 +254,13 @@ if __name__ == "__main__":
     print('hibp                 = {!r}'.format(args.hibp))
     print('K                    = {!r}'.format(args.K))
     print('tag                  = {!r}'.format(args.tag))
+    print('new_tag              = {!r}'.format(args.new_tag))
     print('ts_stop_gradients    = {!r}'.format(args.ts_stop_gradients))
     print('ts                   = {!r}'.format(args.ts))
     print('ts_cutoff            = {!r}'.format(args.ts_cutoff))
 
-    # We don't need a validation set
-    val = False
-    single_head = False
+    val = True
+    single_head = args.single_head
     task_inf = True if args.cl3 or args.cl2 else False
     assert not (args.cl3 and args.cl2), "Can't have both cl2 and cl3."
 
@@ -273,6 +276,8 @@ if __name__ == "__main__":
             data_gen = SplitCIFAR10Generator(val=val, cl3=args.cl3)
         elif args.dataset == 'mix':
             data_gen = SplitMix(val=val, cl3=args.cl3)
+        elif args.dataset == 'fmnist':
+            data_gen = MnistGenerator(fmnist=True, val=val)
         else:
             raise ValueError('Pick dataset in {normal, random, images, cifar10}')
         return data_gen
@@ -281,8 +286,7 @@ if __name__ == "__main__":
 
     hyper_param_choices_grid = {'lambda_1': [1/2, 2/3, 3/4, 1, 5/4, 3/2, 7/4, 2, 9/4, 5/2, 11/4, 3],
                                 'lambda_2': [1/2, 2/3, 3/4, 1, 5/4, 3/2, 7/4, 2, 9/4, 5/2, 11/4, 3],
-                                'a_start': [1, 2, 3, 4, 5],
-                                'a_step': [2, 3]}
+                                }
 
     hyper_param_choices_ranges = {'alpha0': [5, 25]}
 
@@ -291,9 +295,18 @@ if __name__ == "__main__":
                            'prior_mean': 0.0,
                            'batch_size': 512,
                            'beta0': 1.0,
-                           'learning_rate': 0.001,
+                           'learning_rate': 3e-4,
+                           'learning_rate_decay': 1.0,
                            'prior_var': 0.7,
-                           'no_epochs': 1000}
+                           'no_epochs': 1000,
+                           'a_step': 1}
+
+    if args.hibp:
+        hyper_param_choices_grid['a_start'] = [1, 2, 3, 4, 5]
+        if args.dataset == 'mix':
+            fixed_param_choices['a_step'] = 1
+    else:
+        fixed_param_choices['a_start'] = 1
 
     RndSearch = HyperparamOptManager(param_grid=hyper_param_choices_grid,
                                      param_ranges=hyper_param_choices_ranges,
@@ -317,12 +330,12 @@ if __name__ == "__main__":
     for i in range(args.runs):
         thetas = RndSearch.get_next_parameters()
         print("thetas: {}".format(thetas))
-        name = "ibp_rs_split_{0}_run{1}_{2}".format(args.dataset, i + 1, args.tag)
+        name = "ibp_rs_split_{0}_run{1}_{2}_{3}".format(args.dataset, i + 1, args.tag, args.new_tag)
         data_gen = get_datagen()
         hidden_size = [args.K] * args.num_layers
         # Z matrix for each task is output
         # This is overwritten for each run
-        if args.hibp and args.dataset == 'mix':
+        if args.dataset == 'mix':
             alpha = [i for i in range(thetas['a_start'], thetas['a_start'] + thetas['a_step']*(num_tasks//2), thetas['a_step'])]
             alpha = [item for item in alpha for i in range(2)]
         else:
@@ -338,7 +351,8 @@ if __name__ == "__main__":
                                                   prior_mean=float(thetas['prior_mean']), prior_var=float(thetas['prior_var']),
                                                   alpha0=float(thetas['alpha0']),
                                                   beta0=float(thetas['beta0']), lambda_1=float(thetas['lambda_1']), lambda_2=float(thetas['lambda_2']),
-                                                  learning_rate=[0.001] * num_tasks,
+                                                  learning_rate=[float(thetas['learning_rate'])] * num_tasks,
+                                                  learning_rate_decay=float(thetas['learning_rate_decay']),
                                                   no_pred_samples=int(thetas['no_pred_samples']), ibp_samples=int(thetas['ibp_samples']),
                                                   log_dir=args.log_dir,
                                                   use_local_reparam=args.use_local_reparam,
@@ -350,19 +364,27 @@ if __name__ == "__main__":
                                                   ts_cutoff=args.ts_cutoff)
 
         # best score is a loss which is defined to be minimised over, hence want to minimise the negative acc
-        _ = RndSearch.update_score(thetas, -np.nanmean(ibp_acc), model=None, sess=None)  # rewards act like the inverse of a loss
+        if task_inf:
+            acc = ibp_acc[1]
+        else:
+            acc = ibp_acc[0]
+        _ = RndSearch.update_score(thetas, -np.nanmean(acc), model=None, sess=None)  # rewards act like the inverse of a loss
 
     # run final VCL + IBP with opt parameters
     thetas_opt = RndSearch.get_best_params()
-    import json
-    print(json.loads(thetas_opt))
+    print("Theta opt: {}".format(thetas_opt))
     seed=100
     for i in range(test_runs):
         s = seed + i
         tf.compat.v1.set_random_seed(s)
         data_gen = get_datagen()
         name = "ibp_rs_opt_split_{0}_{1}_run{2}".format(args.dataset, args.tag, i+1)
-        ibp_acc, Zs, uncerts, stamp = run_vcl_ibp(hidden_size=hidden_size, alpha=json.loads(thetas_opt['alpha']),
+        if args.dataset == 'mix':
+            alpha = [i for i in range(int(thetas_opt['a_start']), int(thetas_opt['a_start']) + int(thetas_opt['a_step'])*(num_tasks//2), int(thetas_opt['a_step']))]
+            alpha = [item for item in alpha for i in range(2)]
+        else:
+            alpha = [i for i in range(int(thetas_opt['a_start']), int(thetas_opt['a_start']) + int(thetas_opt['a_step'])*num_tasks, int(thetas_opt['a_step']))]
+        ibp_acc, Zs, uncerts, stamp = run_vcl_ibp(hidden_size=hidden_size, alpha=alpha,
                                                   no_epochs=[int(thetas_opt['no_epochs'])] * num_tasks if int(thetas_opt['no_epochs']) > 600 else [int(
                                                       thetas_opt['no_epochs'] * 1.2)] + [int(thetas_opt['no_epochs'])] * (num_tasks - 1),
                                                   data_gen=data_gen, coreset_method=coreset_method,
@@ -372,7 +394,8 @@ if __name__ == "__main__":
                                                   prior_mean=float(thetas_opt['prior_mean']), prior_var=float(thetas_opt['prior_var']),
                                                   alpha0=float(thetas_opt['alpha0']),
                                                   beta0=float(thetas_opt['beta0']), lambda_1=float(thetas_opt['lambda_1']), lambda_2=float(thetas_opt['lambda_2']),
-                                                  learning_rate=[0.001] * num_tasks,
+                                                  learning_rate=[float(thetas_opt['learning_rate'])] * num_tasks,
+                                                  learning_rate_decay=float(thetas_opt['learning_rate_decay']),
                                                   no_pred_samples=int(thetas_opt['no_pred_samples']), ibp_samples=int(thetas_opt['ibp_samples']),
                                                   log_dir=args.log_dir,
                                                   use_local_reparam=args.use_local_reparam,
