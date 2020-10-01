@@ -229,7 +229,8 @@ if __name__ == "__main__":
     parser.add_argument('--log_dir', action='store', dest='log_dir', default='logs', help='TB log directory.')
     parser.add_argument('--dataset', action='store', dest='dataset', help='Which dataset to choose {normal, random, images, cifar10, mix}.')
     parser.add_argument('--runs', action='store', dest='runs', default=10, type=int, help='Number runs to perform.')
-    parser.add_argument('--tag', action='store', dest='tag', help='Tag to use in naming file outputs')
+    parser.add_argument('--tag', action='store', dest='tag', help='Tag to use for random search lookup')
+    parser.add_argument('--new_tag', action='store', dest='new_tag', help='Tag to use for checkpointing.')
     parser.add_argument('--use_local_reparam', action='store_true', default=False, dest='use_local_reparam', help='Whether to use local reparam.')
     parser.add_argument('--hibp', action='store_true', default=False, dest='hibp', help='Whether to use hibp.')
     parser.add_argument('--K', action='store', dest='K', default=100, type=int, help='Variational truncation param for IBP.')
@@ -253,6 +254,7 @@ if __name__ == "__main__":
     print('hibp                 = {!r}'.format(args.hibp))
     print('K                    = {!r}'.format(args.K))
     print('tag                  = {!r}'.format(args.tag))
+    print('new_tag              = {!r}'.format(args.new_tag))
     print('ts_stop_gradients    = {!r}'.format(args.ts_stop_gradients))
     print('ts                   = {!r}'.format(args.ts))
     print('ts_cutoff            = {!r}'.format(args.ts_cutoff))
@@ -284,7 +286,6 @@ if __name__ == "__main__":
 
     hyper_param_choices_grid = {'lambda_1': [1/2, 2/3, 3/4, 1, 5/4, 3/2, 7/4, 2, 9/4, 5/2, 11/4, 3],
                                 'lambda_2': [1/2, 2/3, 3/4, 1, 5/4, 3/2, 7/4, 2, 9/4, 5/2, 11/4, 3],
-                                'a_start': [1, 2, 3, 4, 5],
                                 }
 
     hyper_param_choices_ranges = {'alpha0': [5, 25]}
@@ -299,6 +300,13 @@ if __name__ == "__main__":
                            'prior_var': 0.7,
                            'no_epochs': 1000,
                            'a_step': 1}
+
+    if args.hibp:
+        hyper_param_choices_grid['a_start'] = [1, 2, 3, 4, 5]
+        if args.dataset == 'mix':
+            fixed_param_choices['a_step'] = 1
+    else:
+        fixed_param_choices['a_start'] = 1
 
     RndSearch = HyperparamOptManager(param_grid=hyper_param_choices_grid,
                                      param_ranges=hyper_param_choices_ranges,
@@ -322,7 +330,7 @@ if __name__ == "__main__":
     for i in range(args.runs):
         thetas = RndSearch.get_next_parameters()
         print("thetas: {}".format(thetas))
-        name = "ibp_rs_split_{0}_run{1}_{2}".format(args.dataset, i + 1, args.tag)
+        name = "ibp_rs_split_{0}_run{1}_{2}_{3}".format(args.dataset, i + 1, args.tag, args.new_tag)
         data_gen = get_datagen()
         hidden_size = [args.K] * args.num_layers
         # Z matrix for each task is output
