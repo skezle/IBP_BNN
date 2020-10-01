@@ -122,7 +122,7 @@ def prune_weights(model, X_test, Y_test, bsize, task_id, xs, stamps, finetune=Fa
     sigmavalues = np.hstack(np.array([model.sess.run(tf.exp(0.5*s)).flatten() for s in sigmas_w + sigmas_b + sigmas_h]))
 
     ya = [acc]
-    for pct in xs:
+    for pct in xs[1:]:
         ya.append(pruning(pct, weightvalues, sigmavalues, mus_w + mus_b + mus_h,
                           sigmas_w + sigmas_b + sigmas_h, bsize, uncert_pruning=False))
 
@@ -131,15 +131,14 @@ def prune_weights(model, X_test, Y_test, bsize, task_id, xs, stamps, finetune=Fa
     reset_weights(mus_b, sigmas_b, _mus_b, _sigmas_b)
     reset_weights(mus_h, sigmas_h, _mus_h, _sigmas_h)
     yb = [acc]
-    for pct in xs:
+    for pct in xs[1:]:
         yb.append(pruning(pct, weightvalues, sigmavalues, mus_w + mus_b + mus_h,
                           sigmas_w + sigmas_b + sigmas_h, bsize, uncert_pruning=True))
 
     reset_weights(mus_w, sigmas_w, _mus_w, _sigmas_w)
     reset_weights(mus_b, sigmas_b, _mus_b, _sigmas_b)
     reset_weights(mus_h, sigmas_h, _mus_h, _sigmas_h)
-    xs = np.append(np.array([0]), xs)
-    return xs, ya, yb
+    return ya, yb
 
 class MnistGenerator():
     def __init__(self, fmnist=False, val=False):
@@ -226,7 +225,7 @@ if __name__ == '__main__':
     seeds = [1, 2, 3, 4, 5]
     np.random.seed(1)
     xs = np.append(np.linspace(0.6, 0.95, 8), np.linspace(0.95, 1.0, 26)[:-1])
-
+    xs = np.append(np.array([0]), xs) # adding acc for pruning pct 0
     ###########
     ## H-IBP ##
     ###########
@@ -241,9 +240,10 @@ if __name__ == '__main__':
     prior_mean = 0.0
     prior_var = 0.7
     val = False
-    ya_ibp_all = np.zeros((args.runs, num_layers, len(xs) + 1)) # adding acc for cut-off of 0%
-    yb_ibp_all = np.zeros((args.runs, num_layers, len(xs) + 1)) # adding acc for cut-off of 0%
-
+    ya_ibp_all = np.zeros((args.runs, num_layers, len(xs))) # adding acc for cut-off of 0%
+    yb_ibp_all = np.zeros((args.runs, num_layers, len(xs))) # adding acc for cut-off of 0%
+    ya_all = np.zeros((args.runs, num_layers, len(xs)))
+    yb_all = np.zeros((args.runs, num_layers, len(xs)))
     if args.finetune:
         beta_bern = 0
         beta_beta = 0
@@ -348,7 +348,7 @@ if __name__ == '__main__':
                                 finetune=True, stamps_finetune=stamps_finetune, original_no_epochs=no_epochs)
                 else:
                     stamps_finetune = None
-                xs, ya_ibp, yb_ibp = prune_weights(model, x_test, y_test, bsize, head, xs, stamps,
+                ya_ibp, yb_ibp = prune_weights(model, x_test, y_test, bsize, head, xs, stamps,
                                                    args.finetune, stamps_finetune)
                 ya_ibp_all[i, j, :] = ya_ibp
                 yb_ibp_all[i, j, :] = yb_ibp
@@ -358,9 +358,6 @@ if __name__ == '__main__':
     ##########
     ## MFVI ##
     ##########
-    ya_all = np.zeros((args.runs, num_layers, len(xs)))
-    yb_all = np.zeros((args.runs, num_layers, len(xs)))
-    #no_epochs = 200
     if args.run_baselines:
         for i in range(args.runs):
             for j in range(num_layers):
@@ -405,7 +402,7 @@ if __name__ == '__main__':
                     print("New model, training")
                     mf_model.train(x_train, y_train, head, no_epochs, bsize)
 
-                xs, ya, yb = prune_weights(mf_model, x_test, y_test, bsize, head, xs, stamps)
+                ya, yb = prune_weights(mf_model, x_test, y_test, bsize, head, xs, stamps)
                 ya_all[i, j, :] = ya
                 yb_all[i, j, :] = yb
 
