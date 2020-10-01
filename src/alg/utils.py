@@ -3,9 +3,6 @@ import pdb
 import tensorflow as tf
 import tensorflow_probability as tfp
 tfd = tfp.distributions
-import matplotlib
-matplotlib.use('agg')
-import matplotlib.pyplot as plt
 
 from cla_models_multihead import MFVI_NN
 from IBP_BNN_multihead import IBP_BNN
