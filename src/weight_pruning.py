@@ -82,7 +82,7 @@ def prune_weights(model, X_test, Y_test, bsize, task_id, xs, stamps, finetune=Fa
         return np.mean(acc)
 
     # get weights
-    weights = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope=tf.get_variable_scope().name)
+    weights = tf.compat.v1.get_collection(tf.compat.v1.GraphKeys.TRAINABLE_VARIABLES, scope=tf.get_variable_scope().name)
 
     # Get weights from network
     mus_w, mus_b = [], []
@@ -220,7 +220,7 @@ if __name__ == '__main__':
 
     hidden_size = 200
     num_layers = 4
-    batch_size = 128
+    batch_size = 512
     no_epochs = 200
     seeds = [1, 2, 3, 4, 5]
     np.random.seed(1)
@@ -231,35 +231,33 @@ if __name__ == '__main__':
     ###########
 
     # IBP params
-    alpha0 = 4.2
+    alpha0 = 6.2
     beta0 = 1.0
-    lambda_1 = 0.7  # posterior
-    lambda_2 = 0.7  # prior
-    alpha = 1.0
+    lambda_1 = 2.0  # posterior
+    lambda_2 = 1.5  # prior
+    alpha = 5
     # Gaussian params
     prior_mean = 0.0
     prior_var = 0.7
     val = False
-    ya_ibp_all = np.zeros((args.runs, num_layers, len(xs))) # adding acc for cut-off of 0%
-    yb_ibp_all = np.zeros((args.runs, num_layers, len(xs))) # adding acc for cut-off of 0%
-    ya_all = np.zeros((args.runs, num_layers, len(xs)))
-    yb_all = np.zeros((args.runs, num_layers, len(xs)))
-    if args.finetune:
-        beta_bern = 0
-        beta_beta = 0
-    else:
-        beta_bern = 1
-        beta_beta = 1
+    ya_ibp_all, yb_ibp_all = np.zeros((args.runs, num_layers, len(xs))), np.zeros((args.runs, num_layers, len(xs)))
+    ya_all, yb_all = np.zeros((args.runs, num_layers, len(xs))), np.zeros((args.runs, num_layers, len(xs)))
+    ya_ibp_all_before_ft, yb_ibp_all_before_ft = np.zeros((args.runs, num_layers, len(xs))), np.zeros((args.runs, num_layers, len(xs)))
+
+    #################
+    ## Finetuneing ##
+    #################
+    fixed_IBP_sample = True
 
     if not args.no_ibp:
         for i in range(args.runs):
-            for j in range(num_layers):
+            for j in range(1, num_layers):
                 tf.compat.v1.set_random_seed(seeds[i])
                 data_gen = MnistGenerator(fmnist=True if args.dataset == 'fmnist' else False)
                 single_head=True
                 in_dim, out_dim = data_gen.get_dims()
                 x_testsets, y_testsets = [], []
-                task_id=0
+                task_id = 0
 
                 tf.compat.v1.reset_default_graph()
                 if val:
@@ -274,14 +272,13 @@ if __name__ == '__main__':
                 bsize = x_train.shape[0] if (batch_size is None) else batch_size
 
                 # Train network with maximum likelihood to initialize first model
-                if task_id == 0:
-                    ml_model = Vanilla_NN(in_dim, [hidden_size]*(j+1), out_dim, x_train.shape[0])
-                    ml_model.train(x_train, y_train, task_id, 100, bsize)
-                    mf_weights = ml_model.get_weights()
-                    mf_variances = None
-                    mf_betas = None
-                    stamps = stamp = {0: [0]*(j+1)}
-                    ml_model.close_session()
+                ml_model = Vanilla_NN(in_dim, [hidden_size]*(j+1), out_dim, x_train.shape[0])
+                ml_model.train(x_train, y_train, task_id, 100, bsize)
+                mf_weights = ml_model.get_weights()
+                mf_variances = None
+                mf_betas = None
+                stamps = stamp = {0: [0]*(j+1)}
+                ml_model.close_session()
 
                 if args.hibp:
                     model = HIBP_BNN(alpha=alpha,
@@ -302,11 +299,10 @@ if __name__ == '__main__':
                                      lambda_1=lambda_1, lambda_2=lambda_2,
                                      tensorboard_dir=args.log_dir,
                                      name='hibp_wp_{0}_l{1}_run{2}'.format(args.tag, j+1, i),
-                                     tb_logging=False,
-                                     tb_debug=False,
+                                     tb_logging=True,
+                                     tb_debug=True,
                                      use_local_reparam=True,
-                                     implicit_beta=True,
-                                     beta_2=beta_bern, beta_3=beta_beta)
+                                     implicit_beta=True)
                 else:
                     model = IBP_BNN(in_dim, [hidden_size]*(j+1), out_dim,
                                     x_train.shape[0],
@@ -323,12 +319,12 @@ if __name__ == '__main__':
                                     lambda_1=lambda_1, lambda_2=lambda_2,
                                     tensorboard_dir=args.log_dir,
                                     tb_logging=True,
-                                    tb_debug=False,
+                                    tb_debug=True,
                                     name='ibp_wp_{0}_l{1}_run{2}'.format(args.tag, j+1, i),
                                     use_local_reparam=True,
                                     implicit_beta=True,
-                                    beta_2=beta_bern, beta_3=beta_beta,
-                                    fixed_IBP_sample=True)
+                                    fixed_IBP_sample=fixed_IBP_sample,
+                                    fixed_IBP_params=False)
 
                 model.create_model()
                 if os.path.isdir(model.log_folder):
@@ -341,15 +337,25 @@ if __name__ == '__main__':
                 if args.finetune:
                     _, stamps_finetune = model.prediction_Zs(x_train, None, task_id, cut_off=0.5)
                     print("stamps finetune: {}".format(stamps_finetune))
-                    print("Bernoulli KL coef: {}".format(model.beta_2))
-                    print("Beta KL coef: {}".format(model.beta_3))
-                    model.fix_Z()
-                    model.train(x_train, y_train, head, int(no_epochs*0.5), bsize, verbose=False,
+                    ya_ibp, yb_ibp = prune_weights(model, x_test, y_test, bsize, head, xs, stamps, args.finetune, stamps_finetune)
+                    ya_ibp_all_before_ft[i, j, :] = ya_ibp
+                    yb_ibp_all_before_ft[i, j, :] = yb_ibp
+                    if stamps is not None:
+                        acc, _ = model.prediction_acc(x_test, y_test, bsize, task_id, stamps[task_id], args.finetune, stamps_finetune)
+                    else:
+                        acc, _ = model.prediction_acc(x_test, y_test, bsize, task_id)
+                    print("Acc before funetuning: {}".format(acc))
+                    # Need to reset the finetuning variables
+                    if fixed_IBP_sample:
+                        for v in model.log_pi_ft:
+                            model.sess.run(v.initializer)
+                        for v in model.Z_ft:
+                            model.sess.run(v.initializer)
+                    model.train(x_train, y_train, head, no_epochs, bsize, verbose=True,
                                 finetune=True, stamps_finetune=stamps_finetune, original_no_epochs=no_epochs)
                 else:
                     stamps_finetune = None
-                ya_ibp, yb_ibp = prune_weights(model, x_test, y_test, bsize, head, xs, stamps,
-                                                   args.finetune, stamps_finetune)
+                ya_ibp, yb_ibp = prune_weights(model, x_test, y_test, bsize, head, xs, stamps, args.finetune, stamps_finetune)
                 ya_ibp_all[i, j, :] = ya_ibp
                 yb_ibp_all[i, j, :] = yb_ibp
 
@@ -405,12 +411,9 @@ if __name__ == '__main__':
                 ya, yb = prune_weights(mf_model, x_test, y_test, bsize, head, xs, stamps)
                 ya_all[i, j, :] = ya
                 yb_all[i, j, :] = yb
-
                 mf_model.close_session()
 
     with open('results/weight_pruning_{0}.pkl'.format(args.tag), 'wb') as input_file:
-        pickle.dump({'xs': xs,
-                     'ya_nnvi': ya_all,
-                     'yb_nnvi': yb_all,
-                     'ya_ibp': ya_ibp_all,
-                     'yb_ibp': yb_ibp_all}, input_file)
+        pickle.dump({'xs': xs, 'ya_nnvi': ya_all, 'yb_nnvi': yb_all, 'ya_ibp': ya_ibp_all,
+                     'yb_ibp': yb_ibp_all, 'ya_ibp_before_ft': ya_ibp_all_before_ft,
+                     'yb_ibp_before_ft': yb_ibp_all_before_ft}, input_file)

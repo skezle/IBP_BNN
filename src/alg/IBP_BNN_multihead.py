@@ -4,6 +4,9 @@ import tensorflow as tf
 import numpy as np
 from copy import deepcopy
 
+config = tf.compat.v1.ConfigProto()
+config.gpu_options.allow_growth = True
+
 from training_utils import kl_beta_reparam, kl_beta_implicit, kl_discrete, kl_concrete, stick_breaking_probs, reparameterize_discrete, implicit_beta
 
 from cla_models_multihead import Cla_NN
@@ -12,14 +15,17 @@ from cla_models_multihead import Cla_NN
 class IBP_BNN(Cla_NN):
     def __init__(self, input_size, hidden_size, output_size, training_size,
                  no_train_samples=10, no_pred_samples=100, num_ibp_samples=10, prev_means=None, prev_log_variances=None,
-                 prev_betas=None, stamp=dict(), learning_rate=0.001, learning_rate_decay=0.87,
-                 prior_mean=0, prior_var=1, alpha0=5., beta0=1., lambda_1=1., lambda_2=1.,
+                 prev_betas=None, stamp=None, learning_rate=0.001, learning_rate_decay=0.87,
+                 prior_mean=0, prior_var=1, alpha0=5.0, beta0=1.0, lambda_1=1.0, lambda_2=1.0,
                  tensorboard_dir='logs', name='ibp', tb_logging=True, tb_debug=False,
-                 beta_1=1.0, beta_2=1.0, beta_3=1.0, use_local_reparam=False, implicit_beta=False,
-                 clip_grads=False, ts_stop_gradients=False, ts=False, fixed_IBP_sample=False, seed=100):
+                 beta_1=1.0, beta_2=1.0, beta_3=1.0, use_local_reparam=False, implicit_beta=True,
+                 clip_grads=False, ts_stop_gradients=False, ts=False, fixed_IBP_sample=False, fixed_IBP_params=False,
+                 seed=100):
 
         super(IBP_BNN, self).__init__(input_size, hidden_size, output_size, training_size)
 
+        if stamp is None:
+            stamp = dict()
         self.alpha0 = alpha0
         self.beta0 = beta0
         self.training = tf.compat.v1.placeholder(tf.bool, name='training')
@@ -35,7 +41,6 @@ class IBP_BNN(Cla_NN):
         self.beta_2 = beta_2
         self.beta_3 = beta_3
         self.log_folder = os.path.join(self.tensorboard_dir, "graph_{}".format(self.name))
-        print(self.log_folder)
         self.use_local_reparam = use_local_reparam
         self.implicit_beta = implicit_beta
         self.no_train_samples = no_train_samples
@@ -55,10 +60,10 @@ class IBP_BNN(Cla_NN):
         self.time_stamp = stamp
         self.ts_stop_gradient = ts_stop_gradients
         self.ts = ts
-        print("init ts: {}".format(self.time_stamp))
         tf.compat.v1.set_random_seed(seed)
         self.stamps = tf.compat.v1.placeholder(tf.int32, [None], name='stamps') # the stamps per layer
         self.fixed_IBP_sample = fixed_IBP_sample
+        self.fixed_IBP_params = fixed_IBP_params
 
     def create_model(self):
         m, v, betas, self.size = self.create_weights(
@@ -71,18 +76,17 @@ class IBP_BNN(Cla_NN):
         self.no_layers = len(self.size) - 1
 
         # used for the calculation of the KL term
-        m, v, betas = self.create_prior(self.input_size, self.hidden_size, self.output_size, self.prev_means,
+        m, v, betas_p = self.create_prior(self.input_size, self.hidden_size, self.output_size, self.prev_means,
                                         self.prev_log_variances, self.prev_betas, self.prior_mean, self.prior_var)
         self.prior_W_m, self.prior_b_m, self.prior_W_last_m, self.prior_b_last_m = m[0], m[1], m[2], m[3]
         self.prior_W_v, self.prior_b_v, self.prior_W_last_v, self.prior_b_last_v = v[0], v[1], v[2], v[3]
-        self.prior_beta_a, self.prior_beta_b = betas[0], betas[1]
+        self.prior_beta_a, self.prior_beta_b = betas_p[0], betas_p[1]
 
-        if self.fixed_IBP_sample:
+        if self.fixed_IBP_sample or self.fixed_IBP_params:
             self.fix_Z()
 
         self.pred, prior_log_pis_bern, log_pis_bern, z_log_sample = self._prediction(self.x, self.task_idx, self.no_pred_samples)
-        self.kl = tf.div(self._KL_term(self.no_pred_samples, prior_log_pis_bern, log_pis_bern, z_log_sample),
-                         self.training_size)
+        self.kl = self._KL_term(self.no_pred_samples, prior_log_pis_bern, log_pis_bern, z_log_sample) / self.training_size
         self.ll = self._logpred(self.x, self.y, self.task_idx)
         self.cost = self.kl - self.ll
         self.acc = self._accuracy(self.x, self.y, self.task_idx)
@@ -94,25 +98,47 @@ class IBP_BNN(Cla_NN):
         if self.tb_logging:
             self.create_summaries()
 
-        self.assign_session()
+        if self.fixed_IBP_sample:
+            # Initializing the variables
+            init = tf.compat.v1.global_variables_initializer()
+            # launch a session
+            self.sess = tf.Session(config=config)
+            for v in self.beta_a:
+                self.sess.run(v.initializer)
+            for v in self.beta_b:
+                self.sess.run(v.initializer)
+
+            self.sess.run(init)
+            # self.sess.run(tf.report_uninitialized_variables())
+            # for v in self.Z_ft:
+            #     self.sess.run(v.initializer)
+            # for v in self.log_pi_ft:
+            #     self.sess.run(v.initializer)
+        else:
+            self.assign_session()
 
     def fix_Z(self):
-        # IBP
-        # beta reparam
-        self.fixed_Z_finetuning = []
+        self.fixed_Z_finetuning, self.log_pi_ft, self.Z_ft = [], [], []
         for i in range(self.no_layers - 1):
             dout = self.size[i + 1]
             beta_a = tf.cast(tf.math.softplus(self.beta_a[i]) + 0.01, tf.float32)  # log(1+e^x), beta_a \in [dout]
             beta_b = tf.cast(tf.math.softplus(self.beta_b[i]) + 0.01, tf.float32)
             # Variational Bernoulli params
-            log_pi = stick_breaking_probs(beta_a, beta_b, size=(self.num_ibp_samples, 1, dout), ibp=True,
-                                          log=True, implicit=self.implicit_beta)
+            log_pi_ft = stick_breaking_probs(beta_a, beta_b, size=(self.num_ibp_samples, 1, dout), ibp=True,
+                                          log=True, implicit=self.implicit_beta, seed=1)
+            # Need to use tf.Variable to make the tensor random first then constant there after
+            if self.fixed_IBP_sample:
+                log_pi_ft = tf.Variable(log_pi_ft, name='fixed_pi_{}'.format(i))
+                self.log_pi_ft.append(log_pi_ft)
             # Concrete reparam
             # S-IBP VAE takes a sigmoid of the samples from reparam discrete. Makes sense we require z \in [0,1].
-            z_log_sample = reparameterize_discrete(log_pi, self.lambda_1, size=(self.num_ibp_samples, 1, dout))
+            z_log_sample_ft = reparameterize_discrete(log_pi_ft, self.lambda_1, size=(self.num_ibp_samples, 1, dout), seed=1)
+            if self.fixed_IBP_sample:
+                z_log_sample_ft = tf.Variable(z_log_sample_ft, name='fixed_z_{}'.format(i))
+                self.Z_ft.append(z_log_sample_ft)
             # Finetuning
-            z_discrete = tf.expand_dims(tf.reduce_mean(tf.sigmoid(z_log_sample), axis=0), 0)  # (no_samples_ibp, batch_size, dout) --> (1, batch_size, dout)
-            self.fixed_Z_finetuning.append(z_discrete)
+            z_discrete = tf.expand_dims(tf.reduce_mean(tf.sigmoid(z_log_sample_ft), axis=0), 0)  # (no_samples_ibp, 1, dout) --> (1, 1, dout)
+            self.fixed_Z_finetuning.append(tf.stop_gradient(z_discrete))
 
     def assign_optimizer(self, learning_rate=0.001):
         global_step = tf.Variable(0, trainable=False)
@@ -132,7 +158,7 @@ class IBP_BNN(Cla_NN):
                     # Hack, just skip these variables when getting the gradients
                     continue
                 gradient_name_to_save = current_variable.name.replace(':', '_')  # tensorboard doesn't accept ':' symbol
-                tf.summary.histogram(gradient_name_to_save, current_gradient)
+                tf.compat.v1.summary.histogram(gradient_name_to_save, current_gradient)
         if self.clip_grads:
             grads, variables = zip(*gradients)
             _grads, _ = tf.clip_by_global_norm(grads, 10.0)
@@ -149,8 +175,9 @@ class IBP_BNN(Cla_NN):
         return z_discrete
 
     def fine_tune(self, batch_size, dout, layer):
-        if self.fixed_IBP_sample:
-            z_discrete = self.fixed_Z_finetuning[layer]
+        if self.fixed_IBP_sample or self.fixed_IBP_params:
+            z_discrete = self.fixed_Z_finetuning[layer] # sampling a new Z for the entire batch from the IBP and not allowing the IBP params to change with stop_gradients()
+            z_discrete = tf.tile(z_discrete, [1, batch_size, 1])  # [1, 1, d] --> [1, batch, d]
         else:
             stamp = self.stamps[layer]
             z_discrete = tf.concat([tf.ones([1, batch_size, stamp]),
@@ -170,7 +197,7 @@ class IBP_BNN(Cla_NN):
                  log_z_samples: log samples (prior to sigmoid) from expConcrete distribution (for kl calc) for each layer
         """
         # inputs # [batch, d]
-        batch_size = tf.to_int32(tf.shape(inputs)[0])
+        batch_size = tf.cast(tf.shape(inputs)[0], tf.int32)
         act = tf.tile(tf.expand_dims(inputs, 0), [no_samples, 1, 1]) # [1, batch, d] --> [no_samples, batch, d]
         act_local = tf.tile(tf.expand_dims(inputs, 0), [no_samples, 1, 1])
         self.Z, self.vars, self.means = [], [], []
@@ -178,8 +205,8 @@ class IBP_BNN(Cla_NN):
         for i in range(self.no_layers - 1):
             din = self.size[i]
             dout = self.size[i + 1]
-            eps_w = tf.random_normal((no_samples, din, dout), 0, 1, dtype=tf.float32)
-            eps_b = tf.random_normal((no_samples, 1, dout), 0, 1, dtype=tf.float32)
+            eps_w = tf.random.normal((no_samples, din, dout), 0, 1, dtype=tf.float32)
+            eps_b = tf.random.normal((no_samples, 1, dout), 0, 1, dtype=tf.float32)
 
             # Gaussian re-parameterization
             _weights = tf.add(tf.multiply(eps_w, tf.exp(0.5 * self.W_v[i])), self.W_m[i]) # in [K, in, out]
@@ -224,7 +251,7 @@ class IBP_BNN(Cla_NN):
             m_h = m_h + self.b_m[i]
             v_h = tf.einsum('mni,io->mno', tf.square(act_local), tf.exp(self.W_v[i])) # e^0.5 x ** 2 = e^x
             v_h = v_h + tf.exp(self.b_v[i])
-            eps = tf.random_normal([no_samples, 1, dout], 0.0, 1.0, dtype=tf.float32)
+            eps = tf.random.normal([no_samples, 1, dout], 0.0, 1.0, dtype=tf.float32)
             pre_local = m_h + tf.sqrt(v_h + 1e-9) * eps
             _act_local = tf.multiply(tf.nn.relu(pre_local), z_discrete)  # shape (K, batch_size (None, ?), out)
             act_local, self.stamp = tf.cond(self.training,
@@ -233,8 +260,8 @@ class IBP_BNN(Cla_NN):
 
         din = self.size[-2]
         dout = self.size[-1]
-        eps_w = tf.random_normal((no_samples, din, dout), 0, 1, dtype=tf.float32)
-        eps_b = tf.random_normal((no_samples, 1, dout), 0, 1, dtype=tf.float32)
+        eps_w = tf.random.normal((no_samples, din, dout), 0, 1, dtype=tf.float32)
+        eps_b = tf.random.normal((no_samples, 1, dout), 0, 1, dtype=tf.float32)
 
         Wtask_m = tf.gather(self.W_last_m, task_idx)
         Wtask_v = tf.gather(self.W_last_v, task_idx)
@@ -259,7 +286,7 @@ class IBP_BNN(Cla_NN):
         v_h = tf.reduce_sum(tf.multiply(tf.expand_dims(tf.square(act_local), 3),
                                         tf.expand_dims(tf.expand_dims(tf.exp(Wtask_v), 0), 0)), 2)
         v_h = v_h + tf.exp(btask_v)
-        eps = tf.random_normal((no_samples, 1, dout), 0.0, 1.0, dtype=tf.float32)
+        eps = tf.random.normal((no_samples, 1, dout), 0.0, 1.0, dtype=tf.float32)
         pre_local = m_h + tf.sqrt(v_h + 1e-9) * eps
         pre_local = tf.reshape(pre_local, [no_samples, batch_size, dout])
         return pre, pre_local, prior_log_pis, log_pis, log_z_sample
@@ -305,18 +332,13 @@ class IBP_BNN(Cla_NN):
                 tf.compat.v1.summary.histogram("W_mu", tf.concat([tf.reshape(i, [-1]) for i in self.means], 0))
                 tf.compat.v1.summary.histogram("W_sigma", tf.concat([tf.reshape(i, [-1]) for i in self.vars], 0))
                 for i in range(len(self.hidden_size)):
-                    tf.compat.v1.summary.histogram("v_beta_a_l{}".format(i), tf.cast(tf.math.softplus(tf.exp(tf.log(self.beta_a[i] + 1e-8))) + 0.01, tf.float32))
-                    tf.compat.v1.summary.histogram("v_beta_b_l{}".format(i), tf.cast(tf.math.softplus(tf.exp(tf.log(self.beta_b[i] + 1e-8))) + 0.01, tf.float32))
+                    tf.compat.v1.summary.histogram("v_beta_a_l{}".format(i), tf.cast(tf.math.softplus(tf.exp(tf.math.log(self.beta_a[i] + 1e-8))) + 0.01, tf.float32))
+                    tf.compat.v1.summary.histogram("v_beta_b_l{}".format(i), tf.cast(tf.math.softplus(tf.exp(tf.math.log(self.beta_b[i] + 1e-8))) + 0.01, tf.float32))
                 for i in range(len(self.Z)):
                     # tf.summary.images expects 4-d tensor b x height x width x channels
-                    print("Z: {}".format(self.Z[i].get_shape()))
                     _Z = tf.expand_dims(tf.reduce_mean(self.Z[i], axis=0), 0)[:, :50, :] # removing the samples col, and truncating the number of points to make tb faster (hopefully).
-                    tf.compat.v1.summary.image("Z_{}".format(i),
-                                     tf.expand_dims(_Z, 3),
-                                     max_outputs=1)
-
-                    tf.compat.v1.summary.histogram("Z_num_latent_factors_{}".format(i),
-                                        tf.reduce_sum(tf.squeeze(self.Z[i]), axis=1))
+                    tf.compat.v1.summary.image("Z_{}".format(i), tf.expand_dims(_Z, 3), max_outputs=1)
+                    tf.compat.v1.summary.histogram("Z_num_latent_factors_{}".format(i), tf.reduce_sum(tf.squeeze(self.Z[i], axis=0), axis=1))
 
             self.summary_op = tf.compat.v1.summary.merge_all()
 
@@ -545,7 +567,7 @@ class IBP_BNN(Cla_NN):
                 Wi_v = prior_var
                 bi_v = prior_var
                 beta_a_v = np.full((dout), self.alpha0)
-                beta_b_v = np.full((dout), 1.0)
+                beta_b_v = np.full((dout), self.beta0)
 
             W_m.append(Wi_m)
             b_m.append(bi_m)
