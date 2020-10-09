@@ -187,6 +187,7 @@ def run_vcl_ibp(hidden_size, alpha, no_epochs, data_gen,
                             prev_log_variances=mf_variances, prev_betas=mf_betas,
                             stamp=stamp,
                             alpha0=alpha0, beta0=beta0, learning_rate=lr,
+                            learning_rate_decay=learning_rate_decay,
                             prior_mean=prior_mean, prior_var=prior_var, lambda_1=lambda_1,
                             lambda_2=lambda_2 if task_id == 0 else lambda_1,
                             no_pred_samples=no_pred_samples,
@@ -240,7 +241,8 @@ def run_vcl_ibp(hidden_size, alpha, no_epochs, data_gen,
                                          use_uncert=use_uncert)
         all_acc = concatenate_results(acc, all_acc)
         all_acc_ent = concatenate_results(acc_ent, all_acc_ent)
-        Zs.append(model.sess.run(model.Z, feed_dict={model.x: x_test, model.task_idx: task_id, model.training: False}))
+        Z, _ = model.prediction_Zs(x_test, bsize, task_id)
+        Zs.append(Z)
         all_uncerts.append(uncerts)
         model.close_session()
 

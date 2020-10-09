@@ -74,8 +74,8 @@ def kl_discrete(log_post, log_prior, log_samples):
     pi_post = tf.exp(log_post)
     pi_prior = tf.exp(log_prior)
     z_discrete = tf.sigmoid(log_samples)
-    kl_post = z_discrete * tf.log(pi_post + eps) + (1 - z_discrete) * tf.log(1 - pi_post + eps)
-    kl_prior = z_discrete * tf.log(pi_prior + eps) + (1 - z_discrete) * tf.log(1 - pi_prior + eps)
+    kl_post = z_discrete * tf.math.log(pi_post + eps) + (1 - z_discrete) * tf.math.log(1 - pi_post + eps)
+    kl_prior = z_discrete * tf.math.log(pi_prior + eps) + (1 - z_discrete) * tf.math.log(1 - pi_prior + eps)
     return tf.reduce_sum(tf.reduce_mean(kl_post - kl_prior, [0, 1]))
 
 def log_density_concrete(logpis, logsample, _temp):
@@ -88,7 +88,7 @@ def log_density_concrete(logpis, logsample, _temp):
     """
     temp = tf.cast(_temp, tf.float32)
     exp_term = logpis - temp * logsample
-    log_prob = exp_term + tf.log(temp) - 2. * tf.math.softplus(exp_term)
+    log_prob = exp_term + tf.math.log(temp) - 2. * tf.math.softplus(exp_term)
     return log_prob
 
 def kl_concrete(log_post, log_prior, log_sample, temp, temp_prior):
@@ -115,24 +115,24 @@ def kumaraswamy_sample(a, b, size):
     :return: sample \in [no_samples, batch_size, dout]
     """
     u = tf.random_uniform(shape=size, minval=1e-4, maxval=1.-1e-4, dtype=tf.float32)
-    return tf.exp((1. / (a + eps)) * tf.log(1. - tf.exp((1. / (b + eps)) * tf.log(u)) + eps))
+    return tf.exp((1. / (a + eps)) * tf.math.log(1. - tf.exp((1. / (b + eps)) * tf.math.log(u)) + eps))
 
-def implicit_beta(a, b, size):
+def implicit_beta(a, b, size, seed=None):
     """
     Returns samples from beta distribution and allows gradients to propagate
     """
     dist = tfd.Beta(a, b, validate_args=True)
     if len(size) == 0:
-        samples = dist.sample() # size of a
+        samples = dist.sample(seed=seed) # size of a
     elif len(size) == 1:
-        samples = dist.sample([size[0]])
+        samples = dist.sample([size[0]], seed=seed)
     elif len(size) >= 2:
-        samples = dist.sample([size[0], size[1]])  # [size[0], size[1], size of a]
+        samples = dist.sample([size[0], size[1]], seed=seed)  # [size[0], size[1], size of a]
     else:
         raise ValueError
     return samples
 
-def stick_breaking_probs(a, b, size, ibp=False, log=False, implicit=False):
+def stick_breaking_probs(a, b, size, ibp=False, log=False, implicit=False, seed=None):
     """ Returns pi parameters from stick-breaking IBP
 
     :param a: beta a params [dout]
@@ -143,9 +143,9 @@ def stick_breaking_probs(a, b, size, ibp=False, log=False, implicit=False):
     :param implicit: bool
     :return: returns truncated variational \pi params \in [no_samples, batch_size, dout]
     """
-    v = implicit_beta(a, b, size) if implicit else kumaraswamy_sample(a, b, size)
+    v = implicit_beta(a, b, size, seed) if implicit else kumaraswamy_sample(a, b, size)
     if ibp:
-        v_term = tf.log(v + eps)
+        v_term = tf.math.log(v + eps)
         logpis = tf.cumsum(v_term, axis=2)
     else:
         raise ValueError
@@ -163,7 +163,7 @@ def global_stick_breaking_probs(a, b, size, implicit=True):
     :return: returns truncated variational \pi params
     """
     v = implicit_beta(a, b, size=size) if implicit else kumaraswamy_sample(a, b, size=size)
-    v_term = tf.log(v + eps)
+    v_term = tf.math.log(v + eps)
     logpis = tf.cumsum(v_term, axis=1) # \in [no_samples, dout]
     return logpis
 
@@ -174,16 +174,16 @@ def child_stick_breaking_probs(pis, alpha, size):
     :param size: tuple \in [no_samples, batch_size, dout]
     """
     pis = implicit_beta(alpha * pis + eps, alpha*(1-pis) + eps, size)
-    logpis = tf.log(pis + eps)
+    logpis = tf.math.log(pis + eps)
     return logpis
 
-def reparameterize_discrete(log_pis, temp, size):
+def reparameterize_discrete(log_pis, temp, size, seed=None):
     """ExpBinConcrete reparam for Bernoulli
 
     :param log_pis: log variational Bernoulli params \in [K, b, dout]
     :param temp: double
     :return: approx log Bernoulli samples \in [K, b, dout]
     """
-    u = tf.random_uniform(shape=size, minval=1e-4, maxval=1.-1e-4, dtype=tf.float32)
-    L = tf.log(u) - tf.log(1. - u)
+    u = tf.random.uniform(shape=size, minval=1e-4, maxval=1.-1e-4, dtype=tf.float32, seed=seed)
+    L = tf.math.log(u) - tf.math.log(1. - u)
     return (log_pis + L) / temp

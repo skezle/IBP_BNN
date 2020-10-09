@@ -261,7 +261,7 @@ if __name__ == "__main__":
 
     val = True
     single_head = args.single_head
-    task_inf = True if args.cl3 or args.cl2 else False
+    task_inf = True if (args.cl3 or args.cl2) else False
     assert not (args.cl3 and args.cl2), "Can't have both cl2 and cl3."
 
 
@@ -284,14 +284,18 @@ if __name__ == "__main__":
 
     # define hyper parameters
 
-    hyper_param_choices_grid = {'lambda_1': [1/2, 2/3, 3/4, 1, 5/4, 3/2, 7/4, 2, 9/4, 5/2, 11/4, 3],
-                                'lambda_2': [1/2, 2/3, 3/4, 1, 5/4, 3/2, 7/4, 2, 9/4, 5/2, 11/4, 3],
-                                }
+    hyper_param_choices_grid = {'lambda_1': [3/4, 1, 5/4, 3/2, 7/4, 2, 9/4, 5/2, 11/4, 3],
+                                'lambda_2': [3/4, 1, 5/4, 3/2, 7/4, 2, 9/4, 5/2, 11/4, 3],
+                                'use_uncert': [True, False]}
 
     hyper_param_choices_ranges = {'alpha0': [5, 25]}
 
+    if args.ts:
+        hyper_param_choices_grid['timestamping'] = [True, False]
+        hyper_param_choices_ranges['ts_cutoff'] = [0.2, 0.8]
+
     fixed_param_choices = {'ibp_samples': 10,
-                           'no_pred_samples': 10,
+                           'no_pred_samples': 100,
                            'prior_mean': 0.0,
                            'batch_size': 512,
                            'beta0': 1.0,
@@ -299,7 +303,9 @@ if __name__ == "__main__":
                            'learning_rate_decay': 1.0,
                            'prior_var': 0.7,
                            'no_epochs': 1000,
-                           'a_step': 1}
+                           'a_step': 1,
+                           'timestamping': args.ts,
+                           'ts_cutoff': args.ts_cutoff}
 
     if args.hibp:
         hyper_param_choices_grid['a_start'] = [1, 2, 3, 4, 5]
@@ -359,15 +365,16 @@ if __name__ == "__main__":
                                                   implicit_beta=True, hibp=args.hibp, beta_1=beta_1,
                                                   optimism=args.optimism,
                                                   pred_ent=False if args.mutual_info else True,
-                                                  use_uncert=args.use_uncert, batch_size_entropy=batch_size_entropy,
-                                                  ts_stop_gradients=args.ts_stop_gradients, ts=args.ts,
-                                                  ts_cutoff=args.ts_cutoff)
+                                                  use_uncert=thetas['use_uncert'], batch_size_entropy=batch_size_entropy,
+                                                  ts_stop_gradients=args.ts_stop_gradients, ts=thetas['timestamping'],
+                                                  ts_cutoff=thetas['ts_cutoff'])
 
         # best score is a loss which is defined to be minimised over, hence want to minimise the negative acc
         if task_inf:
             acc = ibp_acc[1]
         else:
             acc = ibp_acc[0]
+        print("rs acc: {0:.3f}".format(np.nanmean(acc)))
         _ = RndSearch.update_score(thetas, -np.nanmean(acc), model=None, sess=None)  # rewards act like the inverse of a loss
 
     # run final VCL + IBP with opt parameters
@@ -402,9 +409,9 @@ if __name__ == "__main__":
                                                   implicit_beta=True, hibp=args.hibp, beta_1=beta_1,
                                                   optimism=args.optimism,
                                                   pred_ent=False if args.mutual_info else True,
-                                                  use_uncert=args.use_uncert, batch_size_entropy=batch_size_entropy,
-                                                  ts_stop_gradients=args.ts_stop_gradients, ts=args.ts,
-                                                  ts_cutoff=args.ts_cutoff, seed=s)
+                                                  use_uncert=thetas_opt['use_uncert'], batch_size_entropy=batch_size_entropy,
+                                                  ts_stop_gradients=args.ts_stop_gradients, ts=thetas_opt['timestamping'],
+                                                  ts_cutoff=thetas_opt['ts_cutoff'], seed=s)
 
         all_Zs.append(Zs)
         all_uncerts.append(uncerts)
