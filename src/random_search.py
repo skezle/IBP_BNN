@@ -374,7 +374,7 @@ if __name__ == "__main__":
             acc = ibp_acc[1]
         else:
             acc = ibp_acc[0]
-        print("rs acc: {0:.3f}".format(acc))
+        print("rs acc: {0:.3f}".format(np.nanmean(acc)))
         _ = RndSearch.update_score(thetas, -np.nanmean(acc), model=None, sess=None)  # rewards act like the inverse of a loss
 
     # run final VCL + IBP with opt parameters
