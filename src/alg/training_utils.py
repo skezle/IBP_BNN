@@ -127,7 +127,7 @@ def implicit_beta(a, b, size, seed=None):
     elif len(size) == 1:
         samples = dist.sample([size[0]], seed=seed)
     elif len(size) >= 2:
-        samples = dist.sample([size[0], size[1]], seed=seed)  # [size[0], size[1], size of a]
+        samples = dist.sample([size[0], size[1]], seed=seed)  # [size[0], size[1], size of a] --> [size[0], size[1], K/dout]
     else:
         raise ValueError
     return samples
