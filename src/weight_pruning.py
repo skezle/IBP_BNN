@@ -102,6 +102,8 @@ def prune_weights(model, X_test, Y_test, bsize, task_id, xs, stamps, finetune=Fa
         elif re.match("^([wb])(_sigma_h_)([0-9]+)(:0)$", v.name):
             sigmas_h.append(v)
         else:
+            # will get the weights which are not variational params from the parent class
+            # and will get the beta params unmatched too.
             print("Un-matched: {}".format(v.name))
 
     if stamps is not None:
@@ -231,11 +233,11 @@ if __name__ == '__main__':
     ###########
 
     # IBP params
-    alpha0 = 6.2
+    alpha0 = 4.2 # 6.2
     beta0 = 1.0
-    lambda_1 = 2.0  # posterior
-    lambda_2 = 1.5  # prior
-    alpha = 5
+    lambda_1 = 0.7 # 2.0  # posterior
+    lambda_2 = 0.7 # 1.5  # prior
+    alpha = 4 # 5
     # Gaussian params
     prior_mean = 0.0
     prior_var = 0.7
@@ -247,11 +249,11 @@ if __name__ == '__main__':
     #################
     ## Finetuneing ##
     #################
-    fixed_IBP_sample = True
+    fixed_IBP_sample = True if args.finetune else False
 
     if not args.no_ibp:
         for i in range(args.runs):
-            for j in range(1, num_layers):
+            for j in range(num_layers):
                 tf.compat.v1.set_random_seed(seeds[i])
                 data_gen = MnistGenerator(fmnist=True if args.dataset == 'fmnist' else False)
                 single_head=True
@@ -277,7 +279,7 @@ if __name__ == '__main__':
                 mf_weights = ml_model.get_weights()
                 mf_variances = None
                 mf_betas = None
-                stamps = stamp = {0: [0]*(j+1)}
+                stamps = {0: [0]*len(hidden_size)}
                 ml_model.close_session()
 
                 if args.hibp:
@@ -337,13 +339,10 @@ if __name__ == '__main__':
                 if args.finetune:
                     _, stamps_finetune = model.prediction_Zs(x_train, None, task_id, cut_off=0.5)
                     print("stamps finetune: {}".format(stamps_finetune))
-                    ya_ibp, yb_ibp = prune_weights(model, x_test, y_test, bsize, head, xs, stamps, args.finetune, stamps_finetune)
+                    ya_ibp, yb_ibp = prune_weights(model, x_test, y_test, bsize, head, xs, stamps, finetune=False, stamps_finetune=stamps_finetune)
                     ya_ibp_all_before_ft[i, j, :] = ya_ibp
                     yb_ibp_all_before_ft[i, j, :] = yb_ibp
-                    if stamps is not None:
-                        acc, _ = model.prediction_acc(x_test, y_test, bsize, task_id, stamps[task_id], args.finetune, stamps_finetune)
-                    else:
-                        acc, _ = model.prediction_acc(x_test, y_test, bsize, task_id)
+                    acc, _ = model.prediction_acc(x_test, y_test, bsize, task_id, stamps[task_id], finetune=False, stamps_finetune=stamps_finetune)
                     print("Acc before funetuning: {}".format(acc))
                     # Need to reset the finetuning variables
                     if fixed_IBP_sample:
@@ -355,6 +354,7 @@ if __name__ == '__main__':
                                 finetune=True, stamps_finetune=stamps_finetune, original_no_epochs=no_epochs)
                 else:
                     stamps_finetune = None
+
                 ya_ibp, yb_ibp = prune_weights(model, x_test, y_test, bsize, head, xs, stamps, args.finetune, stamps_finetune)
                 ya_ibp_all[i, j, :] = ya_ibp
                 yb_ibp_all[i, j, :] = yb_ibp
