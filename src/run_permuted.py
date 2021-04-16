@@ -79,6 +79,7 @@ if __name__ == "__main__":
     parser.add_argument('--runs', action='store', dest='runs', default=1, type=int, help='Number runs to perform.')
     parser.add_argument('--num_tasks', action='store', dest='num_tasks', default=5, type=int, help='Number permutations/tasks to perform.')
     parser.add_argument('--new_tag', action='store', dest='new_tag', default='', help='New tag to use to store pickle file if we are reloading a chackpoint with the tag arg.')
+    parser.add_argument('--alpha0', action='store', dest='alpha0', default=5, type=int, help='Beta alpha.')
     args = parser.parse_args()
 
     print('cl2                  = {!r}'.format(args.cl2))
@@ -94,6 +95,7 @@ if __name__ == "__main__":
     print('no_ibp               = {!r}'.format(args.no_ibp))
     print('runs                 = {!r}'.format(args.runs))
     print('num_tasks            = {!r}'.format(args.num_tasks))
+    print('alpha0               = {!r}'.format(args.alpha0))
 
     seeds = list(range(1, 1 + args.runs))
     num_tasks = args.num_tasks
@@ -105,7 +107,7 @@ if __name__ == "__main__":
     baseline_uncerts = {h: [] for h in args.h_list}
     all_Zs, all_uncerts, time_stamps = [], [], []
 
-    alpha0 = 5.0
+    alpha0 = args.alpha0
     beta0 = 1.0
     lambda_1 = 1.0
     lambda_2 = 1.0
