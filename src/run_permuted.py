@@ -79,7 +79,7 @@ if __name__ == "__main__":
     parser.add_argument('--runs', action='store', dest='runs', default=1, type=int, help='Number runs to perform.')
     parser.add_argument('--num_tasks', action='store', dest='num_tasks', default=5, type=int, help='Number permutations/tasks to perform.')
     parser.add_argument('--new_tag', action='store', dest='new_tag', default='', help='New tag to use to store pickle file if we are reloading a chackpoint with the tag arg.')
-    parser.add_argument('--alpha0', action='store', dest='alpha0', default=5, type=int, help='Beta alpha.')
+    parser.add_argument('--alpha0', action='store', dest='alpha0', default=5.0, type=float, help='Beta alpha.')
     args = parser.parse_args()
 
     print('cl2                  = {!r}'.format(args.cl2))
