@@ -111,7 +111,7 @@ if __name__ == "__main__":
     beta0 = 1.0
     lambda_1 = 1.0
     lambda_2 = 1.0
-    alpha = 4.0
+    alpha = [4.0]
 
     hidden_size = [args.K] * args.num_layers
     batch_size = 128
@@ -133,7 +133,7 @@ if __name__ == "__main__":
             name = "ibp_{0}_run{1}_{2}".format("perm", i + 1, args.tag)
             # Z matrix for each task is output
             # This is overwritten for each run
-            ibp_acc, Zs, uncerts, stamp = run_vcl_ibp(hidden_size=hidden_size, alpha=[alpha]*len(hidden_size),
+            ibp_acc, Zs, uncerts, stamp = run_vcl_ibp(hidden_size=hidden_size, alpha=alpha,
                                                no_epochs=[no_epochs]*num_tasks,
                                                data_gen=data_gen, coreset_method=coreset_method,
                                                coreset_size=coreset_size, name=name, val=val, batch_size=batch_size,
