@@ -221,7 +221,7 @@ if __name__ == '__main__':
     print('finetune               = {!r}'.format(args.finetune))
 
     hidden_size = 200
-    num_layers = 4
+    layers = [2]
     batch_size = 512
     no_epochs = 200
     seeds = [1, 2, 3, 4, 5]
@@ -242,9 +242,9 @@ if __name__ == '__main__':
     prior_mean = 0.0
     prior_var = 0.7
     val = False
-    ya_ibp_all, yb_ibp_all = np.zeros((args.runs, num_layers, len(xs))), np.zeros((args.runs, num_layers, len(xs)))
-    ya_all, yb_all = np.zeros((args.runs, num_layers, len(xs))), np.zeros((args.runs, num_layers, len(xs)))
-    ya_ibp_all_before_ft, yb_ibp_all_before_ft = np.zeros((args.runs, num_layers, len(xs))), np.zeros((args.runs, num_layers, len(xs)))
+    ya_ibp_all, yb_ibp_all = np.zeros((args.runs, len(layers), len(xs))), np.zeros((args.runs, len(layers), len(xs)))
+    ya_all, yb_all = np.zeros((args.runs, len(layers), len(xs))), np.zeros((args.runs, len(layers), len(xs)))
+    ya_ibp_all_before_ft, yb_ibp_all_before_ft = np.zeros((args.runs, len(layers), len(xs))), np.zeros((args.runs, len(layers), len(xs)))
 
     #################
     ## Finetuneing ##
@@ -253,7 +253,7 @@ if __name__ == '__main__':
 
     if not args.no_ibp:
         for i in range(args.runs):
-            for j in range(num_layers):
+            for j in layers:
                 tf.compat.v1.set_random_seed(seeds[i])
                 data_gen = MnistGenerator(fmnist=True if args.dataset == 'fmnist' else False)
                 single_head=True
@@ -366,7 +366,7 @@ if __name__ == '__main__':
     ##########
     if args.run_baselines:
         for i in range(args.runs):
-            for j in range(num_layers):
+            for j in layers:
                 tf.compat.v1.set_random_seed(seeds[i])
                 np.random.seed(1)
                 data_gen = MnistGenerator()
