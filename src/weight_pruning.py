@@ -274,18 +274,18 @@ if __name__ == '__main__':
                 bsize = x_train.shape[0] if (batch_size is None) else batch_size
 
                 # Train network with maximum likelihood to initialize first model
-                ml_model = Vanilla_NN(in_dim, [hidden_size]*(j+1), out_dim, x_train.shape[0])
+                ml_model = Vanilla_NN(in_dim, [hidden_size]*j, out_dim, x_train.shape[0])
                 ml_model.train(x_train, y_train, task_id, 100, bsize)
                 mf_weights = ml_model.get_weights()
                 mf_variances = None
                 mf_betas = None
-                stamps = {0: [0]*(j+1)}
+                stamps = {0: [0]*j}
                 ml_model.close_session()
 
                 if args.hibp:
                     model = HIBP_BNN(alpha=alpha,
                                      input_size=in_dim,
-                                     hidden_size=[hidden_size]*(j+1),
+                                     hidden_size=[hidden_size]*j,
                                      output_size=out_dim,
                                      training_size=x_train.shape[0],
                                      no_pred_samples=100,
@@ -300,13 +300,13 @@ if __name__ == '__main__':
                                      alpha0=alpha0, beta0=beta0,
                                      lambda_1=lambda_1, lambda_2=lambda_2,
                                      tensorboard_dir=args.log_dir,
-                                     name='hibp_wp_{0}_l{1}_run{2}'.format(args.tag, j+1, i),
+                                     name='hibp_wp_{0}_l{1}_run{2}'.format(args.tag, j, i),
                                      tb_logging=True,
                                      tb_debug=True,
                                      use_local_reparam=True,
                                      implicit_beta=True)
                 else:
-                    model = IBP_BNN(in_dim, [hidden_size]*(j+1), out_dim,
+                    model = IBP_BNN(in_dim, [hidden_size]*j, out_dim,
                                     x_train.shape[0],
                                     no_pred_samples=100,
                                     num_ibp_samples=10,
@@ -322,7 +322,7 @@ if __name__ == '__main__':
                                     tensorboard_dir=args.log_dir,
                                     tb_logging=True,
                                     tb_debug=True,
-                                    name='ibp_wp_{0}_l{1}_run{2}'.format(args.tag, j+1, i),
+                                    name='ibp_wp_{0}_l{1}_run{2}'.format(args.tag, j, i),
                                     use_local_reparam=True,
                                     implicit_beta=True,
                                     fixed_IBP_sample=fixed_IBP_sample,
@@ -386,19 +386,19 @@ if __name__ == '__main__':
 
                 # Train network with maximum likelihood to initialize first model
                 if task_id == 0:
-                    ml_model = Vanilla_NN(in_dim, [hidden_size]*(j+1), out_dim, x_train.shape[0])
+                    ml_model = Vanilla_NN(in_dim, [hidden_size]*j, out_dim, x_train.shape[0])
                     ml_model.train(x_train, y_train, task_id, 100, bsize)
                     mf_weights = ml_model.get_weights()
                     mf_variances = None
                     stamps = None
                     ml_model.close_session()
 
-                mf_model = MFVI_NN(in_dim, [hidden_size]*(j+1), out_dim,
+                mf_model = MFVI_NN(in_dim, [hidden_size]*j, out_dim,
                                    x_train.shape[0], no_train_samples=10, no_pred_samples=100,
                                    prev_means=mf_weights, prev_log_variances=mf_variances,
                                    learning_rate=0.001, learning_rate_decay=0.50,
                                    prior_mean=prior_mean, prior_var=prior_var,
-                                   name='vcl_{0}_l{1}_run{2}'.format(args.tag, j+1, i),
+                                   name='vcl_{0}_l{1}_run{2}'.format(args.tag, j, i),
                                    use_local_reparam=False)
 
                 if os.path.isdir(mf_model.log_folder):
