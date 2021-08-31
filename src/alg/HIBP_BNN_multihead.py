@@ -16,7 +16,7 @@ class HIBP_BNN(IBP_BNN):
                  prior_mean=0, prior_var=1, alpha0=5., beta0=1., lambda_1=1., lambda_2=1.,
                  tensorboard_dir='logs', name='ibp', tb_logging=True, tb_debug=False,
                  beta_1=1.0, beta_2=1.0, beta_3=1.0, use_local_reparam=True, implicit_beta=True,
-                 clip_grads=False):
+                 fixed_IBP_sample=False, fixed_IBP_params=False, clip_grads=False):
 
         self.init__ = super(HIBP_BNN, self).__init__(input_size=input_size, hidden_size=hidden_size,
                                                      output_size=output_size, training_size=training_size,
@@ -29,7 +29,8 @@ class HIBP_BNN(IBP_BNN):
                                                      lambda_2=lambda_2, tensorboard_dir=tensorboard_dir, name=name,
                                                      tb_logging=tb_logging, tb_debug=tb_debug, beta_1=beta_1,
                                                      beta_2=beta_2, beta_3=beta_3, use_local_reparam=use_local_reparam,
-                                                     implicit_beta=implicit_beta, clip_grads=clip_grads)
+                                                     implicit_beta=implicit_beta, clip_grads=clip_grads,
+                                                     fixed_IBP_sample=fixed_IBP_sample, fixed_IBP_params=fixed_IBP_params)
         self.alpha = alpha # hyper-param for each child IBP
 
     def create_model(self):
@@ -49,13 +50,15 @@ class HIBP_BNN(IBP_BNN):
         self.prior_W_m, self.prior_b_m, self.prior_W_last_m, self.prior_b_last_m = m[0], m[1], m[2], m[3]
         self.prior_W_v, self.prior_b_v, self.prior_W_last_v, self.prior_b_last_v = v[0], v[1], v[2], v[3]
 
-        betas = self.create_prior_betas(self.prev_betas, self.hidden_size)
-        self.prior_gbeta_a, self.prior_gbeta_b = betas[0], betas[1]
+        betas_p = self.create_prior_betas(self.prev_betas, self.hidden_size)
+        self.prior_gbeta_a, self.prior_gbeta_b = betas_p[0], betas_p[1]
+
+        if self.fixed_IBP_sample or self.fixed_IBP_params:
+            self.fix_Z()
 
         self.pred, prior_log_pis_bern, log_pis_bern, z_log_sample = self._prediction(self.x, self.task_idx, self.no_pred_samples)
 
-        self.kl = tf.div(self._KL_term(self.num_ibp_samples, prior_log_pis_bern, log_pis_bern, z_log_sample),
-                         self.training_size)
+        self.kl = self._KL_term(self.num_ibp_samples, prior_log_pis_bern, log_pis_bern, z_log_sample) / self.training_size
         self.ll = self._logpred(self.x, self.y, self.task_idx)
         self.cost = self.kl - self.ll
         self.acc = self._accuracy(self.x, self.y, self.task_idx)
@@ -68,6 +71,22 @@ class HIBP_BNN(IBP_BNN):
             self.create_summaries()
 
         self.assign_session()
+
+    def fix_Z(self):
+        # H-IBP
+        self.fixed_Z_finetuneing = []
+        for i in range(self.no_layers - 1):
+            # H-IBP
+            dout = self.size[i+1]
+            prior_log_pi = child_stick_breaking_probs(tf.reduce_mean(tf.exp(self.prior_global_log_pi), 0),
+                                                      alpha, size=(no_samples_ibp, batch_size, dout))
+            prior_log_pis.append(prior_log_pi)
+            self.log_pi = child_stick_breaking_probs(tf.reduce_mean(tf.exp(self.global_log_pi), 0),
+                                                     alpha, size=(
+                no_samples_ibp, batch_size, dout))  # (no_samples, batch_size, dout)
+            log_pis.append(self.log_pi)
+            # Concrete reparam
+            z_log_sample = reparameterize_discrete(self.log_pi, self.lambda_1, size=(no_samples_ibp, batch_size, dout))
 
     def assign_optimizer(self, learning_rate=0.001):
         #self.train_step = tf.compat.v1.train.AdamOptimizer(learning_rate).minimize(self.cost)
@@ -93,6 +112,21 @@ class HIBP_BNN(IBP_BNN):
             _grads, _ = tf.clip_by_global_norm(grads, 10.0)
             gradients = zip(_grads, variables)
         self.train_step = optim.apply_gradients(grads_and_vars=gradients, global_step=global_step)
+
+    def _samples_ibp(self, z_log_sample):
+        z_discrete = tf.expand_dims(tf.reduce_mean(tf.sigmoid(z_log_sample), axis=0), 0)  # (no_samples_ibp, batch_size, dout) --> (1, batch_size, dout)
+        return z_discrete
+
+    def fine_tune(self, batch_size, dout, layer):
+        if self.fixed_IBP_sample or self.fixed_IBP_params:
+            z_discrete = self.fixed_Z_finetuning[layer] # sampling a new Z for the entire batch from the IBP and not allowing the IBP params to change with stop_gradients()
+            z_discrete = tf.tile(z_discrete, [1, batch_size, 1])  # [1, 1, d] --> [1, batch, d]
+        else:
+            # Doesn't produce good results
+            stamp = self.stamps[layer]
+            z_discrete = tf.concat([tf.ones([1, batch_size, stamp]),
+                                    tf.zeros([1, batch_size, dout - stamp])], 2)  # mask = tf.concat([tf.zeros([1, 1, stamp]), tf.ones([1, 1, dout - stamp])], 2) with stamp_idx = task_idx also works
+        return z_discrete
 
     # this samples a layer at a time
     def _prediction_layer(self, inputs, task_idx, no_samples):
@@ -129,8 +163,8 @@ class HIBP_BNN(IBP_BNN):
             alpha = self.alpha
             din = self.size[i]
             dout = self.size[i + 1]
-            eps_w = tf.random_normal((no_samples, din, dout), 0, 1, dtype=tf.float32)
-            eps_b = tf.random_normal((no_samples, 1, dout), 0, 1, dtype=tf.float32)
+            eps_w = tf.random.normal((no_samples, din, dout), 0, 1, dtype=tf.float32)
+            eps_b = tf.random.normal((no_samples, 1, dout), 0, 1, dtype=tf.float32)
 
             # Gaussian re-parameterization
             _weights = tf.add(tf.multiply(eps_w, tf.exp(0.5 * self.W_v[i])), self.W_m[i]) # in [K, in, out]
@@ -138,14 +172,18 @@ class HIBP_BNN(IBP_BNN):
 
             # H-IBP
             prior_log_pi = child_stick_breaking_probs(tf.reduce_mean(tf.exp(self.prior_global_log_pi), 0),
-                                                      alpha, size=(no_samples_ibp, batch_size, dout))
+                                                      self.alpha, size=(no_samples_ibp, batch_size, dout))
             prior_log_pis.append(prior_log_pi)
             self.log_pi = child_stick_breaking_probs(tf.reduce_mean(tf.exp(self.global_log_pi), 0),
-                                                     alpha, size=(no_samples_ibp, batch_size, dout)) # (no_samples, batch_size, dout)
+                                                     self.alpha, size=(no_samples_ibp, batch_size, dout)) # (no_samples, batch_size, dout)
             log_pis.append(self.log_pi)
             # Concrete reparam
             z_log_sample = reparameterize_discrete(self.log_pi, self.lambda_1, size=(no_samples_ibp, batch_size, dout))
-            z_discrete = tf.expand_dims(tf.reduce_mean(tf.sigmoid(z_log_sample), axis=0), 0)# (no_samples_ibp, batch_size, dout) --> (1, batch_size, dout)
+
+            # Fine-tuning
+            z_discrete = tf.cond(self.finetune, true_fn=lambda: self.fine_tune(batch_size, dout, i),
+                                                false_fn=lambda: self._samples_ibp(z_log_sample))
+            #z_discrete = tf.expand_dims(tf.reduce_mean(tf.sigmoid(z_log_sample), axis=0), 0)# (no_samples_ibp, batch_size, dout) --> (1, batch_size, dout)
 
             self.Z.append(z_discrete)
             self.vars += [tf.exp(0.5 * self.W_v[i]), tf.exp(0.5 * self.b_v[i])]
@@ -160,14 +198,14 @@ class HIBP_BNN(IBP_BNN):
             m_h = m_h + self.b_m[i]
             v_h = tf.einsum('mni,io->mno', tf.square(act_local), tf.exp(self.W_v[i])) # e^0.5 x ** 2 = e^x
             v_h = v_h + tf.exp(self.b_v[i])
-            eps = tf.random_normal([no_samples, 1, dout], 0.0, 1.0, dtype=tf.float32)
+            eps = tf.random.normal([no_samples, 1, dout], 0.0, 1.0, dtype=tf.float32)
             pre_local = m_h + tf.sqrt(v_h + 1e-9) * eps
             act_local = tf.multiply(tf.nn.relu(pre_local), z_discrete)  # shape (K, batch_size (None, ?), out)
 
         din = self.size[-2]
         dout = self.size[-1]
-        eps_w = tf.random_normal((no_samples, din, dout), 0, 1, dtype=tf.float32)
-        eps_b = tf.random_normal((no_samples, 1, dout), 0, 1, dtype=tf.float32)
+        eps_w = tf.random.normal((no_samples, din, dout), 0, 1, dtype=tf.float32)
+        eps_b = tf.random.normal((no_samples, 1, dout), 0, 1, dtype=tf.float32)
 
         Wtask_m = tf.gather(self.W_last_m, task_idx)
         Wtask_v = tf.gather(self.W_last_v, task_idx)
@@ -200,12 +238,12 @@ class HIBP_BNN(IBP_BNN):
         #m_h = tf.einsum('mni,io->mno', act_local, Wtask_m)
         self.m_h = tf.reduce_sum(tf.multiply(tf.expand_dims(act_local, 3),
                                         tf.expand_dims(tf.expand_dims(Wtask_m, 0), 0)), 2)
-        m_h = self.m_h + btask_m
+        self.m_h = self.m_h + btask_m
         #v_h = tf.einsum('mni,io->mno', tf.square(act_local), tf.exp(Wtask_v))
         self.v_h = tf.reduce_sum(tf.multiply(tf.expand_dims(tf.square(act_local), 3),
                                         tf.expand_dims(tf.expand_dims(tf.exp(Wtask_v), 0), 0)), 2)
-        v_h = self.v_h + tf.exp(btask_v)
-        eps = tf.random_normal((no_samples, 1, dout), 0.0, 1.0, dtype=tf.float32)
+        self.v_h = self.v_h + tf.exp(btask_v)
+        eps = tf.random.normal((no_samples, 1, dout), 0.0, 1.0, dtype=tf.float32)
         pre_local = self.m_h + tf.sqrt(self.v_h + 1e-9) * eps
         pre_local = tf.reshape(pre_local, [no_samples, batch_size, dout])
         return pre, pre_local, prior_log_pis, log_pis, log_z_sample
