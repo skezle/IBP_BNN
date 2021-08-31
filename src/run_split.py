@@ -146,7 +146,6 @@ class SplitMnistImagesGenerator(SplitMnistGenerator):
         self.max_iter = len(self.sets_0)
         self.cur_iter = 0
 
-
 class SplitMnistRandomGenerator(SplitMnistGenerator):
     """ Thanks https://sites.google.com/a/lisa.iro.umontreal.ca/public_static_twiki/variations-on-the-mnist-digits
 
