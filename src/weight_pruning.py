@@ -279,7 +279,7 @@ if __name__ == '__main__':
                 mf_weights = ml_model.get_weights()
                 mf_variances = None
                 mf_betas = None
-                stamps = {0: [0]*len(hidden_size)}
+                stamps = {0: [0]*(j+1)}
                 ml_model.close_session()
 
                 if args.hibp:
