@@ -363,7 +363,6 @@ if __name__ == "__main__":
     parser.add_argument('--run_baselines', action='store_true', default=False, dest='run_baselines', help='Whether to run the baselines.')
     parser.add_argument('--no_ibp', action='store_true', default=False, dest='no_ibp', help='Whether not to run ibp.')
     parser.add_argument('--h', nargs='+', dest='h_list', type=int, default=[5, 50], help='List of hidden states')
-    parser.add_argument('--beta_1', nargs='+', dest='beta_1', type=int, default=1, help='List KL gauss coefficients.')
     parser.add_argument('--K', action='store', dest='K', default=100, type=int, help='Variational truncation param for IBP.')
     parser.add_argument('--alpha',  nargs='+', dest='alpha', type=int, default=[4], help='H-IBP hyperparam.')
     parser.add_argument('--optimism', action='store_true', default=False, dest='optimism', help='Whether to use optimism in the face of uncertainty when infering task head for CL2 and CL3.')
@@ -392,7 +391,6 @@ if __name__ == "__main__":
     print('new_tag              = {!r}'.format(args.new_tag))
     print('alpha                = {!r}'.format(args.alpha))
     print('no_ibp               = {!r}'.format(args.no_ibp))
-    print('beta_1               = {!r}'.format(args.beta_1))
     print('optimism             = {!r}'.format(args.optimism))
     print('mutual_info          = {!r}'.format(args.mutual_info))
     print('use_uncert           = {!r}'.format(args.use_uncert))
@@ -472,7 +470,7 @@ if __name__ == "__main__":
                                          learning_rate=[0.001]*num_tasks,
                                          no_pred_samples=no_pred_samples, ibp_samples=ibp_samples, log_dir=args.log_dir,
                                          use_local_reparam=args.use_local_reparam,
-                                         implicit_beta=True, hibp=args.hibp, beta_1=args.beta_1,
+                                         implicit_beta=True, hibp=args.hibp,
                                          optimism=args.optimism, pred_ent=False if args.mutual_info else True,
                                          use_uncert=args.use_uncert, batch_size_entropy=batch_size_entropy,
                                          ts_stop_gradients=args.ts_stop_gradients, ts=args.ts,
