@@ -7,7 +7,7 @@ Structured VI of the IBP and H-IBP approximate posteriors is performed and loose
 
 # Requirements
 
-The requirements for a conda environments are listed in [requirements.txt](requirements.txt), together with setup instructions.
+The requirements for a conda environments are listed in [requirements.txt](requirements.txt), together with setup instructions. The key package is Tensorflow 1.14.
 
 # Data
 
@@ -35,7 +35,7 @@ For the permuted MNIST experiments, from the `src` directory run:
 
 For a the weight pruning experiment, from the `src` directory run:
 
-`python hibp_weight_pruning.py --run_baselines --hibp --tag=hibp_wp > hibp_wp.log`
+`python weight_pruning.py --run_baselines --hibp --tag=hibp_wp > hibp_wp.log`
 
 ## Split MNIST and Variants
 
