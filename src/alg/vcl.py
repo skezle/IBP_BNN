@@ -86,7 +86,7 @@ def run_vcl_ibp(hidden_size, alpha, no_epochs, data_gen,
                 no_pred_samples=100, ibp_samples = 10,
                 log_dir='logs', tb_logging=True,
                 use_local_reparam=False, implicit_beta=True,
-                hibp=False, beta_1=1.0, beta_2=1.0, beta_3=1.0,
+                hibp=False,
                 optimism=True, pred_ent=True, use_uncert=False, batch_size_entropy=None,
                 ts_stop_gradients=False, ts=False, ts_cutoff=0.5, seed=100):
 
@@ -131,11 +131,6 @@ def run_vcl_ibp(hidden_size, alpha, no_epochs, data_gen,
         head = 0 if single_head else task_id
         bsize = x_train.shape[0] if (batch_size is None) else batch_size
 
-        if isinstance(beta_1, list):
-            b1 = beta_1[task_id]
-        else:
-            b1 = beta_1
-
         if isinstance(no_epochs, list):
             n = no_epochs[task_id]
         else:
@@ -179,8 +174,7 @@ def run_vcl_ibp(hidden_size, alpha, no_epochs, data_gen,
                              tb_logging=tb_logging,
                              name='{0}_task{1}'.format(name, task_id + 1),
                              use_local_reparam=use_local_reparam,
-                             implicit_beta=implicit_beta,
-                             beta_1=b1, beta_2=beta_2, beta_3=beta_3)
+                             implicit_beta=implicit_beta)
         else:
             model = IBP_BNN(in_dim, hidden_size, out_dim, x_train.shape[0], num_ibp_samples=ibp_samples,
                             prev_means=mf_weights,
@@ -196,7 +190,6 @@ def run_vcl_ibp(hidden_size, alpha, no_epochs, data_gen,
                             name='{0}_task{1}'.format(name, task_id + 1),
                             use_local_reparam=use_local_reparam,
                             implicit_beta=implicit_beta,
-                            beta_1=b1, beta_2=beta_2, beta_3=beta_3,
                             ts_stop_gradients=ts_stop_gradients, ts=ts,
                             seed=seed)
 
@@ -206,7 +199,7 @@ def run_vcl_ibp(hidden_size, alpha, no_epochs, data_gen,
                  prior_mean=prior_mean, prior_var=prior_var, lambda_1=lambda_1, lambda_2=lambda_2 if task_id == 0 else lambda_1,
                  no_pred_samples=no_pred_samples, log_dir=log_dir, tb_logging=tb_logging,
                  name='{0}_task{1}'.format(name, task_id + 1), use_local_reparam=use_local_reparam,
-                 implicit_beta=implicit_beta, b1=b1, beta_2=beta_2, beta_3=beta_3)
+                 implicit_beta=implicit_beta)
 
         model.create_model()
         if os.path.isdir(model.log_folder):
