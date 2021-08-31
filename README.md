@@ -7,7 +7,7 @@ Structured VI of the IBP and H-IBP approximate posteriors is performed and loose
 
 # Requirements
 
-The requirements for a conda environments are listed in [requirements.txt](requirements.txt), together with setup instructions.
+The requirements for a conda environments are listed in [requirements.txt](requirements.txt), together with setup instructions. The key package is Tensorflow 1.14.
 
 # Data
 
