@@ -35,7 +35,7 @@ For the permuted MNIST experiments, from the `src` directory run:
 
 For a the weight pruning experiment, from the `src` directory run:
 
-`python hibp_weight_pruning.py --run_baselines --hibp --tag=hibp_wp > hibp_wp.log`
+`python weight_pruning.py --run_baselines --hibp --tag=hibp_wp > hibp_wp.log`
 
 ## Split MNIST and Variants
 
