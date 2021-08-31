@@ -80,3 +80,5 @@ src/data_new/
 *.amat
 *.zip
 src/debug.ipynb
+paper/
+ddm/data/
