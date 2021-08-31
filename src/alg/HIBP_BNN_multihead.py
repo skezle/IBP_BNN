@@ -15,7 +15,7 @@ class HIBP_BNN(IBP_BNN):
                  prev_betas=None, stamp=dict(), learning_rate=0.001, learning_rate_decay=0.87,
                  prior_mean=0, prior_var=1, alpha0=5., beta0=1., lambda_1=1., lambda_2=1.,
                  tensorboard_dir='logs', name='ibp', tb_logging=True, tb_debug=False,
-                 beta_1=1.0, beta_2=1.0, beta_3=1.0, use_local_reparam=True, implicit_beta=True,
+                 use_local_reparam=True, implicit_beta=True,
                  fixed_IBP_sample=False, fixed_IBP_params=False, clip_grads=False):
 
         self.init__ = super(HIBP_BNN, self).__init__(input_size=input_size, hidden_size=hidden_size,
@@ -27,8 +27,7 @@ class HIBP_BNN(IBP_BNN):
                                                      learning_rate_decay=learning_rate_decay, prior_mean=prior_mean,
                                                      prior_var=prior_var, alpha0=alpha0, beta0=beta0, lambda_1=lambda_1,
                                                      lambda_2=lambda_2, tensorboard_dir=tensorboard_dir, name=name,
-                                                     tb_logging=tb_logging, tb_debug=tb_debug, beta_1=beta_1,
-                                                     beta_2=beta_2, beta_3=beta_3, use_local_reparam=use_local_reparam,
+                                                     tb_logging=tb_logging, tb_debug=tb_debug, use_local_reparam=use_local_reparam,
                                                      implicit_beta=implicit_beta, clip_grads=clip_grads,
                                                      fixed_IBP_sample=fixed_IBP_sample, fixed_IBP_params=fixed_IBP_params)
         self.alpha = alpha # hyper-param for each child IBP

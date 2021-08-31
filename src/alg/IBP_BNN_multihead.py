@@ -18,7 +18,7 @@ class IBP_BNN(Cla_NN):
                  prev_betas=None, stamp=None, learning_rate=0.001, learning_rate_decay=0.87,
                  prior_mean=0, prior_var=1, alpha0=5.0, beta0=1.0, lambda_1=1.0, lambda_2=1.0,
                  tensorboard_dir='logs', name='ibp', tb_logging=True, tb_debug=False,
-                 beta_1=1.0, beta_2=1.0, beta_3=1.0, use_local_reparam=False, implicit_beta=True,
+                 use_local_reparam=False, implicit_beta=True,
                  clip_grads=False, ts_stop_gradients=False, ts=False, fixed_IBP_sample=False, fixed_IBP_params=False,
                  seed=100):
 
@@ -37,9 +37,9 @@ class IBP_BNN(Cla_NN):
         self.num_ibp_samples = num_ibp_samples
         self.tb_logging = tb_logging
         self.tb_debug = tb_debug
-        self.beta_1 = beta_1
-        self.beta_2 = beta_2
-        self.beta_3 = beta_3
+        self.beta_1 = 1.0
+        self.beta_2 = 1.0
+        self.beta_3 = 1.0
         self.log_folder = os.path.join(self.tensorboard_dir, "graph_{}".format(self.name))
         self.use_local_reparam = use_local_reparam
         self.implicit_beta = implicit_beta
