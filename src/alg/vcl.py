@@ -69,7 +69,7 @@ def run_vcl(hidden_size, no_epochs, data_gen, coreset_method, coreset_size=0, ba
                          stamp, hparams, ibp=False, hibp=False)
         acc_ent, uncerts = get_scores_entropy(mf_model, x_testsets, y_testsets, x_coresets, y_coresets, single_head,
                                      stamp, hparams, ibp=False, hibp=False, batch_size=batch_size_entropy,
-                                     optimism=optimism, pred_ent=pred_ent, use_uncert=use_uncert)
+                                     pred_ent=pred_ent, use_uncert=use_uncert)
         all_acc = concatenate_results(acc, all_acc)
         all_acc_ent = concatenate_results(acc_ent, all_acc_ent)
         all_uncerts.append(uncerts)

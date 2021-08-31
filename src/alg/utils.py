@@ -244,7 +244,7 @@ def get_scores_entropy(model, x_testsets, y_testsets, x_coresets, y_coresets, si
                     u = predictive_entropy(final_model, x_test_batch, j, b, s) # differnet batch size
                 else:
                     u = mutual_information(final_model, x_test_batch, j, b, s)
-                obj = np.mean(u) - alpha*np.std(u)# Optimism,  Sharpe doesn't work
+                obj = np.mean(u) - alpha*np.std(u) # Optimism,  Sharpe doesn't work
                 uncerts_task.append(obj)
                 uncerts.append((np.mean(u), np.std(u)))
             head = np.argmin(uncerts_task)
