@@ -9,7 +9,7 @@ from HIBP_BNN_multihead import HIBP_BNN
 
 def run_vcl(hidden_size, no_epochs, data_gen, coreset_method, coreset_size=0, batch_size=None,
             single_head=True, task_inf=False, val=False, verbose=True, name='vcl', log_dir='logs',
-            use_local_reparam=False, optimism=True, pred_ent=True, use_uncert=False,
+            use_local_reparam=False, pred_ent=True, use_uncert=False,
             batch_size_entropy=None, ts_stop_gradients=False, ts=False, ts_cutoff=0.5, seed=100):
     assert not (single_head and task_inf), "Can't have both single head and task inference."
     x_testsets, y_testsets = [], []
@@ -87,7 +87,7 @@ def run_vcl_ibp(hidden_size, alpha, no_epochs, data_gen,
                 log_dir='logs', tb_logging=True,
                 use_local_reparam=False, implicit_beta=True,
                 hibp=False,
-                optimism=True, pred_ent=True, use_uncert=False, batch_size_entropy=None,
+                pred_ent=True, use_uncert=False, batch_size_entropy=None,
                 ts_stop_gradients=False, ts=False, ts_cutoff=0.5, seed=100):
 
     assert not (single_head and task_inf), "Can't have both single head and task inference at the same time."
@@ -221,22 +221,21 @@ def run_vcl_ibp(hidden_size, alpha, no_epochs, data_gen,
         if val and run_val_set:
             acc = get_scores(model, x_valsets, y_valsets, x_coresets, y_coresets, bsize, single_head, stamp,
                              hparams, ibp=not hibp, hibp=hibp)
-            acc_ent, uncerts = get_scores_entropy(model, x_valsets, y_valsets, x_coresets, y_coresets, single_head, stamp,
+            acc_ent, _ = get_scores_entropy(model, x_valsets, y_valsets, x_coresets, y_coresets, single_head, stamp,
                                          hparams, ibp=not hibp, hibp=hibp,
-                                         batch_size=batch_size_entropy, optimism=optimism, pred_ent=pred_ent,
+                                         batch_size=batch_size_entropy, pred_ent=pred_ent,
                                          use_uncert=use_uncert)
         else:
             acc = get_scores(model, x_testsets, y_testsets, x_coresets, y_coresets, bsize, single_head, stamp,
                              hparams, ibp=not hibp, hibp=hibp)
-            acc_ent, uncerts = get_scores_entropy(model, x_testsets, y_testsets, x_coresets, y_coresets, single_head, stamp,
+            acc_ent, _ = get_scores_entropy(model, x_testsets, y_testsets, x_coresets, y_coresets, single_head, stamp,
                                          hparams, ibp=not hibp, hibp=hibp,
-                                         batch_size=batch_size_entropy, optimism=optimism, pred_ent=pred_ent,
+                                         batch_size=batch_size_entropy, pred_ent=pred_ent,
                                          use_uncert=use_uncert)
         all_acc = concatenate_results(acc, all_acc)
         all_acc_ent = concatenate_results(acc_ent, all_acc_ent)
         Z, _ = model.prediction_Zs(x_test, bsize, task_id)
         Zs.append(Z)
-        all_uncerts.append(uncerts)
         model.close_session()
 
     Zs = [item for sublist in Zs for item in sublist]
