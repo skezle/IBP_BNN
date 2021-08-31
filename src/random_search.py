@@ -290,10 +290,6 @@ if __name__ == "__main__":
 
     hyper_param_choices_ranges = {'alpha0': [5, 25]}
 
-    if args.ts:
-        hyper_param_choices_grid['timestamping'] = [True, False]
-        hyper_param_choices_ranges['ts_cutoff'] = [0.2, 0.8]
-
     fixed_param_choices = {'ibp_samples': 10,
                            'no_pred_samples': 100,
                            'prior_mean': 0.0,
@@ -303,9 +299,14 @@ if __name__ == "__main__":
                            'learning_rate_decay': 1.0,
                            'prior_var': 0.7,
                            'no_epochs': 1000,
-                           'a_step': 1,
-                           'timestamping': args.ts,
-                           'ts_cutoff': args.ts_cutoff}
+                           'a_step': 1}
+
+    if args.ts:
+        hyper_param_choices_grid['timestamping'] = [True, False]
+        hyper_param_choices_ranges['ts_cutoff'] = [0.2, 0.8]
+    else:
+        fixed_param_choices['timestamping'] = args.ts
+        fixed_param_choices['ts_cutoff'] = args.ts_cutoff
 
     if args.hibp:
         hyper_param_choices_grid['a_start'] = [1, 2, 3, 4, 5]
