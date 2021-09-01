@@ -1,6 +1,6 @@
 # Hierarchical Indian Buffet Neural Networks for Continual Learning
 
-This code base runs the experiments in the ICML submission: Hierarchical Indian Buffet Neural Networks for Continual Learning.
+This code base runs the experiments for the UAI 2021 paper: Hierarchical Indian Buffet Neural Networks for Continual Learning.
 
 The Continual Learning (CL) framework is based from [VCL](https://github.com/nvcuong/variational-continual-learning/tree/master/ddm). 
 Structured VI of the IBP and H-IBP approximate posteriors is performed and loosely based off of [S-IBP VAE](https://github.com/rachtsingh/ibp_vae).
@@ -42,3 +42,14 @@ For a the weight pruning experiment, from the `src` directory run:
 For the split MNIST experiments on the background images variant, from the `src` directory run:
 
 `python run_split.py --num_layers=1 --dataset=images --run_baselines --h 5 50 100 --tag=ibp > split_ibp.log`
+
+# Citation
+
+```
+@article{kessler2019hierarchical,
+  title={Hierarchical indian buffet neural networks for bayesian continual learning},
+  author={Kessler, Samuel and Nguyen, Vu and Zohren, Stefan and Roberts, Stephen},
+  journal={arXiv preprint arXiv:1912.02290},
+  year={2019}
+}
+```
