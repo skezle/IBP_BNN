@@ -42,3 +42,16 @@ For a the weight pruning experiment, from the `src` directory run:
 For the split MNIST experiments on the background images variant, from the `src` directory run:
 
 `python run_split.py --num_layers=1 --dataset=images --run_baselines --h 5 50 100 --tag=ibp > split_ibp.log`
+
+# Citation
+
+If you use this repository do not forget to cite us.
+
+`
+@article{kessler2019hierarchical,
+  title={Hierarchical indian buffet neural networks for bayesian continual learning},
+  author={Kessler, Samuel and Nguyen, Vu and Zohren, Stefan and Roberts, Stephen},
+  journal={arXiv preprint arXiv:1912.02290},
+  year={2019}
+}
+`
